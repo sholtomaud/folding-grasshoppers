@@ -76,5 +76,30 @@ for bin in "$APP" "$PY_HOME/bin/python3.12"; do
   fi
 done
 
+# 5. One signing identity for all code. With Hardened Runtime, library
+#    validation refuses to load a library whose Team ID differs from the
+#    process's ("mapping process and mapped file (non-platform) have different
+#    Team IDs"), so a single file left with another signature breaks startup.
+team_of() {
+  local t
+  t="$(codesign -dv "$1" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+  printf '%s' "${t:-none}"
+}
+WANT_TEAM="$(team_of "$PY_HOME/bin/python3.12")"
+MISMATCH=0
+while IFS= read -r -d '' f; do
+  file -b "$f" | grep -q 'Mach-O' || continue
+  got="$(team_of "$f")"
+  if [ "$got" != "$WANT_TEAM" ]; then
+    printf '  %s: TeamIdentifier=%s (interpreter has %s)\n' "${f#$APP/}" "$got" "$WANT_TEAM"
+    MISMATCH=1
+  fi
+done < <(find "$APP" -type f -print0)
+if [ "$MISMATCH" -eq 0 ]; then
+  pass "every Mach-O has TeamIdentifier=$WANT_TEAM"
+else
+  fail "Mach-O files with a different TeamIdentifier (listed above); re-run scripts/sign.sh on this exact bundle"
+fi
+
 [ "$FAILED" -eq 0 ] && echo "All checks passed." || echo "Some checks FAILED."
 exit "$FAILED"

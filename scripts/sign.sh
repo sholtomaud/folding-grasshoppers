@@ -58,3 +58,21 @@ sign --entitlements "$APP_ENTITLEMENTS" "$APP"
 
 log "Verifying signature"
 codesign --verify --deep --strict --verbose=2 "$APP"
+
+# Library validation needs every library to share the interpreter's Team ID.
+team_of() {
+  local t
+  t="$(codesign -dv "$1" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+  printf '%s' "${t:-none}"
+}
+WANT_TEAM="$(team_of "$INTERPRETER")"
+BAD=0
+while IFS= read -r f; do
+  got="$(team_of "$f")"
+  if [ "$got" != "$WANT_TEAM" ]; then
+    printf 'error: %s has TeamIdentifier=%s, interpreter has %s\n' "${f#$APP/}" "$got" "$WANT_TEAM" >&2
+    BAD=1
+  fi
+done < "$LIST"
+[ "$BAD" -eq 0 ] || die "signing left mixed Team IDs; the engine would fail to load these libraries"
+log "All $((COUNT + 1)) runtime Mach-O files share TeamIdentifier=$WANT_TEAM"
