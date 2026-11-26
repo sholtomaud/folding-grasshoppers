@@ -197,6 +197,44 @@ What the assistant can do:
 - The old forms (Hello world and the cut-estimate calculator) are under
   **Design > Manual Tools** (⇧⌘T).
 
+### Save and open projects
+
+A **project** is a folder that holds everything about one design. Save one
+for each job, and one per concept when you want to show a client several
+options (for example `Acme Expo - Concept A`, `Acme Expo - Concept B`).
+
+- **File > Save Project** (⌘S) the first time asks for a name, then saves
+  into `~/Documents/CardboardCAD/Projects/<name>/`. You can pick another
+  folder in the dialog, as long as it is inside your home folder and empty.
+  After that, ⌘S saves into the same folder again.
+- **File > Save Project As…** (⇧⌘S) saves a copy under a new name: the
+  quickest way to start Concept B from Concept A.
+- **File > Open Project…** (⌘O): choose the project folder (or the
+  `project.json` inside it). The design, its parts, the sheets and the chat
+  come back exactly as saved, and you can carry on talking to the assistant.
+- **File > Show Project in Finder** opens the folder.
+- You can also ask the assistant: "save this as Acme Expo - Concept A".
+- The window title shows the project's name.
+
+What is in a project folder (example for a project called `Stool`):
+
+| Path inside `~/Documents/CardboardCAD/Projects/Stool/` | What |
+|---|---|
+| `project.json` | name, date, the steps that rebuild the design, and a summary (size, parts, sheets, cost) |
+| `chat.json` | the conversation with the Design Assistant |
+| `model/model.obj` | the 3D model in mm (opens in Rhino: **File > Import**) |
+| `parts/parts.json` | the flat parts and where they sit on the sheets |
+| `cut-files/Stool-sheet1.dxf`, `Stool-sheet1.svg`, … | cut files, one per sheet, layers CUT, SCORE, ETCH, LABEL |
+| `estimate/estimate.csv` | the cost estimate; opens in Numbers, Excel or Google Sheets |
+| `estimate/estimate.json` | the same, for other programs |
+| `preview/preview.png` | a picture of the 3D preview, as it was when you saved |
+| `preview/model.svg` | a drawing of the model (opens in any web browser) |
+
+Saving again rewrites these files and removes cut files for sheets that no
+longer exist. Anything else you put in the folder (sketches, logos, notes)
+is left alone. The folder is ordinary files, so it can live in a Google Drive
+or OneDrive folder inside your home folder, or be zipped and emailed.
+
 If the chat says *No Claude API key yet*, do step 2 again. If it says
 *Claude rejected the API key*, the key was mistyped or deleted in the console:
 make a new one and save it in Settings.
@@ -216,9 +254,10 @@ open /Applications/CardboardCAD.app
 ```
 
 `make app` rebuilds the bundled Python with the new engine code and then the
-app. To try this change before it is merged, replace `git checkout main` and
-`git pull` with `git checkout claude/project-thread-urn9yz` and
-`git pull origin claude/project-thread-urn9yz`.
+app. To try a change before it is merged, replace `git checkout main` and
+`git pull` with `git checkout <branch>` and `git pull origin <branch>`, for
+example `claude/project-thread-r4a2ee` for project saving and Rhino live
+sync.
 
 ## 4. Connect Grasshopper (Hops)
 
@@ -249,6 +288,8 @@ You need Rhino 8 for Mac. Hops ships with Rhino 8. If it is missing, type
 | `http://127.0.0.1:5001/nest` | P, W, H, G, E, R | P (placed), S, Cut, N, U |
 | `http://127.0.0.1:5001/unfold` | M (mesh), Tw, Ta, Fa | P (nets), Cut, Score, L, N |
 | `http://127.0.0.1:5001/export` | P, F (`dxf`/`svg`), N, D, W | Paths, Text |
+| `http://127.0.0.1:5001/live_design` | V (version from the live listener) | V, M, R3, Cut, Sc, Sh, L, P, S: the app's current design |
+| `http://127.0.0.1:5001/send_to_cardboardcad` | M (mesh), N (name), S (send) | V, S: sends a Rhino mesh to the app |
 
 Use your own port number if you changed it in Settings. Use `127.0.0.1`,
 not `localhost`: the engine listens on the IPv4 loopback address only.
@@ -281,6 +322,15 @@ output:
   sheets: one file per sheet, with the sheet outline.
 
 See [docs/GEOMETRY.md](docs/GEOMETRY.md) for every input and output.
+
+### See the app's design live in Rhino
+
+Grasshopper can show the design that is open in CardboardCAD and update
+whenever it changes (including while the Design Assistant works), and can
+send a Rhino mesh to the app. It takes a small listener script (copy it with
+**Design > Copy Rhino Live Listener Script**) plus the `/live_design` Hops
+component. Step by step: [docs/RHINO_LIVE_SYNC.md](docs/RHINO_LIVE_SYNC.md)
+(also **Design > Rhino Live Sync Help** in the app).
 
 ## 5. Hello world demo
 
@@ -354,6 +404,7 @@ path to jump there.
 | Claude API key | login Keychain, item `com.example.cardboardcad.claude` (Keychain Access.app) |
 | Assistant model and effort | same preferences file (`defaults read com.example.cardboardcad assistantModel`) |
 | Exported cut files | `~/Documents/CardboardCAD/` unless you name another folder |
+| Saved projects | `~/Documents/CardboardCAD/Projects/<project name>/` (see section 3, *Save and open projects*) |
 | Python inside the app | `/Applications/CardboardCAD.app/Contents/Resources/python/` |
 
 To uninstall, quit the app, drag `/Applications/CardboardCAD.app` to the
