@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Layer 1 local guardrail (sealed in proof-lock.json). CI is the real wall.
+# Enable once per clone: git config core.hooksPath .githooks
+echo "[verify] pre-commit: pytest + proof seal"
+exec "$(git rev-parse --show-toplevel)/scripts/verify.sh" --fast

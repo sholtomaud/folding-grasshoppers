@@ -1,0 +1,127 @@
+name: Verify
+
+# Test-first gate for humans and agents. Every PR must pass:
+#   engine      pytest + test floor (Linux)
+#   runtime     build_python_runtime.sh smoke test (Linux target)
+#   macos       Swift tests + floor, real arm64 runtime, app build with the
+#               runtime embedded, ad-hoc signing + bundle checks, and an
+#               end-to-end launch of the app (engine up, quit, watchdog)
+#   proof-gate  agentic-uplift tamper gate against the base branch's proof-lock.json
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.32"
+  UPLIFT_SHA: e2158d3a4e92de8e5c07e4bc2c80d82933cf6c17
+
+jobs:
+  engine:
+    name: Engine (pytest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        run: python3 -m pip install --user "uv==${UV_VERSION}"
+      - name: pytest
+        working-directory: engine
+        run: uv run --frozen pytest -q --junitxml=../build/pytest.xml
+      - name: Test floor
+        run: python3 scripts/ci/check_test_floors.py pytest build/pytest.xml
+      - name: requirements.lock matches uv.lock
+        working-directory: engine
+        run: |
+          uv export --frozen --format requirements-txt --no-dev --no-emit-project -o /tmp/requirements.lock
+          diff -u requirements.lock /tmp/requirements.lock
+
+  runtime-linux:
+    name: Runtime build (Linux smoke)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv
+        run: python3 -m pip install --user "uv==${UV_VERSION}"
+      - name: build_python_runtime.sh
+        run: TARGET=x86_64-unknown-linux-gnu scripts/build_python_runtime.sh
+
+  macos:
+    name: macOS (Swift tests, runtime, app)
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          python3 -m pip install --user --break-system-packages "uv==${UV_VERSION}" || python3 -m pip install --user "uv==${UV_VERSION}"
+          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+
+      - name: Swift tests (CardboardCADKit)
+        working-directory: app/CardboardCADKit
+        run: |
+          mkdir -p ../../build
+          swift test --parallel --xunit-output ../../build/swift-xunit.xml
+      - name: Swift test floor
+        if: always()
+        run: python3 scripts/ci/check_test_floors.py swift build/swift-xunit.xml
+
+      - name: Build Python runtime (aarch64-apple-darwin)
+        run: scripts/build_python_runtime.sh
+
+      - name: Build app and embed runtime (unsigned)
+        run: scripts/build_app.sh
+
+      - name: Ad-hoc sign + bundle checks
+        run: |
+          SIGN_IDENTITY=- scripts/sign.sh
+          LOCAL_ONLY=1 scripts/verify_bundle.sh
+
+      - name: Engine runs from the signed bundle
+        run: |
+          APP=build/app/CardboardCAD.app
+          HOME_REL=$(/usr/libexec/PlistBuddy -c 'Print :CardboardPythonHome' "$APP/Contents/Info.plist")
+          "$APP/$HOME_REL/bin/python3.12" -I -B -u scripts/smoke_engine.py "$APP/$HOME_REL/bin/python3.12"
+          codesign --verify --deep --strict "$APP"
+
+      - name: End-to-end app launch
+        run: scripts/ci/e2e_app.sh build/app/CardboardCAD.app
+
+      - name: Layout probe (informational)
+        if: always()
+        continue-on-error: true
+        run: scripts/ci/layout_probe.sh build/app/CardboardCAD.app >> "$GITHUB_STEP_SUMMARY"
+
+  proof-gate:
+    name: Proof tamper gate (agentic-uplift)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base branch
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_REF"
+      - name: Proof gate
+        uses: sholtomaud/agentic-uplift/actions/proof-gate@e2158d3a4e92de8e5c07e4bc2c80d82933cf6c17
+        with:
+          base-ref: origin/${{ github.base_ref || 'main' }}
+          allow-test-change: ${{ contains(github.event.pull_request.labels.*.name, 'allow-test-change') }}
+          allow-harness-change: ${{ contains(github.event.pull_request.labels.*.name, 'allow-harness-change') }}

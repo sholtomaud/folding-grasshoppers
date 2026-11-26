@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "rootSha256": "fb07fdb4b1d65ceba84020a0f386f6077216b93b4f5a52c281c78fd50063edb4",
+  "metricFloors": {
+    "minUnitTests": 0,
+    "minPropertyTests": 0,
+    "minArchRules": 9,
+    "maxSkippedTests": 0
+  },
+  "files": [
+    {
+      "path": ".githooks/pre-commit",
+      "zone": "harness",
+      "sha256": "3ce346cb1c92057113b0a72e832cc52abffd1bb2f7a84d2246ab99c37c502980"
+    },
+    {
+      "path": ".githooks/pre-push",
+      "zone": "harness",
+      "sha256": "4b498a7aad266c254b55ad48966fd8defe2604164c35767bc50dc6f10d2d839e"
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "zone": "harness",
+      "sha256": "32eaf7cc4b9062108c08471dbb8c5173951b881e347de8766a4c040de762885b"
+    },
+    {
+      "path": ".github/workflows/verify.yml",
+      "zone": "harness",
+      "sha256": "ea5f4ed1cf82ae0a8248565fa27f7340e16696fdbd2bbf97ddaa6266bc0bd78f"
+    },
+    {
+      "path": "app/CardboardCADKit/Package.swift",
+      "zone": "harness",
+      "sha256": "bb50df8b923cff26e8ba906622c958f30441c516bf0a32b2ee9ed5d36afc7b79"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineClientTests.swift",
+      "zone": "tests",
+      "sha256": "a39a884f69cb4cc4a07f6b12dff5efef94b1fb15d67755f04ebde584dd49f6eb"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineConfigTests.swift",
+      "zone": "tests",
+      "sha256": "fe37bc8245bc9b7d32b53298dc2f60568c211b608a48131d5abce9b404cf6ea9"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineManagerTests.swift",
+      "zone": "tests",
+      "sha256": "9c1f47f71de34fd4372053c489b22c0a3852b97b8f417164105e25aa55bb6148"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/HelloTests.swift",
+      "zone": "tests",
+      "sha256": "260f81602720ac3a2ad5e6b8be370aef112a618b89670884355d116788a5865d"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/RotatingLogWriterTests.swift",
+      "zone": "tests",
+      "sha256": "10ddbda661937ec90fa62483f39050fd58a793b4144133fa298b9707a1092dab"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/TestFakes.swift",
+      "zone": "tests",
+      "sha256": "dcb4239c0b6fadba95d9575e8a682e1ae915ec991ff3467f5f0169e4cb5750f5"
+    },
+    {
+      "path": "engine/pyproject.toml",
+      "zone": "harness",
+      "sha256": "de3544531fa6f66d638602c2e56f5e5882481fcef6832a165c0afb12f753a265"
+    },
+    {
+      "path": "engine/tests/__init__.py",
+      "zone": "tests",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "engine/tests/conftest.py",
+      "zone": "tests",
+      "sha256": "b4c32db3cd21738ed0fb1da1f1241c855e7d9f47da30aea6eab6478e008cf2ba"
+    },
+    {
+      "path": "engine/tests/test_cut_estimate.py",
+      "zone": "tests",
+      "sha256": "72eba6c765518ff233008364155000ca0a0c90ad4903a928189721db54a782a4"
+    },
+    {
+      "path": "engine/tests/test_hello_and_branding.py",
+      "zone": "tests",
+      "sha256": "7102ab0078e13ed56b08f7324a2b0ca463456bebb7d0da4943573ec4e4ff5545"
+    },
+    {
+      "path": "engine/tests/test_process.py",
+      "zone": "tests",
+      "sha256": "6503d1e8b5f7deb2ca668f3e1ceffd81dc7dd203221688eada0dd645a2fce8d7"
+    },
+    {
+      "path": "engine/tests/test_server.py",
+      "zone": "tests",
+      "sha256": "95ea3aea3a5a0b6d2f7985a193ffe774ffa0dfd3067f8697d7420d8940f4b28d"
+    },
+    {
+      "path": "scripts/ci/check_test_floors.py",
+      "zone": "harness",
+      "sha256": "f39719aa7ad6a79291e10babc92079e8c318c3de42fc6ea86a85304fe18bc445"
+    },
+    {
+      "path": "scripts/verify.sh",
+      "zone": "harness",
+      "sha256": "d511d2ca41f1c3a4962435875af9be3c07896a56fdf7cae0439dba253463b1be"
+    },
+    {
+      "path": "test-floors.json",
+      "zone": "harness",
+      "sha256": "bdb46a0473d45e37b76173e5b6f4419a9021a29468b6670b686b099fe25e7d81"
+    },
+    {
+      "path": "uplift.config.json",
+      "zone": "harness",
+      "sha256": "996fd520b05255499dbe2aec42079f1a3cd752beade02430fb988a260bb0dd3d"
+    }
+  ]
+}

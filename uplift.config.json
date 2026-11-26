@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "projectName": "folding-grasshoppers",
+  "proofLock": {
+    "harnessPaths": [
+      ".github/CODEOWNERS",
+      ".github/workflows/verify.yml",
+      ".githooks/pre-commit",
+      ".githooks/pre-push",
+      "uplift.config.json",
+      "test-floors.json",
+      "scripts/verify.sh",
+      "scripts/ci/check_test_floors.py",
+      "engine/pyproject.toml",
+      "app/CardboardCADKit/Package.swift"
+    ],
+    "testRoots": ["engine/tests", "app/CardboardCADKit/Tests"],
+    "testFilePatterns": [".py", ".swift"]
+  },
+  "limits": {
+    "securityDays": 7,
+    "bugDays": 30,
+    "featureDays": 180
+  },
+  "gate": {
+    "maxOpenAgentPrs": 2,
+    "requireProofSeal": true
+  }
+}
