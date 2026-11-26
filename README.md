@@ -135,6 +135,7 @@ You need Rhino 8 for Mac. Hops ships with Rhino 8. If it is missing, type
 | `http://127.0.0.1:5001/echo` | N (number) | N (the same number) |
 | `http://127.0.0.1:5001/waffle_slice` | M (mesh), Nx, Ny, T, C, K | P (parts), Cut, R3, L |
 | `http://127.0.0.1:5001/contour_stack` | M (mesh), T, K, E, A | P (parts), Cut, Etch, L3, L |
+| `http://127.0.0.1:5001/nest` | P, W, H, G, E, R | P (placed), S, Cut, N, U |
 | `http://127.0.0.1:5001/export` | P, F (`dxf`/`svg`), N, D, W | Paths, Text |
 
 Use your own port number if you changed it in Settings. Use `127.0.0.1`,
@@ -158,7 +159,8 @@ the component turns red and says why. It never returns zeros silently.
    Type `svg` into **F** for SVG instead.
 
 See [docs/GEOMETRY.md](docs/GEOMETRY.md) for every input and the endpoints
-still to come (nesting, unfolding). `/contour_stack` connects to Export the
+still to come (unfolding). Put `/nest` between a generator and Export to
+lay the parts on real sheets (one file per sheet, with the sheet outline). `/contour_stack` connects to Export the
 same way and adds an ETCH layer for lining the layers up.
 
 ## 4. Hello world demo

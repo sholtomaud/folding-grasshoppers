@@ -10,6 +10,7 @@ JSON document): Waffle Slice / Contour Stack -> (Nest) -> Export.
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Iterable, List, Sequence
 
@@ -19,10 +20,11 @@ from flask import Flask, jsonify, request
 from .components.contour import ContourError, ContourInput, contour_stack
 from .components.export import ExportError, export_files
 from .components.geometry import GeometryError, Mesh
+from .components.nest import NestError, NestInput, nest, parse_rotations
 from .components.parts import PartsDoc, PartsError
 from .components.waffle import WaffleError, WaffleInput, waffle_slice
 
-INPUT_ERRORS = (GeometryError, PartsError, WaffleError, ContourError, ExportError)
+INPUT_ERRORS = (GeometryError, PartsError, WaffleError, ContourError, NestError, ExportError)
 
 
 def mesh_from_rhino(obj) -> Mesh:
@@ -167,6 +169,70 @@ def register(app: Flask, hops: hs.Hops, *, category: str, subcategory: str, icon
         except (TypeError, *INPUT_ERRORS) as exc:
             return jsonify(error="invalid_input", message=str(exc)), 422
         return jsonify({"schema": "cardboardcad.parts/1", "parts": [p.to_dict() for p in result.parts]})
+
+    # ---- /nest ---------------------------------------------------------------
+    @hops.component(
+        "/nest",
+        name="NestSheets",
+        nickname="Nest",
+        description="Nest parts onto as many sheets as needed (true shape, bottom-left fill, mm)",
+        inputs=[
+            hs.HopsString("Parts", "P", "Parts document from Waffle Slice or Contour Stack"),
+            hs.HopsNumber("Sheet width (mm)", "W", "Sheet width"),
+            hs.HopsNumber("Sheet height (mm)", "H", "Sheet height"),
+            hs.HopsNumber("Gap (mm)", "G", "Minimum space between parts"),
+            hs.HopsNumber("Margin (mm)", "E", "Minimum space from the sheet edge"),
+            hs.HopsString("Rotations", "R", "Allowed rotations in degrees, e.g. 0,90 or 0 for grain lock"),
+        ],
+        outputs=[
+            hs.HopsString("Parts", "P", "Parts with placements: connect to Export"),
+            hs.HopsCurve("Sheets", "S", "Sheet outlines, side by side on XY", hs.HopsParamAccess.LIST),
+            hs.HopsCurve("Placed curves", "Cut", "Cut outlines on their sheets", hs.HopsParamAccess.LIST),
+            hs.HopsInteger("Sheet count", "N", "Number of sheets used"),
+            hs.HopsNumber("Use %", "U", "Area of parts / sheet area, per sheet", hs.HopsParamAccess.LIST),
+        ],
+        **brand,
+    )
+    def nest_component(P, W=1200.0, H=800.0, G=5.0, E=10.0, R="0,90"):
+        inp = NestInput(
+            sheet_width=float(W), sheet_height=float(H), gap=float(G), margin=float(E),
+            rotations=tuple(parse_rotations(R)),
+        )
+        result = nest(PartsDoc.from_json(P), inp)
+        step = inp.sheet_width * 1.1  # preview spacing between sheets
+        sheets, placed = [], []
+        for sheet in result.doc.layout():
+            dx = sheet.index * step
+            sheets.append(polyline_curve([(dx, 0), (dx + inp.sheet_width, 0), (dx + inp.sheet_width, inp.sheet_height), (dx, inp.sheet_height)]))
+            placed += _curves([(x + dx, y) for x, y in loop] for p in sheet.parts for loop in p.cut)
+        use = [round(u * 100, 2) for u in result.utilisation]
+        return result.doc.to_json(), sheets, placed, result.sheet_count, use
+
+    @app.post("/api/nest")
+    def api_nest():
+        data = request.get_json(silent=True)
+        try:
+            if not isinstance(data, dict):
+                raise NestError("Body must be an object: {parts, sheet_width, sheet_height, ...}")
+            doc = PartsDoc.from_json(json.dumps(data.get("parts")))
+            rotations = data.get("rotations", [0, 90])
+            if isinstance(rotations, str):
+                rotations = parse_rotations(rotations)
+            inp = NestInput(
+                sheet_width=data.get("sheet_width", 1200.0),
+                sheet_height=data.get("sheet_height", 800.0),
+                gap=data.get("gap", 5.0),
+                margin=data.get("margin", 10.0),
+                rotations=tuple(float(r) for r in rotations),
+            )
+            result = nest(doc, inp)
+        except (TypeError, ValueError, *INPUT_ERRORS) as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(
+            parts=json.loads(result.doc.to_json()),
+            sheet_count=result.sheet_count,
+            utilisation=result.utilisation,
+        )
 
     # ---- /export ---------------------------------------------------------
     @hops.component(
