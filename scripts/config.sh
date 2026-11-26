@@ -17,10 +17,10 @@ SIGN_IDENTITY="${SIGN_IDENTITY:-}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-cardboardcad-notary}"
 
 # Where the Python runtime goes inside the .app (see scripts/README.md):
-#   frameworks -> Contents/Frameworks/python   (SPEC default)
+#   resources  -> Contents/Resources/python    (default: passes codesign --strict)
+#   frameworks -> Contents/Frameworks/python   (SPEC first choice; codesign rejects it)
 #   helpers    -> Contents/Helpers/python      (SPEC fallback)
-#   resources  -> Contents/Resources/python
-PYTHON_LAYOUT="${PYTHON_LAYOUT:-frameworks}"
+PYTHON_LAYOUT="${PYTHON_LAYOUT:-resources}"
 ARCHS="${ARCHS:-arm64}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

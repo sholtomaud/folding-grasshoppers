@@ -1,0 +1,51 @@
+name: Guarded Autonomous Resolution
+
+# Circuit breaker that must say "proceed" before any autonomous agent works an
+# issue labelled `agent-ready`. It refuses when the proof seal is broken, too
+# many agent PRs are open, the monthly agentic budget is spent, or main's CI is
+# red. No agent step is wired in yet: today it only reports the decision.
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Optional open issue number to evaluate
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: agent-resolve
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.event_name != 'issues' || github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Proof-aware circuit breaker
+        id: gate
+        uses: sholtomaud/agentic-uplift/actions/resolve-gate@e2158d3a4e92de8e5c07e4bc2c80d82933cf6c17
+        with:
+          max-open-agent-prs: '2'
+          monthly-agentic-budget: '50'
+          requested-issue: ${{ github.event_name == 'issues' && github.event.issue.number || inputs.issue_number || '' }}
+      - name: Report decision
+        env:
+          PROCEED: ${{ steps.gate.outputs.proceed }}
+          REASON: ${{ steps.gate.outputs.reason }}
+          SEAL: ${{ steps.gate.outputs.proof_seal_ok }}
+          ISSUE: ${{ steps.gate.outputs.issue_number }}
+        run: |
+          echo "proceed=$PROCEED reason=$REASON proof_seal_ok=$SEAL issue=$ISSUE" | tee -a "$GITHUB_STEP_SUMMARY"

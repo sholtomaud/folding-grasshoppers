@@ -1,6 +1,7 @@
 # Harness and locked tests need a maintainer review (agentic-uplift Zone A/B).
 *                         @sholtomaud
 /.github/                 @sholtomaud
+/.github/workflows/       @sholtomaud
 /.githooks/               @sholtomaud
 /proof-lock.json          @sholtomaud
 /PROOF_CHANGELOG.md       @sholtomaud

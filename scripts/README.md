@@ -48,33 +48,44 @@ Logged per build to `build/python-runtime-removed.txt`:
 ```
 CardboardCAD.app/Contents/
 ├── MacOS/CardboardCAD
-├── Frameworks/python/          <- runtime (SPEC default)
-│   ├── bin/python3.12
-│   └── lib/python3.12/...
-├── Info.plist                  <- CardboardPythonHome = Contents/Frameworks/python
+├── Info.plist                  <- CardboardPythonHome = Contents/Resources/python
 └── Resources/
+    ├── Assets.car
+    └── python/                 <- runtime (default since CI run 45736582336)
+        ├── bin/python3.12
+        └── lib/python3.12/...
 ```
 
 `build_app.sh` writes the chosen location to Info.plist and the app reads it,
-so switching layouts is `PYTHON_LAYOUT=helpers|resources scripts/build_app.sh`
-with no code change.
+so switching layouts is `PYTHON_LAYOUT=frameworks|helpers|resources
+scripts/build_app.sh` with no code change. Every Mach-O inside the runtime is
+still signed individually by `sign.sh`, wherever it lives.
 
-**Status: NOT YET CONFIRMED BY NOTARIZATION.** The spec requires a real
-Developer ID signature and notarization pass to settle the layout. CI's
-`Layout probe` step ad-hoc signs all three layouts on macOS 14 and reports
-which pass `codesign --verify --deep --strict` and still start the engine;
-see the job summary. Record the notarization result here:
+### Why not `Contents/Frameworks/python` (SPEC 8.1)
+
+The first macOS CI run (Verify run 45736582336, 2026-11-26) built the app with
+the runtime in `Contents/Frameworks/python`. Signing the libraries and the
+interpreter worked, but signing the app failed:
+
+```
+CardboardCAD.app: bundle format unrecognized, invalid, or unsuitable
+In subcomponent: .../Contents/Frameworks/python/lib/python3.12
+```
+
+codesign treats every directory under `Contents/Frameworks` as a nested bundle
+to seal, and `lib/python3.12` (plain `.py` files) is not one. That is a
+structural rejection, so no entitlement or flag fixes it. The CI
+`Layout probe` step re-runs all three layouts on every build and prints the
+result in the job log and summary.
 
 | Layout | codesign --strict (ad-hoc, CI) | Notarization | Notes |
 |---|---|---|---|
-| `Contents/Frameworks/python` | see CI | not run yet | |
-| `Contents/Helpers/python` | see CI | not run yet | |
-| `Contents/Resources/python` | see CI | not run yet | |
+| `Contents/Frameworks/python` | **fails** (above) | not attempted | SPEC first choice |
+| `Contents/Helpers/python` | see CI layout probe | not attempted | SPEC fallback |
+| `Contents/Resources/python` | gating CI step | **not run yet** | default |
 
-Known risk: codesign treats `Contents/Frameworks` and `Contents/Helpers` as
-code locations, and the runtime puts `.py`/`.pyc` files there. If signing or
-notarization rejects that, `Contents/Resources/python` (with every Mach-O
-inside still signed individually) is the usual working fallback.
+**Still NOT confirmed by notarization.** Record the first real
+`notarytool` result here.
 
 ## Runtime copy: build_app.sh, not an Xcode build phase
 
