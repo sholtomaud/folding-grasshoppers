@@ -154,3 +154,13 @@ def scale_mesh(mesh: Mesh, factor: float) -> Mesh:
     cx, cy = (lx + hx) / 2, (ly + hy) / 2
     verts = [(cx + (x - cx) * factor, cy + (y - cy) * factor, lz + (z - lz) * factor) for x, y, z in mesh.vertices]
     return Mesh(tuple(verts), mesh.faces)
+
+
+def to_obj(mesh: Mesh, name: str = "") -> str:
+    """Write a mesh as OBJ text. Coordinates use ``repr`` so they read back exactly."""
+    lines = ["# CardboardCAD model, units mm"]
+    if name:
+        lines.append("o " + "".join(c if c.isprintable() and c not in "\r\n" else "_" for c in name))
+    lines += [f"v {x!r} {y!r} {z!r}" for x, y, z in mesh.vertices]
+    lines += ["f " + " ".join(str(i + 1) for i in face) for face in mesh.faces]
+    return "\n".join(lines) + "\n"
