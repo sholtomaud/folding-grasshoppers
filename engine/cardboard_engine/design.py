@@ -11,7 +11,10 @@ error result (``is_error``) that Claude can read and correct, never raised.
 
 from __future__ import annotations
 
+import json
 import math
+import os
+import re
 import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -20,18 +23,25 @@ from .components.contour import ContourError, ContourInput, contour_stack
 from .components.cut_estimate import CutEstimateError, CutEstimateInput, estimate
 from .components.export import ExportError, export_files, to_svg
 from .components.geometry import GeometryError, Mesh
-from .components.mesh_io import MeshFileError, load_mesh_file, scale_mesh
+from .components.mesh_io import MeshFileError, load_mesh_file, parse_obj, scale_mesh, to_obj
 from .components.nest import NestError, NestInput, nest
 from .components.parts import PartsDoc, PartsError
 from .components.primitives import SHAPES, ShapeError, make_shape
 from .components.triangulate import extrude
 from .components.unfold import UnfoldError, UnfoldInput, unfold
 from .components.waffle import WaffleError, WaffleInput, waffle_slice
+from . import project as proj
+from .project import ProjectError
 
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
-    NestError, UnfoldError, ExportError, CutEstimateError,
+    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError,
 )
+# Tools that do not change the design: a saved project stays saved.
+READ_ONLY_TOOLS = {"model_info", "export_cut_files", "save_project"}
+MODEL_TOOLS = {"create_shape", "load_model_file", "scale_model"}
+METHOD_TOOLS = {"waffle_slice", "contour_stack", "unfold"}
+SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
 MAX_PREVIEW_TRIANGLES = 400_000
 MAX_STEPS = 200
 
@@ -46,12 +56,13 @@ You turn what the designer asks for into calls to the tools you have. The tools 
    A new method replaces the previous parts.
 3. Sheets: nest_sheets lays the parts onto as few sheets of board as it can.
 4. Then estimate_cost (machine time and money) and export_cut_files (DXF or SVG cut files, one per sheet).
+5. save_project saves everything (model, parts, cut files, estimate, a preview picture) as a project folder the designer can reopen. To present several concepts to a client, save each one under its own name, for example "Acme Expo - Concept A", then "Acme Expo - Concept B".
 
 Everything is in millimetres. Z is up and models sit on the ground. Typical board: single-wall corrugated 3 mm, double-wall 6 mm, honeycomb board 10 to 20 mm. Common sheet sizes: 1200 x 800, 1000 x 700, 2400 x 1200 mm. When the designer gives no value, use the tool defaults and say which you used.
 
 The app shows a live preview next to this chat: the 3D model (and the assembled ribs, layers or folded nets) and the flat cut sheets. It updates after every tool call, so describe results briefly instead of listing every part. Point the designer to the preview when it helps ("see the Sheets tab").
 
-Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files when the designer asks for files; it writes into their Documents folder. For estimate_cost, ask for the sheet price and machine rate if you do not know them, rather than reporting a cost of 0.
+Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files or save_project when the designer asks for files or to save; they write into their Documents folder. For estimate_cost, ask for the sheet price and machine rate if you do not know them, rather than reporting a cost of 0.
 
 Format replies as short paragraphs; use "- " bullet lists only for short lists."""
 
@@ -180,6 +191,19 @@ TOOLS: List[dict] = [
                        "description": "Folder inside the home folder; empty means ~/Documents/CardboardCAD"},
         },
     ),
+    _tool(
+        "save_project",
+        "Save the whole design as a project folder: the model, parts, nested sheets, DXF and SVG cut files, the "
+        "cost estimate and a preview picture. It can be reopened later from File > Open Project. Saving again "
+        "under the same name updates it. Only when the designer asks to save.",
+        {
+            "name": {"type": "string", "default": "",
+                     "description": "Project name, e.g. \"Acme Expo - Concept A\". Empty keeps the current project's name"},
+            "folder": {"type": "string", "default": "",
+                       "description": "Project folder inside the home folder; empty means "
+                                      "~/Documents/CardboardCAD/Projects/<name>"},
+        },
+    ),
 ]
 _TOOLS_BY_NAME = {t["name"]: t for t in TOOLS}
 
@@ -261,6 +285,7 @@ class DesignSession:
         self._lock = threading.RLock()
         self.version = 0
         self._state_cache: Optional[dict] = None
+        self.project: Optional[dict] = None  # {name, folder, saved_version}
         self._clear_all()
         self.steps: List[dict] = []
 
@@ -268,6 +293,7 @@ class DesignSession:
     def _clear_all(self) -> None:
         self.model: Optional[Mesh] = None
         self.model_name: Optional[str] = None
+        self.recipe: Dict[str, Any] = {}
         self._clear_parts()
 
     def _clear_parts(self) -> None:
@@ -278,6 +304,7 @@ class DesignSession:
         self.board_thickness: float = 0.0
         self.nested: Optional[dict] = None
         self.last_estimate: Optional[dict] = None
+        self.recipe = {}
 
     def _bump(self) -> None:
         self.version += 1
@@ -287,6 +314,7 @@ class DesignSession:
         with self._lock:
             self._clear_all()
             self.steps = []
+            self.project = None
             self._bump()
 
     # ---- tools -----------------------------------------------------------
@@ -295,16 +323,38 @@ class DesignSession:
         if tool is None:
             return ToolResult(f"There is no tool called {name!r}. Tools: {', '.join(_TOOLS_BY_NAME)}", True)
         with self._lock:
+            was_saved = self._is_saved()
             try:
                 checked = _check_args(tool, args)
                 text = getattr(self, "_t_" + name)(**checked)
                 result = ToolResult(text)
+                self._record(name, checked)
             except (ToolInputError, *INPUT_ERRORS) as exc:
                 result = ToolResult(str(exc), True)
-            self.steps.append({"tool": name, "ok": not result.is_error, "summary": result.text.split("\n")[0][:200]})
-            del self.steps[:-MAX_STEPS]
+            self._log_step(name, not result.is_error, result.text)
             self._bump()
+            if self.project is not None and (was_saved or name == "save_project") and (
+                    result.is_error or name in READ_ONLY_TOOLS):
+                self.project["saved_version"] = self.version
             return result
+
+    def _log_step(self, name: str, ok: bool, text: str) -> None:
+        self.steps.append({"tool": name, "ok": ok, "summary": text.split("\n")[0][:200]})
+        del self.steps[:-MAX_STEPS]
+
+    def _record(self, name: str, checked: dict) -> None:
+        """Remember the inputs of the steps that made the design, so a saved project can be rebuilt."""
+        if name in MODEL_TOOLS:
+            self.recipe = {}
+        elif name in METHOD_TOOLS:
+            self.recipe = {"method": {"tool": name, "input": dict(checked)}}
+        elif name == "nest_sheets":
+            self.recipe = {"method": self.recipe.get("method"), "nest": dict(checked)}
+        elif name == "estimate_cost":
+            self.recipe["estimate"] = dict(checked)
+
+    def _is_saved(self) -> bool:
+        return self.project is not None and self.project["saved_version"] == self.version
 
     def _need_model(self) -> Mesh:
         if self.model is None:
@@ -450,12 +500,208 @@ class DesignSession:
             text += "\n(The parts are not nested on sheets yet, so they are laid out in one row.)"
         return text
 
+    def _t_save_project(self, name="", folder=""):
+        if not (name or "").strip() and not (folder or "").strip() and self.project is not None:
+            folder = self.project["folder"]
+        out = self.save_project(folder=folder, name=name)
+        return f"Saved project \"{out['name']}\" ({len(out['files'])} files) to {out['folder']}"
+
+    # ---- projects --------------------------------------------------------
+    def save_project(self, folder: str = "", name: str = "", chat=None) -> dict:
+        """Write the design as a project folder (see ``project.py``). Raises ProjectError."""
+        with self._lock:
+            if self.model is None:
+                raise ProjectError("There is nothing to save yet: make or load a model first")
+            if not isinstance(name, str) or not isinstance(folder, str):
+                raise ProjectError("name and folder must be text")
+            directory, clean = proj.resolve_save_dir(folder, name, self.home)
+            previous = proj.check_writable(directory)
+            files = self._project_files(clean)
+            if chat is not None:
+                files[proj.CHAT] = json.dumps(chat, ensure_ascii=False, indent=1) + "\n"
+            manifest_files = sorted(set(files) | {proj.MANIFEST} | (
+                {proj.CHAT} if os.path.isfile(os.path.join(directory, proj.CHAT)) else set()))
+            files[proj.MANIFEST] = json.dumps(self._manifest(clean, manifest_files), indent=2) + "\n"
+            proj.write_files(directory, files, previous)
+            self.project = {"name": clean, "folder": directory, "saved_version": self.version}
+            return {"name": clean, "folder": directory, "files": manifest_files, "version": self.version}
+
+    def _project_files(self, name: str) -> Dict[str, str]:
+        from .components.export import safe_file_stem, to_dxf
+
+        files = {proj.MODEL_FILE: to_obj(self.model, self.model_name or "")}
+        if self.parts is not None:
+            files["parts/parts.json"] = self.parts.to_json() + "\n"
+            stem = re.sub(r"-{2,}", "-", safe_file_stem(name))
+            for sheet in self.parts.layout():
+                files[f"cut-files/{stem}-sheet{sheet.index + 1}.dxf"] = to_dxf(sheet)
+                files[f"cut-files/{stem}-sheet{sheet.index + 1}.svg"] = to_svg(sheet)
+        if self.last_estimate is not None:
+            files["estimate/estimate.json"] = json.dumps(self.last_estimate, indent=2) + "\n"
+            files["estimate/estimate.csv"] = proj.estimate_csv(self.last_estimate)
+        # The model, not the ribs: interlocking ribs cannot be drawn back to front.
+        # The app adds preview/preview.png, a snapshot of its 3D preview.
+        files["preview/model.svg"] = proj.model_svg(self.model.triangles())
+        return files
+
+    def _summary(self) -> dict:
+        (lx, ly, lz), (hx, hy, hz) = self.model.bbox()
+        est = self.last_estimate or {}
+        return {
+            "size_mm": [round(hx - lx, 2), round(hy - ly, 2), round(hz - lz, 2)],
+            "faces": len(self.model.faces),
+            "method": self.method,
+            "method_summary": self.method_summary,
+            "part_count": len(self.parts.parts) if self.parts is not None else 0,
+            "sheet_count": self.nested["sheet_count"] if self.nested else (1 if self.parts is not None else 0),
+            "sheet_size": [self.nested["sheet_width"], self.nested["sheet_height"]] if self.nested else None,
+            "time_min": est.get("time_min"),
+            "total_cost": est.get("total_cost"),
+        }
+
+    def _manifest(self, name: str, files: List[str]) -> dict:
+        import datetime
+
+        from . import __version__
+
+        return {
+            "schema": proj.PROJECT_SCHEMA,
+            "name": name,
+            "app": "CardboardCAD",
+            "engine_version": __version__,
+            "saved_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "units": "mm",
+            "model": {"file": proj.MODEL_FILE, "name": self.model_name},
+            "recipe": self.recipe,
+            "summary": self._summary(),
+            "files": files,
+        }
+
+    def open_project(self, path: str) -> dict:
+        """Load a project folder and rebuild its design. On error the current design is kept."""
+        if not isinstance(path, str):
+            raise ProjectError("The project folder must be text")
+        directory = proj.resolve_open_dir(path, self.home)
+        m = proj.read_manifest(directory)
+        name = m.get("name") if isinstance(m.get("name"), str) and m.get("name") else os.path.basename(directory)
+        model_info = m.get("model") if isinstance(m.get("model"), dict) else {}
+        rel = proj._safe_rel(model_info.get("file", proj.MODEL_FILE))
+        if rel is None:
+            raise ProjectError(f"{proj.MANIFEST} names a model file outside the project")
+        try:
+            mesh = parse_obj(proj._read_text(os.path.join(directory, rel), proj.MAX_MODEL_BYTES, rel))
+        except MeshFileError as exc:
+            raise ProjectError(f"{rel}: {exc}") from None
+        model_name = model_info.get("name") if isinstance(model_info.get("name"), str) else "model"
+        scratch = DesignSession(home=self.home)
+        scratch._set_model(mesh, model_name)
+        recipe = m.get("recipe") or {}
+        if not isinstance(recipe, dict):
+            raise ProjectError(f"{proj.MANIFEST}: recipe must be an object")
+        method = recipe.get("method")
+        steps = []
+        if method is not None:
+            if not isinstance(method, dict) or method.get("tool") not in METHOD_TOOLS:
+                raise ProjectError(f"{proj.MANIFEST}: the recipe method must be one of {', '.join(sorted(METHOD_TOOLS))}")
+            steps.append((method["tool"], method.get("input", {})))
+            for key, tname in (("nest", "nest_sheets"), ("estimate", "estimate_cost")):
+                if recipe.get(key) is not None:
+                    steps.append((tname, recipe[key]))
+        for tname, args in steps:
+            try:
+                checked = _check_args(_TOOLS_BY_NAME[tname], args)
+                getattr(scratch, "_t_" + tname)(**checked)
+                scratch._record(tname, checked)
+            except (ToolInputError, *INPUT_ERRORS) as exc:
+                raise ProjectError(f"{proj.MANIFEST}: the {tname} step could not run again: {exc}") from None
+        chat = proj.read_chat(directory)
+        with self._lock:
+            for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
+                         "board_thickness", "nested", "last_estimate", "recipe"):
+                setattr(self, attr, getattr(scratch, attr))
+            self.steps = []
+            self._log_step("open_project", True, f"Opened project {name} from {directory}")
+            self._bump()
+            self.project = {"name": name, "folder": directory, "saved_version": self.version}
+            return {"name": name, "folder": directory, "chat": chat, "version": self.version,
+                    "summary": m.get("summary")}
+
+    def push_model(self, mesh: Mesh, name: str) -> int:
+        """A model sent from Rhino (Hops SendToCardboardCAD) replaces the current one."""
+        with self._lock:
+            self._set_model(mesh, name or "rhino model")
+            self._log_step("send_from_rhino", True, "Received " + self._describe_model() + " from Rhino")
+            self._bump()
+            return self.version
+
+    # ---- live sync (Rhino) -------------------------------------------------
+    def live(self, since: Optional[int] = None) -> dict:
+        """The design as plain geometry for Grasshopper. Unchanged since ``since``: just the version."""
+        with self._lock:
+            if since is not None and since == self.version:
+                return {"version": self.version, "changed": False}
+            model = None
+            if self.model is not None:
+                model = {"name": self.model_name,
+                         "vertices": [list(v) for v in self.model.vertices],
+                         "faces": [list(f) for f in self.model.faces]}
+            parts3d = [{"id": pid, "loops": [[list(p) for p in loop] for loop in loops]}
+                       for pid, loops in self.parts3d.items()]
+            sheets = []
+            x = 0.0
+            if self.parts is not None:
+                for sheet in self.parts.layout():
+                    if sheet.size is not None:
+                        w, h = sheet.size
+                    else:
+                        w = max((p.bbox()[1][0] for p in sheet.parts), default=0.0)
+                        h = max((p.bbox()[1][1] for p in sheet.parts), default=0.0)
+                    sheets.append({
+                        "index": sheet.index,
+                        "origin": [x, 0],
+                        "size": [w, h],
+                        "parts": [{"id": p.id, "label": p.label or p.id,
+                                   "cut": [[list(q) for q in poly] for poly in p.cut],
+                                   "score": [[list(q) for q in poly] for poly in p.score],
+                                   "etch": [[list(q) for q in poly] for poly in p.etch]}
+                                  for p in sheet.parts],
+                    })
+                    x += w + SHEET_GAP_MM
+            return {
+                "version": self.version,
+                "changed": True,
+                "project": self.project["name"] if self.project else None,
+                "summary": self._live_summary(),
+                "model": model,
+                "method": self.method,
+                "thickness_mm": self.board_thickness,
+                "parts3d": parts3d,
+                "sheets": sheets,
+                "parts": self.parts.to_json() if self.parts is not None else None,
+            }
+
+    def _live_summary(self) -> str:
+        if self.model is None:
+            return "No design in CardboardCAD yet. Make one in the app's Design Assistant."
+        text = self._t_model_info()
+        if self.last_estimate:
+            text += f"\nEstimate: {self.last_estimate['time_min']:.1f} min, total {self.last_estimate['total_cost']:.2f}"
+        if self.project:
+            text = f"Project: {self.project['name']}\n" + text
+        return text
+
     # ---- preview ---------------------------------------------------------
     def state(self) -> dict:
         with self._lock:
             if self._state_cache is None:
                 self._state_cache = self._build_state()
-            return self._state_cache
+            out = dict(self._state_cache)
+            out["project"] = None if self.project is None else {
+                "name": self.project["name"],
+                "folder": self.project["folder"],
+                "unsaved_changes": not self._is_saved(),
+            }
+            return out
 
     def _build_state(self) -> dict:
         model = None

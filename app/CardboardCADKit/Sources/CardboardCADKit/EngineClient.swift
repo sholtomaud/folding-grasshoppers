@@ -259,6 +259,21 @@ extension EngineClient: DesignToolRunner {
         return try decode(data)
     }
 
+    /// POST a JSON body. 400/422 become `.invalidInput` with the engine's message.
+    func postJSON<T: Decodable>(_ path: String, body: JSONValue,
+                                timeout: TimeInterval = EngineClient.designToolTimeout) async throws -> T {
+        var request = makeRequest(path, method: "POST", timeout: timeout)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONValue.encoder.encode(body)
+        let (data, status) = try await send(request)
+        if status == 422 || status == 400 {
+            let message = (try? JSONDecoder().decode(APIError.self, from: data))?.message
+            throw EngineClientError.invalidInput(message ?? "The engine refused the request")
+        }
+        guard status == 200 else { throw EngineClientError.httpStatus(status) }
+        return try decode(data)
+    }
+
     public func resetDesign() async throws {
         let (_, status) = try await send(makeRequest("/api/design/reset", method: "POST", timeout: 5))
         guard status == 200 else { throw EngineClientError.httpStatus(status) }

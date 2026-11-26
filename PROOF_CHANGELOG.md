@@ -101,3 +101,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Chat layout fix; estimate_cost flags missing prices (1 new engine test, pytest floor 266)
 - **Previous Attestation:** `be140f3140bfe652cbc897b3c8df8d3c3ff5b0197af7ba653171f1bfd63cb85e`
 - **Attestation SHA-256:** `9c9da5e111daab769af25ef7e505bff0926dbcf4c7dffe7d9b2fd071bb7b6c33`
+
+## 2026-11-26T22:42:13Z — `917cce2` (PASS)
+
+- **Commit:** `917cce2`
+- **Timestamp:** `2026-11-26T22:42:13Z`
+- **Proof Lock Root SHA-256:** `685c5fee483a31ebfd98aeb2b67b013e64306ef55602f66db0a70832c3256741`
+- **Verdict:** `PASS`
+- **Summary:** Merge main into project saving / Rhino live sync; floors pytest 322, swift 106
+- **Previous Attestation:** `9c9da5e111daab769af25ef7e505bff0926dbcf4c7dffe7d9b2fd071bb7b6c33`
+- **Attestation SHA-256:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`

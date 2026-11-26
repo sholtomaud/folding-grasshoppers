@@ -152,6 +152,17 @@ public final class DesignAssistant {
         return results
     }
 
+    /// Replace the whole chat (opening a project). Use `restore(conversation:)`.
+    func replaceConversation(items: [ChatItem], history: [JSONValue]) {
+        self.items = items
+        self.history = history
+    }
+
+    /// A line in the chat from the app itself (not sent to Claude).
+    public func addNotice(_ text: String) {
+        items.append(ChatItem(kind: .notice, text: text))
+    }
+
     /// Clear the chat and the engine's design.
     public func newDesign() async {
         guard !isBusy else { return }

@@ -44,6 +44,7 @@ struct PreviewWebView: NSViewRepresentable {
         let view = WKWebView(frame: .zero, configuration: config)
         view.navigationDelegate = context.coordinator
         view.allowsMagnification = false
+        PreviewSnapshot.shared.webView = view
         context.coordinator.url = url
         view.load(URLRequest(url: url))
         return view
@@ -75,5 +76,26 @@ struct PreviewWebView: NSViewRepresentable {
                 webView?.load(URLRequest(url: url))
             }
         }
+    }
+}
+
+/// Saves a picture of the 3D preview into a project (preview/preview.png).
+@MainActor
+final class PreviewSnapshot {
+    static let shared = PreviewSnapshot()
+    weak var webView: WKWebView?
+
+    func writePNG(into projectFolder: URL) async {
+        guard let webView, webView.bounds.width > 0, webView.bounds.height > 0 else { return }
+        let config = WKSnapshotConfiguration()
+        config.afterScreenUpdates = true
+        guard let image = try? await webView.takeSnapshot(configuration: config),
+              let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:])
+        else { return }
+        let dir = projectFolder.appendingPathComponent("preview", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? png.write(to: dir.appendingPathComponent("preview.png"), options: .atomic)
     }
 }

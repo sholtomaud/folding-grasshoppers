@@ -8,6 +8,7 @@ struct DesignAssistantView: View {
     let engine: EngineManager
     let assistant: DesignAssistant
     let claudeKey: ClaudeKey
+    let projects: ProjectController
     @Environment(\.openSettings) private var openSettings
     @State private var draft = ""
     @FocusState private var composerFocused: Bool
@@ -48,7 +49,10 @@ struct DesignAssistantView: View {
             }
             Spacer()
             Button {
-                Task { await assistant.newDesign() }
+                Task {
+                    await assistant.newDesign()
+                    projects.forget()
+                }
             } label: {
                 Label("New Design", systemImage: "square.and.pencil")
             }

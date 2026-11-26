@@ -37,6 +37,8 @@ from .components.cut_estimate import (  # noqa: E402
 from .components.hello import greet  # noqa: E402
 from . import hops_geometry  # noqa: E402
 from .design import SYSTEM_PROMPT, TOOLS, DesignSession  # noqa: E402
+from .project import ProjectError  # noqa: E402
+from . import hops_live  # noqa: E402
 from .hops_activity import HopsActivity  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
@@ -219,7 +221,8 @@ def create_app(
     hops_geometry.register(
         app, hops, category=HOPS_CATEGORY, subcategory=HOPS_SUBCATEGORY, icon=HOPS_ICON
     )
-    _register_design(app)
+    session = _register_design(app)
+    hops_live.register(hops, session, category=HOPS_CATEGORY, subcategory=HOPS_SUBCATEGORY, icon=HOPS_ICON)
 
     # Outermost, so it also sees the requests ghhops_server answers itself.
     activity = HopsActivity(app.wsgi_app, is_hops_path=_hops_path_check(hops))
@@ -228,11 +231,12 @@ def create_app(
     return app
 
 
-def _register_design(app: Flask) -> None:
+def _register_design(app: Flask) -> DesignSession:
     """Design Assistant routes: the app's chat runs tools here; /preview draws the result."""
     session = DesignSession(home=os.environ.get("HOME") or os.path.expanduser("~"))
     app.config["DESIGN"] = session
     preview_path = os.path.join(os.path.dirname(__file__), "assets", "preview.html")
+    listener_path = os.path.join(os.path.dirname(__file__), "assets", "rhino_live_listener.py")
 
     @app.get("/api/design/tools")
     def design_tools():
@@ -264,11 +268,58 @@ def _register_design(app: Flask) -> None:
         session.reset()
         return jsonify(version=session.version)
 
+    @app.post("/api/design/save")
+    def design_save():
+        """Save the design as a project folder. Body: {name?, folder?, chat?}."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="invalid_input", message="Body must be {name, folder, chat}"), 400
+        name, folder = data.get("name") or "", data.get("folder") or ""
+        if not isinstance(name, str) or not isinstance(folder, str):
+            return jsonify(error="invalid_input", message="name and folder must be text"), 400
+        try:
+            out = session.save_project(folder=folder, name=name, chat=data.get("chat"))
+        except ProjectError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(out)
+
+    @app.post("/api/design/open")
+    def design_open():
+        """Open a project folder (or its project.json). Body: {folder}."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("folder"), str) or not data["folder"]:
+            return jsonify(error="invalid_input", message="Body must be {folder}"), 400
+        try:
+            out = session.open_project(data["folder"])
+        except ProjectError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(out)
+
+    @app.get("/api/design/live")
+    def design_live():
+        """The design as plain geometry, for Rhino. ?since=<version> answers {changed: false} when up to date."""
+        since = request.args.get("since")
+        if since is not None:
+            try:
+                since = int(since)
+            except ValueError:
+                return jsonify(error="invalid_input", message="since must be a whole number"), 400
+        return jsonify(session.live(since))
+
+    @app.get("/rhino/live_listener.py")
+    def rhino_listener():
+        """The Grasshopper listener script (see docs/RHINO_LIVE_SYNC.md)."""
+        with open(listener_path, "rb") as fh:
+            body = fh.read()
+        return body, 200, {"Content-Type": "text/x-python; charset=utf-8", "Cache-Control": "no-store"}
+
     @app.get("/preview")
     def preview():
         with open(preview_path, "rb") as fh:
             body = fh.read()
         return body, 200, {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store"}
+
+    return session
 
 
 def _hops_path_check(hops):
