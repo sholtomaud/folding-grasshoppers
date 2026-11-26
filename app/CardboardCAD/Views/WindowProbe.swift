@@ -61,8 +61,31 @@ enum WindowProbe {
             // Time for the script to take a screenshot of this size.
             try? await Task.sleep(nanoseconds: 4_000_000_000)
         }
+        // Quit the way Cmd+Q does: through the menu item that owns the shortcut.
+        let quit = quitMenuItem()
+        write(["found": quit != nil, "title": quit?.title ?? ""],
+              to: folder.appendingPathComponent("quit-menu.json"))
         FileManager.default.createFile(atPath: folder.appendingPathComponent("done").path, contents: Data())
-        NSApp.terminate(nil)
+        if let quit, let action = quit.action {
+            NSApp.sendAction(action, to: quit.target, from: quit)
+        } else {
+            NSApp.terminate(nil)
+        }
+    }
+
+    /// The enabled menu item whose shortcut is Cmd+Q.
+    static func quitMenuItem() -> NSMenuItem? {
+        func find(_ menu: NSMenu) -> NSMenuItem? {
+            for item in menu.items {
+                if item.keyEquivalent == "q", item.keyEquivalentModifierMask.intersection(.deviceIndependentFlagsMask) == .command,
+                   item.isEnabled, item.action != nil {
+                    return item
+                }
+                if let sub = item.submenu, let hit = find(sub) { return hit }
+            }
+            return nil
+        }
+        return NSApp.mainMenu.flatMap(find)
     }
 
     private static func fillChat(_ assistant: DesignAssistant) {

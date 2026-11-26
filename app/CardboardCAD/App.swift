@@ -115,6 +115,11 @@ struct CardboardCADApp: App {
         .commands {
             ProjectCommands(projects: delegate.projects, assistant: delegate.assistant)
             DesignCommands(assistant: delegate.assistant, projects: delegate.projects, engine: delegate.engine)
+            // Cmd+Q: quit and stop the engine (AppDelegate.applicationShouldTerminate).
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit \(AppInfo.name)") { NSApp.terminate(nil) }
+                    .keyboardShortcut("q", modifiers: .command)
+            }
             CommandMenu("Engine") {
                 Button("Restart Engine") {
                     Task { await delegate.engine.restart() }
@@ -237,7 +242,7 @@ enum ProjectPanels {
         let base = ProjectController.defaultProjectsFolder()
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         panel.directoryURL = projects.current.map { $0.url.deletingLastPathComponent() } ?? base
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard await ModalUI.run(panel) == .OK, let url = panel.url else { return }
         await projects.save(name: url.lastPathComponent, folder: url.path)
     }
 
@@ -252,7 +257,7 @@ enum ProjectPanels {
         panel.allowsMultipleSelection = false
         let base = ProjectController.defaultProjectsFolder()
         if FileManager.default.fileExists(atPath: base.path) { panel.directoryURL = base }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard await ModalUI.run(panel) == .OK, let url = panel.url else { return }
         await projects.open(folder: url.path)
     }
 }
@@ -282,10 +287,52 @@ enum RhinoLiveSync {
     }
 
     private static func alert(_ title: String, _ text: String) {
+        ModalUI.alert(title, text)
+    }
+}
+
+// MARK: - Alerts and panels
+
+/// Alerts and open/save panels shown as sheets on the main window.
+///
+/// The listener alert used `NSAlert.runModal()` from inside a Swift `Task`
+/// (after an `await`), which nests a modal run loop inside a suspended
+/// main-actor job. On a real Mac it drew but would not dismiss, and while an
+/// app-modal alert is up the app cannot quit. A sheet does not block anything:
+/// it ends through its completion handler, and Cmd+Q keeps working.
+@MainActor
+enum ModalUI {
+    static func alert(_ title: String, _ text: String) {
         let a = NSAlert()
         a.messageText = title
         a.informativeText = text
-        a.runModal()
+        a.addButton(withTitle: "OK")
+        if let window = hostWindow() {
+            a.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            // No window to attach to: run it on the next turn of the run loop,
+            // outside any task.
+            DispatchQueue.main.async { _ = a.runModal() }
+        }
+    }
+
+    static func run(_ panel: NSSavePanel) async -> NSApplication.ModalResponse {
+        guard let window = hostWindow() else {
+            return await withCheckedContinuation { done in
+                panel.begin { done.resume(returning: $0) }
+            }
+        }
+        return await withCheckedContinuation { done in
+            panel.beginSheetModal(for: window) { done.resume(returning: $0) }
+        }
+    }
+
+    /// The main window, if it is up and has no sheet already.
+    static func hostWindow() -> NSWindow? {
+        let window = NSApp.windows.first { $0.isVisible && !($0 is NSPanel) && $0.title == AppInfo.name }
+            ?? NSApp.mainWindow ?? NSApp.keyWindow
+        guard let window, window.attachedSheet == nil else { return nil }
+        return window
     }
 }
 

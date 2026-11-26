@@ -31,9 +31,17 @@ for _ in $(seq 1 480); do   # up to 120 s
   kill -0 "$APP_PID" 2>/dev/null || break
   sleep 0.25
 done
+# The probe ends by choosing the Cmd+Q menu item: the app must quit and stop the engine.
+QUIT="ok"
 for _ in $(seq 1 40); do kill -0 "$APP_PID" 2>/dev/null || break; sleep 0.25; done
-kill -9 "$APP_PID" 2>/dev/null || true
-pkill -f cardboard_engine.server 2>/dev/null || true
+if kill -0 "$APP_PID" 2>/dev/null; then QUIT="FAIL: app still running 10 s after Cmd+Q"; kill -9 "$APP_PID" 2>/dev/null; fi
+sleep 1
+if pgrep -f cardboard_engine.server >/dev/null; then
+  [ "$QUIT" = "ok" ] && QUIT="FAIL: engine still running after Cmd+Q"
+  pkill -9 -f cardboard_engine.server 2>/dev/null || true
+fi
+grep -q '"found" : true' "$OUT/quit-menu.json" 2>/dev/null || QUIT="FAIL: no enabled Cmd+Q menu item ($QUIT)"
+echo "$QUIT" > "$OUT/quit.txt"
 
 python3 - "$OUT" <<'EOF'
 import base64, glob, json, os, subprocess, sys
@@ -70,6 +78,9 @@ for png in sorted(glob.glob(os.path.join(out, "probe-*.png"))):
         sys.stderr.write(f"=====BEGIN {os.path.basename(jpg)}=====\n")
         sys.stderr.write(base64.encodebytes(open(jpg, "rb").read()).decode())
         sys.stderr.write(f"=====END {os.path.basename(jpg)}=====\n")
+quit = open(os.path.join(out, "quit.txt")).read().strip()
+print(f"Cmd+Q (menu item, then app and engine gone): {quit}")
+failed = failed or quit != "ok"
 sys.exit(1 if failed else 0)
 EOF
 STATUS=$?
