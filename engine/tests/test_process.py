@@ -12,8 +12,6 @@ import urllib.request
 
 import pytest
 
-pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="POSIX only")
-
 TOKEN = "proc-test-token"
 
 
