@@ -265,6 +265,6 @@ Commit at the end of each step with a short note on anything that differed from 
 ## 14. Later milestones (for context only; do not build now)
 
 - Claude chat panel (Anthropic Messages API with tool use; tools map to engine endpoints).
-- Geometry endpoints: `/waffle_slice`, `/contour_stack`, `/unfold`, multi-sheet `/nest`, DXF/SVG export.
+- Geometry endpoints: `/waffle_slice`, `/contour_stack`, `/unfold`, multi-sheet `/nest`, DXF/SVG export. Now in progress: design and status in `docs/GEOMETRY.md`.
 - Designer playbook and project-retrieval layer.
 - Optional JAX surrogate models (watch bundle size; may need to ship as a separate download).

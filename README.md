@@ -133,6 +133,8 @@ You need Rhino 8 for Mac. Hops ships with Rhino 8. If it is missing, type
 | `http://127.0.0.1:5001/hello` | Name (text) | Msg (text) |
 | `http://127.0.0.1:5001/cut_estimate` | Lc, Ls, N, S, Vc, Vs, Tp, k, Ps, R (numbers) | T, Cm, Cmach, C |
 | `http://127.0.0.1:5001/echo` | N (number) | N (the same number) |
+| `http://127.0.0.1:5001/waffle_slice` | M (mesh), Nx, Ny, T, C, K | P (parts), Cut, R3, L |
+| `http://127.0.0.1:5001/export` | P, F (`dxf`/`svg`), N, D, W | Paths, Text |
 
 Use your own port number if you changed it in Settings. Use `127.0.0.1`,
 not `localhost`: the engine listens on the IPv4 loopback address only.
@@ -143,6 +145,19 @@ engine: check the address and port.
 
 If an input makes no sense, for example a negative length or a zero speed,
 the component turns red and says why. It never returns zeros silently.
+
+### Waffle slicing to a DXF
+
+1. Hops with `/waffle_slice`. Connect a closed mesh to **M** (for a Brep, put
+   **Mesh Brep** in front). Set **Nx**, **Ny** (rib counts) and **T** (board
+   thickness, mm). **Cut** previews the flat ribs; **R3** shows them in place.
+2. Hops with `/export`. Connect the waffle's **P** output to its **P** input,
+   and a **Boolean Toggle** to **W**. Set it to True to write
+   `~/Documents/CardboardCAD/cardboardcad-sheet1.dxf` (layers CUT, LABEL).
+   Type `svg` into **F** for SVG instead.
+
+See [docs/GEOMETRY.md](docs/GEOMETRY.md) for every input and the endpoints
+still to come (contour stacks, nesting, unfolding).
 
 ## 4. Hello world demo
 

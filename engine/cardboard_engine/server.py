@@ -35,6 +35,7 @@ from .components.cut_estimate import (  # noqa: E402
     estimate,
 )
 from .components.hello import greet  # noqa: E402
+from . import hops_geometry  # noqa: E402
 from .hops_activity import HopsActivity  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
@@ -213,6 +214,10 @@ def create_app(
             )
         )
         return r.time_min, r.material_cost, r.machine_cost, r.total_cost
+
+    hops_geometry.register(
+        app, hops, category=HOPS_CATEGORY, subcategory=HOPS_SUBCATEGORY, icon=HOPS_ICON
+    )
 
     # Outermost, so it also sees the requests ghhops_server answers itself.
     activity = HopsActivity(app.wsgi_app, is_hops_path=_hops_path_check(hops))
