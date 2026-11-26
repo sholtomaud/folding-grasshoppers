@@ -18,11 +18,21 @@ INTERPRETER="$PY_HOME/bin/python3.12"
 
 if [ "$SIGN_IDENTITY" = "-" ]; then
   TS="--timestamp=none"   # ad-hoc signatures cannot be timestamped
+  # Ad-hoc builds are for this Mac only and are never notarized, so they skip
+  # the Hardened Runtime. With it on, library validation compares Team IDs,
+  # and recent macOS refuses to load an ad-hoc library (rhino3dm) into an
+  # ad-hoc process: "mapping process and mapped file (non-platform) have
+  # different Team IDs" (seen on an M4 Mac, 2026-11-26; macOS 15 CI runners
+  # still allowed it). Developer ID signing always uses the Hardened Runtime,
+  # and there every file shares one Team ID. ADHOC_HARDENED=1 keeps it on.
+  if [ "${ADHOC_HARDENED:-0}" = "1" ]; then RUNTIME_OPT=(--options runtime); else RUNTIME_OPT=(); fi
 else
   TS="--timestamp"
+  RUNTIME_OPT=(--options runtime)
 fi
 
-sign() { codesign --force $TS --options runtime --sign "$SIGN_IDENTITY" "$@"; }
+sign() { codesign --force $TS ${RUNTIME_OPT[@]+"${RUNTIME_OPT[@]}"} --sign "$SIGN_IDENTITY" "$@"; }
+[ "${#RUNTIME_OPT[@]}" -gt 0 ] || log "Ad-hoc signing without Hardened Runtime (local build; never notarized)"
 
 is_macho() { file -b "$1" | grep -q 'Mach-O'; }
 
