@@ -81,8 +81,8 @@ result in the job log and summary.
 | Layout | codesign --strict (ad-hoc, CI) | Notarization | Notes |
 |---|---|---|---|
 | `Contents/Frameworks/python` | **fails** (above) | not attempted | SPEC first choice |
-| `Contents/Helpers/python` | see CI layout probe | not attempted | SPEC fallback |
-| `Contents/Resources/python` | gating CI step | **not run yet** | default |
+| `Contents/Helpers/python` | **fails** (`code object is not signed at all`, Verify run 45737713477) | not attempted | SPEC fallback |
+| `Contents/Resources/python` | passes (sign, `--verify --deep --strict`, engine and app e2e; Verify run 45737713477) | **not run yet** | default |
 
 **Still NOT confirmed by notarization.** Record the first real
 `notarytool` result here.
