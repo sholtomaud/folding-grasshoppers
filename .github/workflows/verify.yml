@@ -43,8 +43,9 @@ jobs:
       - name: requirements.lock matches uv.lock
         working-directory: engine
         run: |
-          uv export --frozen --format requirements-txt --no-dev --no-emit-project -o /tmp/requirements.lock
-          diff -u requirements.lock /tmp/requirements.lock
+          # Compare without comments (the header records the -o path).
+          uv export --frozen --format requirements-txt --no-dev --no-emit-project --no-header > /tmp/requirements.lock
+          diff -u <(grep -v '^#' requirements.lock) <(grep -v '^#' /tmp/requirements.lock)
 
   runtime-linux:
     name: Runtime build (Linux smoke)
