@@ -9,9 +9,9 @@ SPEC.md §14 "Geometry endpoints". Each endpoint ships in its own PR.
 | `/waffle_slice` | done | 1 |
 | `/export` (DXF + SVG) | done | 1 |
 | `/contour_stack` | done | 2 |
-| `/nest` (multi-sheet) | planned | 3 |
-| `/unfold` | planned | 4 |
-| `/parts_from_curves` (hand-drawn parts into the pipeline) | planned | 3 |
+| `/nest` (multi-sheet) | done | 3 |
+| `/unfold` | done | 4 |
+| `/parts_from_curves` (hand-drawn parts into the pipeline) | planned | 5 |
 
 ## How the pieces fit
 
@@ -125,38 +125,66 @@ band still gets one). With E on, each layer is etched with the parts of its
 neighbours' outlines that land on it, which is where the next layer sits.
 Later: dowel holes through the common area.
 
-## `/nest` (planned, PR 3)
+## `/nest` (done)
 
-Multi-sheet nesting of a parts document.
+| In | Nick | Type | Default |
+|---|---|---|---|
+| Parts | P | Text | |
+| Sheet width (mm) | W | Number | 1200 |
+| Sheet height (mm) | H | Number | 800 |
+| Gap (mm) | G | Number | 5 |
+| Margin (mm) | E | Number | 10 |
+| Rotations | R | Text | `0,90` (`0` locks the grain) |
 
-Inputs: Parts P; Sheet width W (1200); Sheet height H (800); Gap G (5);
-Margin E (10); Rotations R (`0,90,180,270`); Grain lock (False).
-Outputs: P (with placements and `sheet_size`), Sheets (sheet outlines),
-Placed curves (sheets side by side on XY), Sheet count, Use % per sheet,
-Unplaced (labels that did not fit).
+| Out | Nick | |
+|---|---|---|
+| Parts | P | parts with placements and `sheet_size`: connect to Export |
+| Sheets | S | sheet outlines side by side on XY (preview) |
+| Placed curves | Cut | cut outlines on their sheets |
+| Sheet count | N | |
+| Use % | U | part area / sheet area, per sheet |
 
-v1 is true-shape bottom-left fill: for each part (largest first) and each
-allowed rotation, candidate positions come from the no-fit polygon against
-placed parts (pyclipper Minkowski sums of the gap-offset outlines), and the
-lowest-then-leftmost feasible spot wins; a new sheet opens when nothing
-fits. A part larger than the sheet is an error, not a silent drop.
-`/parts_from_curves` (same PR) turns Grasshopper curves into parts (Cut,
-Score, Etch lists plus a label) so hand-drawn pieces can be nested too.
+True-shape bottom-left fill, largest part first, first sheet with room.
+For each allowed rotation the feasible positions are the inner-fit rectangle
+minus the no-fit polygons (pyclipper Minkowski sums of outlines grown by
+G/2) of the parts already on the sheet; the lowest, then leftmost, vertex
+wins. Outlines are simplified to at most 48 vertices for nesting and grown
+by the simplification tolerance, so the result stays conservative. A part
+that fits no sheet in any allowed rotation is an error naming it.
 
-## `/unfold` (planned, PR 4)
+Limits (v1): parts are never placed inside another part's hole; no
+"pocket" positions a part could only slide into. A 16-rib waffle on
+1000 x 700 mm sheets with four rotations takes about 5 s.
 
-Unfold a polyhedral mesh (planar triangles or quads) into flat nets with
-fold lines and glue tabs.
+`/parts_from_curves` (PR 5) will turn Grasshopper curves into parts so
+hand-drawn pieces can be nested too. It needs care because Hops 1.5.5
+cannot send an empty optional input.
 
-Inputs: Mesh M; Tab width (mm) Tw (8, 0 = no tabs); Tab angle Ta (45°);
-Flat angle (°) Fa (1, folds flatter than this are not scored).
-Outputs: P, Cut curves, Score curves, Labels, Net count.
+## `/unfold` (done)
 
-Faces are joined across edges along a spanning tree (flattest folds first);
-each face is placed by rotating it about its shared edge. A face that would
-overlap the net starts a new net. Cut edges get matching numbers on both
-sides and a tab on one side. Mountain and valley folds are written to
-`score` with the fold angle kept for a later "score from the back" option.
+| In | Nick | Type | Default |
+|---|---|---|---|
+| Mesh | M | Mesh | flat faces: triangles or planar quads |
+| Tab width (mm) | Tw | Number | 8 (0 = no tabs) |
+| Tab angle (deg) | Ta | Number | 45 |
+| Flat angle (deg) | Fa | Number | 1 (flatter folds are not scored) |
+
+| Out | Nick | |
+|---|---|---|
+| Parts | P | parts document (nets, with edge numbers as texts) |
+| Cut curves | Cut | net outlines including tabs, in a row on XY |
+| Score curves | Score | folds and tab folds |
+| Labels | L | `N1`, `N2`... largest first |
+| Net count | N | |
+
+Vertices sharing a position are welded first (Rhino splits them at
+creases); non-planar quads are split into triangles. Nets grow from the
+largest free face across edges, flattest fold first, then longest edge; a
+face that would overlap its net waits for another edge or starts a new net.
+Both sides of every cut edge get the same number (LABEL layer), and the
+first side with room gets a trapezoid glue tab (a triangle on short edges)
+with a fold at its base. Later: mountain/valley distinction for scoring
+from the back.
 
 ## Bundle size and signing
 

@@ -61,3 +61,23 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Geometry milestone PR 2: /contour_stack with neighbour-outline etching; pytest floor 122 -> 142
 - **Previous Attestation:** `5cc857272b0b67acd3989f34f1a411a2bb21edd98f5e2b20cf6c60d4fd95ff50`
 - **Attestation SHA-256:** `33a0a6a05dc0aa014d57024fa89ee5aed64743aaa7352d3fb5d7744a7a7fe818`
+
+## 2026-11-26T08:23:34Z — `ee1c368` (PASS)
+
+- **Commit:** `ee1c368`
+- **Timestamp:** `2026-11-26T08:23:34Z`
+- **Proof Lock Root SHA-256:** `02b77938cd62ebee8439aab6e7170e006ae8efaed619d0826e849c11d55f47b8`
+- **Verdict:** `PASS`
+- **Summary:** Geometry milestone PR 3: multi-sheet /nest (true-shape bottom-left fill with no-fit polygons); pytest floor 142 -> 166
+- **Previous Attestation:** `33a0a6a05dc0aa014d57024fa89ee5aed64743aaa7352d3fb5d7744a7a7fe818`
+- **Attestation SHA-256:** `e67dbed844d74b3a0543ec23683421804f4d8d7613342941e96a8d4e357c6d6c`
+
+## 2026-11-26T08:26:28Z — `659e68d` (PASS)
+
+- **Commit:** `659e68d`
+- **Timestamp:** `2026-11-26T08:26:28Z`
+- **Proof Lock Root SHA-256:** `943d0156ee4514a590d6f6246a0246d7038311ea6bdf3317a8b12a81611b5089`
+- **Verdict:** `PASS`
+- **Summary:** Geometry milestone PR 4: /unfold (nets, folds, glue tabs, edge numbers); part texts in DXF/SVG; pytest floor 166 -> 191
+- **Previous Attestation:** `e67dbed844d74b3a0543ec23683421804f4d8d7613342941e96a8d4e357c6d6c`
+- **Attestation SHA-256:** `6ff93bbfbc05d1e96bda82e0fefcde494bcdceb38c5edde210ce2fdcfd1a6035`

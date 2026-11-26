@@ -54,6 +54,18 @@ def _rotator(degrees: float):
     return lambda pts: [(c * x - s * y, s * x + c * y) for x, y in pts]
 
 
+@dataclass(frozen=True)
+class Text:
+    """A small text mark on a part (e.g. matching edge numbers), on the LABEL layer."""
+
+    text: str
+    at: Point2
+    size: float = 3.0  # mm
+
+    def to_dict(self) -> dict:
+        return {"text": self.text, "at": [round(self.at[0], 6), round(self.at[1], 6)], "size": self.size}
+
+
 @dataclass
 class Part:
     id: str
@@ -63,6 +75,7 @@ class Part:
     label: Optional[str] = None
     label_at: Optional[Point2] = None
     placement: Optional[Placement] = None
+    texts: List[Text] = field(default_factory=list)
 
     def all_points(self):
         for group in (self.cut, self.score, self.etch):
@@ -89,6 +102,7 @@ class Part:
             score=[f(p) for p in self.score],
             etch=[f(p) for p in self.etch],
             label_at=f([self.label_point()])[0],
+            texts=[replace(t, at=f([t.at])[0]) for t in self.texts],
             placement=None,
         )
 
@@ -115,6 +129,8 @@ class Part:
             d["label"] = self.label
         if self.label_at is not None:
             d["label_at"] = list(self.label_at)
+        if self.texts:
+            d["texts"] = [t.to_dict() for t in self.texts]
         if self.placement is not None:
             p = self.placement
             d["placement"] = {"sheet": p.sheet, "x": p.x, "y": p.y, "rotation": p.rotation}
@@ -153,9 +169,22 @@ class Part:
                 )
             except TypeError:
                 raise PartsError(f"Part {pid}: bad placement") from None
+        texts = []
+        raw_texts = d.get("texts", [])
+        if not isinstance(raw_texts, list):
+            raise PartsError(f"Part {pid}: texts must be a list")
+        for t in raw_texts:
+            if not isinstance(t, dict) or not isinstance(t.get("text"), str):
+                raise PartsError(f"Part {pid}: each text needs a string 'text'")
+            try:
+                size = _num(t.get("size", 3.0))
+            except TypeError:
+                raise PartsError(f"Part {pid}: text size must be a number") from None
+            texts.append(Text(t["text"], _point(t.get("at"), pid, "text"), size))
         return cls(
             id=pid,
             cut=cut,
+            texts=texts,
             score=_polys_in(d.get("score", []), pid, "score", closed=False),
             etch=_polys_in(d.get("etch", []), pid, "etch", closed=False),
             label=label,

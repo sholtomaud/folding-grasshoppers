@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "90366b81b0082123edbcbf8dff32a825a0b5f54110b9f2a28157de410980f771",
+  "rootSha256": "943d0156ee4514a590d6f6246a0246d7038311ea6bdf3317a8b12a81611b5089",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -124,6 +124,26 @@
       "sha256": "b85f1a5ca856e5ed02a4e5942105c94ac57211523c55ccfc15b5f80bc28dc40c"
     },
     {
+      "path": "engine/tests/test_hops_nest.py",
+      "zone": "tests",
+      "sha256": "c4f6ae4ab2a38d4a1965e14b54aaf1beeaa741c819ebd7379c6aeec5610888ec"
+    },
+    {
+      "path": "engine/tests/test_hops_unfold.py",
+      "zone": "tests",
+      "sha256": "492c47fda31962051ade730ad0cef767bab3d998afcdf98559897fb48c41c7f0"
+    },
+    {
+      "path": "engine/tests/test_nest.py",
+      "zone": "tests",
+      "sha256": "40aff4e506a4c96d93f54193ae07e8aa8dc2f6ad2cee65ce6c6e3d7467bd56fa"
+    },
+    {
+      "path": "engine/tests/test_part_texts.py",
+      "zone": "tests",
+      "sha256": "da4a5e69f8e3e5d2f7d682b0a651ddedd650a9fe6ae329754b90e70a908a1343"
+    },
+    {
       "path": "engine/tests/test_parts_and_export.py",
       "zone": "tests",
       "sha256": "3d73e44dc341f8e96c0a5172d29cd7d24018e94b3e4e63b85c21d838b87278ea"
@@ -137,6 +157,11 @@
       "path": "engine/tests/test_server.py",
       "zone": "tests",
       "sha256": "95ea3aea3a5a0b6d2f7985a193ffe774ffa0dfd3067f8697d7420d8940f4b28d"
+    },
+    {
+      "path": "engine/tests/test_unfold.py",
+      "zone": "tests",
+      "sha256": "d02dd4689a4c32bfe471f7429eb94a27ce225f3a9accaecc89c3fae81f3664ee"
     },
     {
       "path": "engine/tests/test_waffle.py",
@@ -156,7 +181,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "6461636c66b42d8d8224753ae6695e681132c383fc359f8acaaee2bdd58422b1"
+      "sha256": "feb1024931af95b9e9990321c559082be60b448592fc1c516f9bf81da5a75c6f"
     },
     {
       "path": "uplift.config.json",
