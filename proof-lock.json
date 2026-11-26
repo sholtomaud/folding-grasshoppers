@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "409644a6429eaaf348a1f662c221eaafa814ea682da9af54628c5674e6f842b0",
+  "rootSha256": "90366b81b0082123edbcbf8dff32a825a0b5f54110b9f2a28157de410980f771",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -89,6 +89,11 @@
       "sha256": "c1fe8ad213cca1227ff0fc771313d0786c53ca8c7bbf69ad1634bc042b3dbea9"
     },
     {
+      "path": "engine/tests/test_contour_stack.py",
+      "zone": "tests",
+      "sha256": "51756233af5b0a81575b4103af30bba44a630fbc09ce481589e909a82400b14c"
+    },
+    {
       "path": "engine/tests/test_cut_estimate.py",
       "zone": "tests",
       "sha256": "72eba6c765518ff233008364155000ca0a0c90ad4903a928189721db54a782a4"
@@ -107,6 +112,11 @@
       "path": "engine/tests/test_hops_activity.py",
       "zone": "tests",
       "sha256": "f108bd0474db6162eefd5f1bb014351c647557f11634f57d6ea7a0412bd51696"
+    },
+    {
+      "path": "engine/tests/test_hops_contour.py",
+      "zone": "tests",
+      "sha256": "9a6485ffa4ab78000e3467280b8055142b54dcf4d55f5ca9ef607160487a534f"
     },
     {
       "path": "engine/tests/test_hops_geometry.py",
@@ -146,7 +156,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "3ea56e7a3cebb689bc1dda9b2e0e09449052ea6a456ae33d6d54f26694e30541"
+      "sha256": "6461636c66b42d8d8224753ae6695e681132c383fc359f8acaaee2bdd58422b1"
     },
     {
       "path": "uplift.config.json",
