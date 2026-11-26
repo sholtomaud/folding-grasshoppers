@@ -23,7 +23,7 @@ def free_port() -> int:
 
 
 def main() -> int:
-    interpreter = sys.argv[1]
+    interpreter = os.path.abspath(sys.argv[1])
     port = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[2] == "--port" else free_port()
     tmp = tempfile.mkdtemp(prefix="engine-smoke-")
     env = {  # explicit, like EngineManager: nothing inherited from the shell
@@ -66,6 +66,11 @@ def main() -> int:
             est = json.loads(r.read())
         assert abs(est["time_min"] - 1.15) < 1e-9, est
         print("cut_estimate ok:", est)
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/hello", timeout=3) as r:
+            meta = json.loads(r.read())
+        assert meta.get("Icon"), "Hops /hello has no icon (assets missing from the bundle?)"
+        print("hops /hello metadata ok (icon present)")
 
         proc.send_signal(signal.SIGTERM)
         rc = proc.wait(timeout=5)

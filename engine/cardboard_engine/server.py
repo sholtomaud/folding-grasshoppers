@@ -34,6 +34,7 @@ from .components.cut_estimate import (  # noqa: E402
     CutEstimateInput,
     estimate,
 )
+from .components.hello import greet  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
 BIND_HOST = "127.0.0.1"  # never 0.0.0.0
@@ -41,6 +42,11 @@ DEFAULT_PORT = 5001
 EXIT_PORT_IN_USE = 98
 
 log = logging.getLogger("cardboard_engine")
+
+# Hops shows components under Category > Subcategory, with this icon.
+HOPS_CATEGORY = "Fold Theory"
+HOPS_SUBCATEGORY = "CardboardCAD"
+HOPS_ICON = "assets/foldtheory-24.png"  # relative to this package
 
 REPORTED_PACKAGES = ("flask", "werkzeug", "ghhops-server", "rhino3dm")
 
@@ -105,14 +111,39 @@ def create_app(
             return jsonify(error="invalid_input", message=str(exc)), 422
         return jsonify(result.to_dict())
 
+    @app.post("/api/hello")
+    def api_hello():
+        """Plain-JSON hello-world demo for the Swift app."""
+        data = request.get_json(silent=True) or {}
+        name = data.get("name") if isinstance(data, dict) else None
+        try:
+            return jsonify(message=greet(name))
+        except TypeError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+
     # ---- Hops components -----------------------------------------------
+    @hops.component(
+        "/hello",
+        name="Hello",
+        nickname="Hello",
+        description="Hello-world demo: greets a name",
+        category=HOPS_CATEGORY,
+        subcategory=HOPS_SUBCATEGORY,
+        icon=HOPS_ICON,
+        inputs=[hs.HopsString("Name", "Name", "Who to greet")],
+        outputs=[hs.HopsString("Message", "Msg", "The greeting")],
+    )
+    def hello(name: str = "world"):
+        return greet(name)
+
     @hops.component(
         "/echo",
         name="Echo",
         nickname="Echo",
         description="Smoke test: returns the number it is given",
-        category="CardboardCAD",
-        subcategory="Debug",
+        category=HOPS_CATEGORY,
+        subcategory=HOPS_SUBCATEGORY,
+        icon=HOPS_ICON,
         inputs=[hs.HopsNumber("Number", "N", "Any number")],
         outputs=[hs.HopsNumber("Number", "N", "The same number")],
     )
@@ -124,8 +155,9 @@ def create_app(
         name="CutEstimate",
         nickname="CutEst",
         description="Estimate cutting time and cost (mm, s)",
-        category="CardboardCAD",
-        subcategory="Estimate",
+        category=HOPS_CATEGORY,
+        subcategory=HOPS_SUBCATEGORY,
+        icon=HOPS_ICON,
         inputs=[
             hs.HopsNumber("Cut length (mm)", "Lc", "Total cut length in mm"),
             hs.HopsNumber("Score length (mm)", "Ls", "Total score length in mm"),
