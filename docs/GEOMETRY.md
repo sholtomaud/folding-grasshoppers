@@ -10,7 +10,7 @@ SPEC.md §14 "Geometry endpoints". Each endpoint ships in its own PR.
 | `/export` (DXF + SVG) | done | 1 |
 | `/contour_stack` | done | 2 |
 | `/nest` (multi-sheet) | done | 3 |
-| `/unfold` | planned | 4 |
+| `/unfold` | done | 4 |
 | `/parts_from_curves` (hand-drawn parts into the pipeline) | planned | 5 |
 
 ## How the pieces fit
@@ -160,20 +160,31 @@ Limits (v1): parts are never placed inside another part's hole; no
 hand-drawn pieces can be nested too. It needs care because Hops 1.5.5
 cannot send an empty optional input.
 
-## `/unfold` (planned, PR 4)
+## `/unfold` (done)
 
-Unfold a polyhedral mesh (planar triangles or quads) into flat nets with
-fold lines and glue tabs.
+| In | Nick | Type | Default |
+|---|---|---|---|
+| Mesh | M | Mesh | flat faces: triangles or planar quads |
+| Tab width (mm) | Tw | Number | 8 (0 = no tabs) |
+| Tab angle (deg) | Ta | Number | 45 |
+| Flat angle (deg) | Fa | Number | 1 (flatter folds are not scored) |
 
-Inputs: Mesh M; Tab width (mm) Tw (8, 0 = no tabs); Tab angle Ta (45°);
-Flat angle (°) Fa (1, folds flatter than this are not scored).
-Outputs: P, Cut curves, Score curves, Labels, Net count.
+| Out | Nick | |
+|---|---|---|
+| Parts | P | parts document (nets, with edge numbers as texts) |
+| Cut curves | Cut | net outlines including tabs, in a row on XY |
+| Score curves | Score | folds and tab folds |
+| Labels | L | `N1`, `N2`... largest first |
+| Net count | N | |
 
-Faces are joined across edges along a spanning tree (flattest folds first);
-each face is placed by rotating it about its shared edge. A face that would
-overlap the net starts a new net. Cut edges get matching numbers on both
-sides and a tab on one side. Mountain and valley folds are written to
-`score` with the fold angle kept for a later "score from the back" option.
+Vertices sharing a position are welded first (Rhino splits them at
+creases); non-planar quads are split into triangles. Nets grow from the
+largest free face across edges, flattest fold first, then longest edge; a
+face that would overlap its net waits for another edge or starts a new net.
+Both sides of every cut edge get the same number (LABEL layer), and the
+first side with room gets a trapezoid glue tab (a triangle on short edges)
+with a fold at its base. Later: mountain/valley distinction for scoring
+from the back.
 
 ## Bundle size and signing
 

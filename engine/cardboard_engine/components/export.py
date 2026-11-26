@@ -121,6 +121,15 @@ def to_dxf(sheet: Sheet) -> str:
             g(72, 1)  # centre
             g(11, float(x)); g(21, float(y)); g(31, 0.0)
             g(73, 2)  # middle
+        for t in part.texts:
+            x, y = t.at
+            g(0, "TEXT"); g(8, "LABEL")
+            g(10, float(x)); g(20, float(y)); g(30, 0.0)
+            g(40, float(t.size))
+            g(1, _dxf_text(t.text))
+            g(72, 1)
+            g(11, float(x)); g(21, float(y)); g(31, 0.0)
+            g(73, 2)
     g(0, "ENDSEC")
     g(0, "EOF")
     return "\n".join(out) + "\n"
@@ -170,6 +179,12 @@ def to_svg(sheet: Sheet) -> str:
             groups["LABEL"].append(
                 f'<text x="{lx}" y="{ly}" font-size="{_fmt(_text_height(part))}" '
                 f'text-anchor="middle" dominant-baseline="middle">{escape(part.label)}</text>'
+            )
+        for t in part.texts:
+            tx, ty = xy(t.at).split()
+            groups["LABEL"].append(
+                f'<text x="{tx}" y="{ty}" font-size="{_fmt(t.size)}" '
+                f'text-anchor="middle" dominant-baseline="middle">{escape(t.text)}</text>'
             )
 
     lines = [

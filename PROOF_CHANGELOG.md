@@ -71,3 +71,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Geometry milestone PR 3: multi-sheet /nest (true-shape bottom-left fill with no-fit polygons); pytest floor 142 -> 166
 - **Previous Attestation:** `33a0a6a05dc0aa014d57024fa89ee5aed64743aaa7352d3fb5d7744a7a7fe818`
 - **Attestation SHA-256:** `e67dbed844d74b3a0543ec23683421804f4d8d7613342941e96a8d4e357c6d6c`
+
+## 2026-11-26T08:26:28Z — `659e68d` (PASS)
+
+- **Commit:** `659e68d`
+- **Timestamp:** `2026-11-26T08:26:28Z`
+- **Proof Lock Root SHA-256:** `943d0156ee4514a590d6f6246a0246d7038311ea6bdf3317a8b12a81611b5089`
+- **Verdict:** `PASS`
+- **Summary:** Geometry milestone PR 4: /unfold (nets, folds, glue tabs, edge numbers); part texts in DXF/SVG; pytest floor 166 -> 191
+- **Previous Attestation:** `e67dbed844d74b3a0543ec23683421804f4d8d7613342941e96a8d4e357c6d6c`
+- **Attestation SHA-256:** `6ff93bbfbc05d1e96bda82e0fefcde494bcdceb38c5edde210ce2fdcfd1a6035`

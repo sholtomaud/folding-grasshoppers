@@ -22,9 +22,10 @@ from .components.export import ExportError, export_files
 from .components.geometry import GeometryError, Mesh
 from .components.nest import NestError, NestInput, nest, parse_rotations
 from .components.parts import PartsDoc, PartsError
+from .components.unfold import UnfoldError, UnfoldInput, unfold
 from .components.waffle import WaffleError, WaffleInput, waffle_slice
 
-INPUT_ERRORS = (GeometryError, PartsError, WaffleError, ContourError, NestError, ExportError)
+INPUT_ERRORS = (GeometryError, PartsError, WaffleError, ContourError, NestError, UnfoldError, ExportError)
 
 
 def mesh_from_rhino(obj) -> Mesh:
@@ -166,6 +167,52 @@ def register(app: Flask, hops: hs.Hops, *, category: str, subcategory: str, icon
                 axis=str(data.get("axis", "z")),
             )
             result = contour_stack(mesh, inp)
+        except (TypeError, *INPUT_ERRORS) as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify({"schema": "cardboardcad.parts/1", "parts": [p.to_dict() for p in result.parts]})
+
+    # ---- /unfold -------------------------------------------------------------
+    @hops.component(
+        "/unfold",
+        name="Unfold",
+        nickname="Unfold",
+        description="Unfold a polyhedral mesh into flat nets with fold lines, glue tabs and edge numbers (mm)",
+        inputs=[
+            hs.HopsMesh("Mesh", "M", "Mesh with flat faces (triangles or planar quads), mm"),
+            hs.HopsNumber("Tab width (mm)", "Tw", "Glue tab width; 0 for no tabs"),
+            hs.HopsNumber("Tab angle (deg)", "Ta", "Slope of the tab sides (0-90)"),
+            hs.HopsNumber("Flat angle (deg)", "Fa", "Folds flatter than this are not scored"),
+        ],
+        outputs=[
+            hs.HopsString("Parts", "P", "Parts document: connect to Nest or Export"),
+            hs.HopsCurve("Cut curves", "Cut", "Net outlines (with tabs) laid out in a row", hs.HopsParamAccess.LIST),
+            hs.HopsCurve("Score curves", "Score", "Fold lines, same layout", hs.HopsParamAccess.LIST),
+            hs.HopsString("Labels", "L", "Net labels N1, N2... largest first", hs.HopsParamAccess.LIST),
+            hs.HopsInteger("Net count", "N", "Number of separate nets"),
+        ],
+        **brand,
+    )
+    def unfold_component(M, Tw=8.0, Ta=45.0, Fa=1.0):
+        result = unfold(
+            mesh_from_rhino(M), UnfoldInput(tab_width=float(Tw), tab_angle=float(Ta), flat_angle=float(Fa))
+        )
+        doc = PartsDoc(parts=result.parts)
+        flat = doc.layout()[0]
+        cut = _curves(loop for p in flat.parts for loop in p.cut)
+        score = _curves((line for p in flat.parts for line in p.score), closed=False)
+        return doc.to_json(), cut, score, [p.id for p in result.parts], len(result.parts)
+
+    @app.post("/api/unfold")
+    def api_unfold():
+        data = request.get_json(silent=True)
+        try:
+            mesh = _mesh_from_json(data)
+            inp = UnfoldInput(
+                tab_width=data.get("tab_width", 8.0),
+                tab_angle=data.get("tab_angle", 45.0),
+                flat_angle=data.get("flat_angle", 1.0),
+            )
+            result = unfold(mesh, inp)
         except (TypeError, *INPUT_ERRORS) as exc:
             return jsonify(error="invalid_input", message=str(exc)), 422
         return jsonify({"schema": "cardboardcad.parts/1", "parts": [p.to_dict() for p in result.parts]})
