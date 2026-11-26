@@ -111,3 +111,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Merge main into project saving / Rhino live sync; floors pytest 322, swift 106
 - **Previous Attestation:** `9c9da5e111daab769af25ef7e505bff0926dbcf4c7dffe7d9b2fd071bb7b6c33`
 - **Attestation SHA-256:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`
+
+## 2026-11-26T23:38:31Z — `45d9be2` (PASS)
+
+- **Commit:** `45d9be2`
+- **Timestamp:** `2026-11-26T23:38:31Z`
+- **Proof Lock Root SHA-256:** `2ab4652e72ea831f37bb4a00fce6531b49eb670282529132cf74459357ee7efe`
+- **Verdict:** `PASS`
+- **Summary:** CI window probe: checks the chat message box is visible in the real app window
+- **Previous Attestation:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`
+- **Attestation SHA-256:** `2474565d432fb47be877210824778a764db89e5c1392f28a3dca91a594b1a98c`

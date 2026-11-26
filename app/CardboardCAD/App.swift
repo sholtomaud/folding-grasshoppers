@@ -49,7 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     )
 
-    let claudeKey = ClaudeKey(store: KeychainSecretStore())
+    /// The window probe (CI only) uses a throwaway in-memory key, never the Keychain.
+    let claudeKey = ClaudeKey(store: WindowProbe.isEnabled
+        ? InMemorySecretStore(WindowProbe.placeholderKey) as SecretStore
+        : KeychainSecretStore())
 
     /// The chat. Claude is called from the app with the key from the Keychain;
     /// the key is read on each request and never passed to the engine.
@@ -68,6 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { await engine.start() }
+        if WindowProbe.isEnabled {
+            let engine = engine, assistant = assistant
+            Task { await WindowProbe.run(engine: engine, assistant: assistant) }
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

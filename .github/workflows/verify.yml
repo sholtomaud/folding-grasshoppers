@@ -115,6 +115,10 @@ jobs:
       - name: End-to-end app launch
         run: scripts/ci/e2e_app.sh build/app/CardboardCAD.app
 
+      - name: Window probe (chat message box visible in the real window)
+        if: always()
+        run: set -o pipefail; scripts/ci/window_probe.sh build/app/CardboardCAD.app | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Layout probe (informational)
         if: always()
         continue-on-error: true

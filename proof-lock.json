@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "685c5fee483a31ebfd98aeb2b67b013e64306ef55602f66db0a70832c3256741",
+  "rootSha256": "2ab4652e72ea831f37bb4a00fce6531b49eb670282529132cf74459357ee7efe",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -26,7 +26,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "zone": "harness",
-      "sha256": "d79690832067260ab03bbb5497103bdf9dc580ca00866b6e48277b8082f4dd33"
+      "sha256": "0a987d75c55e776114bb678312fb2f78b0d367e4a396fecb4f9523181ac107f3"
     },
     {
       "path": "app/CardboardCADKit/Package.swift",
