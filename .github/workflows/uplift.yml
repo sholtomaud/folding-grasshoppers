@@ -40,7 +40,7 @@ jobs:
           persist-credentials: false
       - name: Agentic Uplift
         id: uplift
-        uses: sholtomaud/agentic-uplift@e2158d3a4e92de8e5c07e4bc2c80d82933cf6c17
+        uses: sholtomaud/agentic-uplift@0d5918e08c57d45190fb59538c35663b043a9b61
         with:
           deploy-pages: ${{ github.event_name != 'workflow_dispatch' && 'true' || inputs.deploy-pages && 'true' || 'false' }}
           monthly-agentic-budget: '50'
