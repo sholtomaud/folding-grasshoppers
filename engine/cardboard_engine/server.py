@@ -36,7 +36,8 @@ from .components.cut_estimate import (  # noqa: E402
 )
 from .components.hello import greet  # noqa: E402
 from . import hops_geometry  # noqa: E402
-from .design import SYSTEM_PROMPT, TOOLS, DesignSession  # noqa: E402
+from .design import SYSTEM_PROMPT, TOOLS, DesignSession  # noqa: E402,F401
+from .workflow import WorkflowError  # noqa: E402
 from .project import ProjectError  # noqa: E402
 from . import hops_live  # noqa: E402
 from .hops_activity import HopsActivity  # noqa: E402
@@ -240,7 +241,7 @@ def _register_design(app: Flask) -> DesignSession:
 
     @app.get("/api/design/tools")
     def design_tools():
-        return jsonify(system=SYSTEM_PROMPT, tools=TOOLS)
+        return jsonify(system=session.system_prompt(), tools=TOOLS)
 
     @app.post("/api/design/tool")
     def design_tool():
@@ -253,7 +254,30 @@ def _register_design(app: Flask) -> DesignSession:
         if not isinstance(args, dict):
             return jsonify(error="invalid_input", message="input must be an object"), 400
         result = session.run_tool(data["name"], args)
-        return jsonify(content=result.text, is_error=result.is_error, version=session.version)
+        return jsonify(content=result.text, is_error=result.is_error, version=session.version,
+                       setup_changed=result.setup_changed)
+
+    @app.get("/api/workflows")
+    def workflows_list():
+        """The saved workflows, the active one and whether apply defaults is on."""
+        return jsonify(session.workflows.listing())
+
+    @app.post("/api/workflows/settings")
+    def workflows_settings():
+        """Body: {active?, apply_defaults?}. Changes what the next Claude request is told."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="invalid_input", message="Body must be {active, apply_defaults}"), 400
+        active, apply = data.get("active"), data.get("apply_defaults")
+        if active is not None and not isinstance(active, str):
+            return jsonify(error="invalid_input", message="active must be text"), 400
+        if apply is not None and not isinstance(apply, bool):
+            return jsonify(error="invalid_input", message="apply_defaults must be true or false"), 400
+        try:
+            session.workflows.set_settings(active=active, apply_defaults=apply)
+        except WorkflowError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(session.workflows.listing())
 
     @app.get("/api/design/version")
     def design_version():

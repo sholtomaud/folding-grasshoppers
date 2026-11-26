@@ -6,6 +6,7 @@ struct SettingsView: View {
     let engine: EngineManager
     @Bindable var assistant: DesignAssistant
     let claudeKey: ClaudeKey
+    let workflows: WorkflowController
     @State private var portText = ""
     @State private var copied: String?
     @State private var keyText = ""
@@ -54,6 +55,7 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            WorkflowSettingsSection(workflows: workflows)
             Section("Engine") {
                 HStack {
                     TextField("Port", text: $portText)

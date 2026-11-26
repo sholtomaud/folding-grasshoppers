@@ -197,6 +197,50 @@ What the assistant can do:
 - The old forms (Hello world and the cut-estimate calculator) are under
   **Design > Manual Tools** (⇧⌘T).
 
+### Workflows: nesting and costing every time
+
+A **workflow** is the list of steps the assistant follows for every design,
+plus the values it uses when you don't give them (board size, gap between
+parts, prices). The built-in **Standard** workflow is:
+
+1. Model: make or load the model at its real size.
+2. Parts: waffle, contour stack or unfold, whichever suits the form.
+3. Nest on sheets: 1200 × 800 mm board, 5 mm gap, 10 mm margin.
+4. Estimate cost: the assistant asks for your sheet price and hourly machine
+   rate the first time, then offers to remember them.
+5. Cut files and 6. Save project: only when you ask.
+
+So "make a cylinder stool 450 mm tall as a waffle from 6 mm board" now ends
+with the parts nested on 1200 × 800 sheets and a cost, without asking for it.
+
+**Apply defaults** is the switch in the window's toolbar (top right), also in
+**Design > Workflow > Apply Workflow Defaults** (⇧⌘D) and in Settings:
+
+| Apply defaults | What the assistant does |
+|---|---|
+| On (the default) | Uses the workflow's saved values for anything you didn't say, carries on through the steps, and tells you which values it used ("Used workflow values: sheet 1200 × 800…") |
+| Off | Before each step, asks you for the values the workflow covers ("What board size? The workflow says 1200 × 800."), and waits for your answer |
+
+A value saved as *ask* (the prices in Standard, until you give them) is always
+asked for.
+
+**Make your own workflow from a conversation.** Talk the assistant through
+how you work, then say "save this as a workflow", for example:
+
+> For honeycomb jobs: always waffle from 10 mm board, nest on 2400 × 1200
+> sheets with an 8 mm gap, cost it at 38 a sheet and 60 an hour, and ask me
+> who the client is first. Save that as a workflow called Honeycomb.
+
+It saves the workflow and switches to it. Pick a workflow in the toolbar,
+in **Design > Workflow**, or in Settings, or ask "use the Honeycomb
+workflow". To change one saved value, say for example "remember 12.50 a
+sheet". Each workflow is a plain JSON file in
+`~/Documents/CardboardCAD/Workflows/` (**Design > Workflow > Show Workflows
+Folder**), so you can copy it to another Mac or edit it by hand; then choose
+**Reload Workflows**. Delete a file there to remove that workflow; delete
+`Standard.json` to get the built-in Standard back. Saved projects record
+which workflow made them (`"workflow"` in `project.json`).
+
 ### Save and open projects
 
 A **project** is a folder that holds everything about one design. Save one
@@ -257,7 +301,7 @@ open /Applications/CardboardCAD.app
 app. To try a change before it is merged, replace `git checkout main` and
 `git pull` with `git checkout <branch>` and `git pull origin <branch>`, for
 example `claude/project-thread-r4a2ee` for project saving and Rhino live
-sync.
+sync, or `claude/project-thread-u3agc6` for workflows.
 
 ## 4. Connect Grasshopper (Hops)
 
@@ -405,6 +449,7 @@ path to jump there.
 | Assistant model and effort | same preferences file (`defaults read com.example.cardboardcad assistantModel`) |
 | Exported cut files | `~/Documents/CardboardCAD/` unless you name another folder |
 | Saved projects | `~/Documents/CardboardCAD/Projects/<project name>/` (see section 3, *Save and open projects*) |
+| Workflows | `~/Documents/CardboardCAD/Workflows/<workflow name>.json`, and `.settings.json` there for the active workflow and Apply defaults (see section 3, *Workflows*) |
 | Python inside the app | `/Applications/CardboardCAD.app/Contents/Resources/python/` |
 
 To uninstall, quit the app, drag `/Applications/CardboardCAD.app` to the

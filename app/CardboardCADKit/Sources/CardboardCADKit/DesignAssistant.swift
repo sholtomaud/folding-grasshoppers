@@ -47,6 +47,8 @@ public final class DesignAssistant {
     @ObservationIgnored private let model: ChatModelClient
     @ObservationIgnored private var tools: DesignToolRunner?
     @ObservationIgnored private var setup: DesignSetup?
+    /// Called after a tool changed the engine's workflow (so a workflow picker can refresh).
+    @ObservationIgnored public var onSetupChanged: (() -> Void)?
 
     public init(model: ChatModelClient, modelID: String = AssistantModel.defaultID,
                 effort: String = AssistantModel.defaultEffort) {
@@ -62,6 +64,11 @@ public final class DesignAssistant {
     }
 
     public var isConnected: Bool { tools != nil }
+
+    /// Fetch the system prompt and tools again before the next request (the workflow changed).
+    public func reloadSetup() {
+        setup = nil
+    }
 
     public static func title(forTool name: String) -> String {
         let words = name.split(separator: "_").map(String.init)
@@ -89,11 +96,11 @@ public final class DesignAssistant {
         history.append(["role": "user", "content": .string(text)])
         do {
             activity = "Thinking…"
-            if setup == nil { setup = try await tools.designSetup() }
-            guard let setup else { return }
             var steps = 0
             while true {
                 steps += 1
+                if self.setup == nil { self.setup = try await tools.designSetup() }
+                guard let setup = self.setup else { return }
                 let response = try await model.send(ModelRequest(
                     model: modelID, system: setup.system, tools: setup.tools, messages: history, effort: effort
                 ))
@@ -142,6 +149,10 @@ public final class DesignAssistant {
                                           isError: true, version: 0)
             }
             items.append(ChatItem(kind: .tool(name: name, isError: output.isError), text: output.content))
+            if output.setupChanged {
+                setup = nil
+                onSetupChanged?()
+            }
             results.append([
                 "type": "tool_result",
                 "tool_use_id": .string(id),

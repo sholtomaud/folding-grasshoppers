@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "685c5fee483a31ebfd98aeb2b67b013e64306ef55602f66db0a70832c3256741",
+  "rootSha256": "ebba7fc11dcf5d0770c9218e657dbbfa03f888c6fd8291d1015beaaee57c444d",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -97,6 +97,11 @@
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/TestFakes.swift",
       "zone": "tests",
       "sha256": "dcb4239c0b6fadba95d9575e8a682e1ae915ec991ff3467f5f0169e4cb5750f5"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/WorkflowTests.swift",
+      "zone": "tests",
+      "sha256": "f384559f8d6a4fbcad47052719fe93f8c56b22384950d4dbf210a138f5bf73a9"
     },
     {
       "path": "engine/pyproject.toml",
@@ -239,6 +244,11 @@
       "sha256": "2fcc5ef210760a631053e5eeed1278a9bffe3118e7c1a64cf3007180a4db7964"
     },
     {
+      "path": "engine/tests/test_workflows.py",
+      "zone": "tests",
+      "sha256": "fd9b6389e9eacbc64422af4b7675d61d21054bcfe8a0369d1c38598d53e5e008"
+    },
+    {
       "path": "scripts/ci/check_test_floors.py",
       "zone": "harness",
       "sha256": "f39719aa7ad6a79291e10babc92079e8c318c3de42fc6ea86a85304fe18bc445"
@@ -251,7 +261,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "7d8ba6e44121d88534130de36ffab0b1cc9d170b68f19c81322f1a30d914a357"
+      "sha256": "3a0cd68af6efd9b827921833e25f3d722e0fc4722bfff5c9937851321443432c"
     },
     {
       "path": "uplift.config.json",
