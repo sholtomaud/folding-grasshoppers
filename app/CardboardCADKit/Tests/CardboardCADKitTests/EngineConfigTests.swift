@@ -10,9 +10,26 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertEqual(url.path, "/Applications/CardboardCAD.app/Contents/Frameworks/python/bin/python3.12")
     }
 
+    func testPythonHomeFromInfoPlistOverridesLayout() {
+        let url = EngineConfig.bundledInterpreterURL(bundleURL: bundleURL, pythonHome: "Contents/Resources/python")
+        XCTAssertEqual(url.path, "/Applications/CardboardCAD.app/Contents/Resources/python/bin/python3.12")
+        let c = EngineConfig.resolve(
+            bundleURL: bundleURL, pythonHome: "Contents/Helpers/python", port: 5001,
+            environment: [:], allowDevRuntime: false, home: home
+        )
+        XCTAssertEqual(c.interpreterURL.path, "/Applications/CardboardCAD.app/Contents/Helpers/python/bin/python3.12")
+    }
+
+    func testPythonHomeRejectsPathsOutsideTheBundle() {
+        for bad in ["/usr/bin", "../../evil", ""] {
+            let url = EngineConfig.bundledInterpreterURL(bundleURL: bundleURL, pythonHome: bad)
+            XCTAssertEqual(url.path, "/Applications/CardboardCAD.app/Contents/Frameworks/python/bin/python3.12", bad)
+        }
+    }
+
     func testResolveUsesBundleAndStandardDirectories() {
         let c = EngineConfig.resolve(
-            bundleURL: bundleURL, port: 5001, environment: [:], allowDevRuntime: true, home: home
+            bundleURL: bundleURL, pythonHome: nil, port: 5001, environment: [:], allowDevRuntime: true, home: home
         )
         XCTAssertEqual(c.interpreterURL.path, "/Applications/CardboardCAD.app/Contents/Frameworks/python/bin/python3.12")
         XCTAssertEqual(c.logsDirectory.path, "/Users/tester/Library/Logs/CardboardCAD")
@@ -24,11 +41,11 @@ final class EngineConfigTests: XCTestCase {
 
     func testDevRuntimeOverrideOnlyWhenAllowed() {
         let env = ["CARDBOARD_DEV_RUNTIME": "/src/folding-grasshoppers/build/python-runtime"]
-        let dev = EngineConfig.resolve(bundleURL: bundleURL, port: 5001, environment: env, allowDevRuntime: true, home: home)
+        let dev = EngineConfig.resolve(bundleURL: bundleURL, pythonHome: nil, port: 5001, environment: env, allowDevRuntime: true, home: home)
         XCTAssertEqual(dev.interpreterURL.path, "/src/folding-grasshoppers/build/python-runtime/bin/python3.12")
         XCTAssertTrue(dev.usesDevRuntime)
 
-        let release = EngineConfig.resolve(bundleURL: bundleURL, port: 5001, environment: env, allowDevRuntime: false, home: home)
+        let release = EngineConfig.resolve(bundleURL: bundleURL, pythonHome: nil, port: 5001, environment: env, allowDevRuntime: false, home: home)
         XCTAssertEqual(release.interpreterURL.path, "/Applications/CardboardCAD.app/Contents/Frameworks/python/bin/python3.12")
         XCTAssertFalse(release.usesDevRuntime)
     }
@@ -45,7 +62,7 @@ final class EngineConfigTests: XCTestCase {
         let c = testConfig(port: 5050)
         XCTAssertEqual(c.baseURL.absoluteString, "http://127.0.0.1:5050")
         XCTAssertEqual(c.hopsURL(for: "cut_estimate").absoluteString, "http://127.0.0.1:5050/cut_estimate")
-        XCTAssertEqual(EngineConfig.hopsEndpoints, ["cut_estimate", "echo"])
+        XCTAssertEqual(EngineConfig.hopsEndpoints, ["hello", "cut_estimate", "echo"])
     }
 
     func testPortValidation() {
