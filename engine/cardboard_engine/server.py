@@ -36,6 +36,7 @@ from .components.cut_estimate import (  # noqa: E402
 )
 from .components.hello import greet  # noqa: E402
 from . import hops_geometry  # noqa: E402
+from .design import SYSTEM_PROMPT, TOOLS, DesignSession  # noqa: E402
 from .hops_activity import HopsActivity  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
@@ -218,12 +219,56 @@ def create_app(
     hops_geometry.register(
         app, hops, category=HOPS_CATEGORY, subcategory=HOPS_SUBCATEGORY, icon=HOPS_ICON
     )
+    _register_design(app)
 
     # Outermost, so it also sees the requests ghhops_server answers itself.
     activity = HopsActivity(app.wsgi_app, is_hops_path=_hops_path_check(hops))
     app.wsgi_app = activity
     app.config["HOPS_ACTIVITY"] = activity
     return app
+
+
+def _register_design(app: Flask) -> None:
+    """Design Assistant routes: the app's chat runs tools here; /preview draws the result."""
+    session = DesignSession(home=os.environ.get("HOME") or os.path.expanduser("~"))
+    app.config["DESIGN"] = session
+    preview_path = os.path.join(os.path.dirname(__file__), "assets", "preview.html")
+
+    @app.get("/api/design/tools")
+    def design_tools():
+        return jsonify(system=SYSTEM_PROMPT, tools=TOOLS)
+
+    @app.post("/api/design/tool")
+    def design_tool():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("name"), str):
+            return jsonify(error="invalid_input", message="Body must be {name, input}"), 400
+        args = data.get("input", {})
+        if args is None:
+            args = {}
+        if not isinstance(args, dict):
+            return jsonify(error="invalid_input", message="input must be an object"), 400
+        result = session.run_tool(data["name"], args)
+        return jsonify(content=result.text, is_error=result.is_error, version=session.version)
+
+    @app.get("/api/design/version")
+    def design_version():
+        return jsonify(version=session.version)
+
+    @app.get("/api/design/state")
+    def design_state():
+        return jsonify(session.state())
+
+    @app.post("/api/design/reset")
+    def design_reset():
+        session.reset()
+        return jsonify(version=session.version)
+
+    @app.get("/preview")
+    def preview():
+        with open(preview_path, "rb") as fh:
+            body = fh.read()
+        return body, 200, {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store"}
 
 
 def _hops_path_check(hops):

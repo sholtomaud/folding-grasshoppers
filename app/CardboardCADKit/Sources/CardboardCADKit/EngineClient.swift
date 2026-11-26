@@ -198,3 +198,69 @@ public final class EngineClient: EngineClientProtocol, @unchecked Sendable {
         }
     }
 }
+
+// MARK: - Design Assistant routes
+
+/// The engine's system prompt and tool definitions for Claude (GET /api/design/tools).
+public struct DesignSetup: Codable, Equatable, Sendable {
+    public var system: String
+    public var tools: [JSONValue]
+
+    public init(system: String, tools: [JSONValue]) {
+        self.system = system
+        self.tools = tools
+    }
+}
+
+/// One tool run on the engine's design (POST /api/design/tool).
+public struct DesignToolOutput: Codable, Equatable, Sendable {
+    public var content: String
+    public var isError: Bool
+    public var version: Int
+
+    public init(content: String, isError: Bool, version: Int) {
+        self.content = content
+        self.isError = isError
+        self.version = version
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case content
+        case isError = "is_error"
+        case version
+    }
+}
+
+/// Runs Claude's tool calls. The engine holds the design; the app only relays.
+public protocol DesignToolRunner: AnyObject {
+    func designSetup() async throws -> DesignSetup
+    func runDesignTool(name: String, input: JSONValue) async throws -> DesignToolOutput
+    func resetDesign() async throws
+}
+
+extension EngineClient: DesignToolRunner {
+    /// Slicing and nesting a big model can take a while.
+    public static let designToolTimeout: TimeInterval = 180
+
+    /// The live preview page the app shows beside the chat.
+    public var previewURL: URL { baseURL.appendingPathComponent("preview") }
+
+    public func designSetup() async throws -> DesignSetup {
+        try await get("/api/design/tools", timeout: 5)
+    }
+
+    public func runDesignTool(name: String, input: JSONValue) async throws -> DesignToolOutput {
+        var request = makeRequest("/api/design/tool", method: "POST", timeout: Self.designToolTimeout)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: JSONValue = ["name": .string(name), "input": input]
+        request.httpBody = try JSONValue.encoder.encode(body)
+        let (data, status) = try await send(request)
+        guard status == 200 else { throw EngineClientError.httpStatus(status) }
+        return try decode(data)
+    }
+
+    public func resetDesign() async throws {
+        let (_, status) = try await send(makeRequest("/api/design/reset", method: "POST", timeout: 5))
+        guard status == 200 else { throw EngineClientError.httpStatus(status) }
+    }
+}

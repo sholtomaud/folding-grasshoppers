@@ -14,21 +14,22 @@ calculations.
 
 > **Status (milestone 1):** there is **no downloadable release yet**. Until
 > the first signed release is published, you get the app by building it on a
-> Mac (section 6, about 10 minutes). Section 1 describes the download that
+> Mac (section 7, about 10 minutes). Section 1 describes the download that
 > will exist once a release is made.
 
 Contents:
 
 1. [Install the app](#1-install-the-app)
 2. [First launch](#2-first-launch)
-3. [Connect Grasshopper (Hops)](#3-connect-grasshopper-hops)
-4. [Hello world demo](#4-hello-world-demo)
-5. [Where CardboardCAD keeps its files](#5-where-cardboardcad-keeps-its-files)
-6. [Build the app yourself](#6-build-the-app-yourself)
-7. [Make a signed release (DMG)](#7-make-a-signed-release-dmg)
-8. [Troubleshooting](#8-troubleshooting)
-9. [`cut_estimate` reference values](#9-cut_estimate-reference-values)
-10. [For developers](#10-for-developers)
+3. [Design with the Design Assistant](#3-design-with-the-design-assistant)
+4. [Connect Grasshopper (Hops)](#4-connect-grasshopper-hops)
+5. [Hello world demo](#5-hello-world-demo)
+6. [Where CardboardCAD keeps its files](#6-where-cardboardcad-keeps-its-files)
+7. [Build the app yourself](#7-build-the-app-yourself)
+8. [Make a signed release (DMG)](#8-make-a-signed-release-dmg)
+9. [Troubleshooting](#9-troubleshooting)
+10. [`cut_estimate` reference values](#10-cut_estimate-reference-values)
+11. [For developers](#11-for-developers)
 
 ---
 
@@ -43,7 +44,7 @@ say Apple M-something, and "macOS" should be 14 or higher.
 There is no download yet: the releases page
 (https://github.com/sholtomaud/folding-grasshoppers/releases) is empty until
 the first signed release is published. Follow
-[section 6](#6-build-the-app-yourself) (about 10 minutes). It produces
+[section 7](#7-build-the-app-yourself) (about 10 minutes). It produces
 `~/src/folding-grasshoppers/build/app/CardboardCAD.app`, which you copy to
 `/Applications`.
 
@@ -71,7 +72,7 @@ Skip this until the releases page lists a release.
    downloaded from the Internet. Are you sure you want to open it?* Click
    **Open**. You only see this once.
    (Your own unsigned build is blocked instead: see
-   [section 6](#6-build-the-app-yourself).)
+   [section 7](#7-build-the-app-yourself).)
 3. Look at the status bar along the bottom of the window. On the left, the
    engine dot turns **green** and says "Engine running · 127.0.0.1:5001",
    within about 20 seconds the first time and a few seconds after that.
@@ -109,7 +110,117 @@ Open them with **CardboardCAD > Settings…** (⌘,).
 The **Engine** menu in the menu bar has **Restart Engine** (⇧⌘R) and
 **Show Logs**.
 
-## 3. Connect Grasshopper (Hops)
+## 3. Design with the Design Assistant
+
+The main window has two halves:
+
+- **Left: the Design Assistant**, a chat with Claude. You describe what you
+  want to make in plain words. Claude decides which engine steps to run and
+  with which numbers, then runs them.
+- **Right: the preview**, which updates after every step:
+  - **3D model** tab: the model, with the cardboard parts assembled on it
+    (waffle ribs, stacked layers, or the folded net). Drag to turn it, scroll
+    to zoom, double-click to reset the view.
+  - **Cut sheets** tab: the flat parts as they will be cut. Red is cut,
+    blue is score/fold, green is etch. After nesting there is one picture per
+    sheet, with how much of the board is used.
+
+Claude never draws geometry itself. It chooses the step and the numbers, and
+the engine does the CAD work: the same engine Grasshopper uses through Hops.
+
+### Step 1: get a Claude API key (once)
+
+The assistant calls Claude over the internet with your own API key, and
+Anthropic bills that key for each message (typically a few cents).
+
+1. In your web browser, go to **https://console.anthropic.com/settings/keys**
+   and sign in (or create an account and add billing under **Plans & Billing**).
+2. Click **Create Key**, name it `CardboardCAD`, and click **Add**.
+3. Click **Copy**. The key starts with `sk-ant-`. Keep this browser tab open
+   until step 2 is done: the console only shows the key once.
+
+### Step 2: put the key into CardboardCAD (once)
+
+1. Open CardboardCAD (Finder > **Applications** > **CardboardCAD**).
+2. Open **CardboardCAD > Settings…** (⌘,).
+3. In the **Design Assistant (Claude)** section, click in the field that says
+   *Paste your Claude API key*, press ⌘V, then click **Save**.
+4. The row now shows `sk-ant-…` followed by the last four characters and
+   "saved in Keychain". The key is stored in your login Keychain (open
+   `/Applications/Utilities/Keychain Access.app` and search for
+   `com.example.cardboardcad.claude` to see it). It is not stored anywhere else
+   and is only sent to `api.anthropic.com`.
+5. Optional: **Model** picks which Claude does the work. **Claude Opus 5.5** is
+   the default and gives the best results. **Claude Sonnet 5.5** is faster and
+   costs about half as much. **Thinking effort** trades speed and cost for
+   care: Medium is a good default.
+6. Close the Settings window.
+
+macOS may ask *"CardboardCAD wants to use your confidential information
+stored in "com.example.cardboardcad.claude" in your keychain."* the first time
+after each new build. Type your Mac login password and click **Always Allow**.
+This happens because your own builds are signed ad hoc, so macOS treats each
+build as a new app.
+
+### Step 3: make something
+
+Wait for the green engine dot in the bottom-left corner. Then type in the box
+at the bottom of the chat and press Return. For example:
+
+> Make a cylinder stool 450 mm tall and 350 mm wide as a waffle from 6 mm
+> board, then nest it on 1000 × 700 mm sheets and estimate the cost at 6 per
+> sheet and 45 per hour.
+
+While it works, the chat shows each step it runs (for example **Waffle
+slice**, **Nest sheets**), and the preview changes after each one. Then ask
+for changes in plain words, for example "use 8 ribs across instead", "make
+it 600 mm tall", or "try a contour stack of 10 mm layers instead".
+
+What the assistant can do:
+
+| Ask for | What happens |
+|---|---|
+| a box, cylinder, cone, sphere or pyramid of a given size | creates that solid (mm, sitting on the ground) |
+| your own model | click the **paperclip** next to the message box and choose an `.stl` or `.obj` file inside your home folder (in Rhino: select the object, **File > Export Selected**, choose STL or OBJ, export as a mesh in millimetres) |
+| a size change ("make it 600 mm tall") | scales the model evenly |
+| waffle / ribs | interlocking slotted ribs |
+| contour stack / layers | stacked, glued layers with alignment etching |
+| unfold / net / papercraft | folding nets with glue tabs (needs a faceted model, for example a cone with 8 sides) |
+| nest on sheets of W × H mm | lays the parts on as few sheets as possible |
+| cost / time | measures cut length, score length and pierces, and works out machine time and cost |
+| export DXF or SVG | writes one file per sheet into `~/Documents/CardboardCAD/` (or a folder you name inside your home folder) |
+
+- **New Design** (the pencil-and-square button at the top of the chat, or
+  **Design > New Design**, ⇧⌘N) clears the chat and the design.
+- The safari-compass button at the top right of the preview opens the same
+  preview in your web browser: `http://127.0.0.1:5001/preview`.
+- The old forms (Hello world and the cut-estimate calculator) are under
+  **Design > Manual Tools** (⇧⌘T).
+
+If the chat says *No Claude API key yet*, do step 2 again. If it says
+*Claude rejected the API key*, the key was mistyped or deleted in the console:
+make a new one and save it in Settings.
+
+### Updating your build to get this
+
+From Terminal (`/Applications/Utilities/Terminal.app`), with your checkout at
+`~/Development/folding-grasshoppers`:
+
+```bash
+cd ~/Development/folding-grasshoppers
+git fetch origin
+git checkout main
+git pull
+make app sign-adhoc install
+open /Applications/CardboardCAD.app
+```
+
+`make app` rebuilds the bundled Python with the new engine code and then the
+app. To try this change before it is merged, replace `git checkout main` and
+`git pull` with `git checkout claude/project-thread-urn9yz` and
+`git pull origin claude/project-thread-urn9yz`.
+
+## 4. Connect Grasshopper (Hops)
 
 You need Rhino 8 for Mac. Hops ships with Rhino 8. If it is missing, type
 `PackageManager` in the Rhino command line, search for **Hops**, click
@@ -171,20 +282,20 @@ output:
 
 See [docs/GEOMETRY.md](docs/GEOMETRY.md) for every input and output.
 
-## 4. Hello world demo
+## 5. Hello world demo
 
 This checks the whole chain, Mac app > engine > Grasshopper, in three ways.
 Start CardboardCAD and wait for the green dot first.
 
-**A. In the app.** At the top of the CardboardCAD window, type a name in the
-**Hello world** box and click **Say hello**. You see:
+**A. In the app.** Open **Design > Manual Tools** (⇧⌘T), type a name in the
+**Hello world** box and click **Say Hello**. You see:
 
 > Hello, Ada, from CardboardCAD by Fold Theory
 
 **B. In Grasshopper.**
 
 1. Add a Hops component with the path `http://127.0.0.1:5001/hello`
-   (section 3).
+   (section 4).
 2. Params > Input > **Panel**: add a panel, double-click it, type a name, and
    wire it into the Hops **Name** input.
 3. Add a second Panel and wire the Hops **Msg** output into it. It shows the
@@ -205,7 +316,7 @@ Expected output:
 {"message":"Hello, Terminal, from CardboardCAD by Fold Theory"}
 ```
 
-If you have the source code checked out and the app built (section 6), this
+If you have the source code checked out and the app built (section 7), this
 script does exactly what a Hops component does: it fetches the component
 description, then asks it to solve. It runs with the app's own bundled
 Python, so nothing else needs installing:
@@ -227,7 +338,7 @@ Hops solve  -> Hello, Grasshopper, from CardboardCAD by Fold Theory
 App route   -> Hello, Grasshopper, from CardboardCAD by Fold Theory
 ```
 
-## 5. Where CardboardCAD keeps its files
+## 6. Where CardboardCAD keeps its files
 
 `~` means your home folder, `/Users/<you>`. In Finder, press ⇧⌘G and paste a
 path to jump there.
@@ -240,12 +351,16 @@ path to jump there.
 | Engine data | `~/Library/Application Support/CardboardCAD/` |
 | Engine cache | `~/Library/Caches/CardboardCAD/` |
 | Saved port setting | `~/Library/Preferences/com.example.cardboardcad.plist` (read it with `defaults read com.example.cardboardcad enginePort`) |
+| Claude API key | login Keychain, item `com.example.cardboardcad.claude` (Keychain Access.app) |
+| Assistant model and effort | same preferences file (`defaults read com.example.cardboardcad assistantModel`) |
+| Exported cut files | `~/Documents/CardboardCAD/` unless you name another folder |
 | Python inside the app | `/Applications/CardboardCAD.app/Contents/Resources/python/` |
 
 To uninstall, quit the app, drag `/Applications/CardboardCAD.app` to the
-Trash, and delete the four `~/Library/...` paths above.
+Trash, delete the four `~/Library/...` paths above, and delete the Keychain
+item `com.example.cardboardcad.claude` in Keychain Access.
 
-## 6. Build the app yourself
+## 7. Build the app yourself
 
 This produces an unsigned app for your own Mac. Allow about 10 minutes the
 first time.
@@ -343,15 +458,15 @@ make sign-adhoc install open
 If macOS still says it cannot verify the app, open **System Settings >
 Privacy & Security**, scroll to the message about CardboardCAD and click
 **Open Anyway**. An ad-hoc signed app only works on the Mac that built it. To
-give it to someone else, make a signed release (section 7).
+give it to someone else, make a signed release (section 8).
 
 Run `make help` to list every command.
 
-## 7. Make a signed release (DMG)
+## 8. Make a signed release (DMG)
 
 This creates the `CardboardCAD.dmg` that goes on the releases page. You need:
 
-- the build tools from [section 6, step 1](#step-1-install-the-tools-once)
+- the build tools from [section 7, step 1](#step-1-install-the-tools-once)
 - a paid Apple Developer account, and its **Team ID** (10 characters, shown at
   https://developer.apple.com/account under Membership details)
 - a **Developer ID Application** certificate installed in your login keychain.
@@ -394,7 +509,7 @@ it by adding `BUNDLE_ID=com.foldtheory.cardboardcad` (for example) before
 `~/src/folding-grasshoppers/scripts/config.sh`, and the scripts are explained
 in `~/src/folding-grasshoppers/scripts/README.md`.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | What to do |
 |---|---|
@@ -402,10 +517,15 @@ in `~/src/folding-grasshoppers/scripts/README.md`.
 | Red dot: "Engine crashed 4 times within 60 s" | Click **View Logs** and send `~/Library/Logs/CardboardCAD/engine.log` to the developers. **Engine > Restart Engine** tries again. |
 | Red dot: "Engine did not become ready within 20 s" | Restart the engine once. If it happens again, send the log. |
 | Hops component stays grey or empty | Check the dot is green and the port in the URL matches **Settings**. Paste the URL into Safari: it should show text starting with `{"Uri":`. |
-| "CardboardCAD can't be opened" | You opened an unsigned build. See [section 6, step 5](#step-5-sign-it-for-this-mac-and-install-it). |
+| "CardboardCAD can't be opened" | You opened an unsigned build. See [section 7, step 5](#step-5-sign-it-for-this-mac-and-install-it). |
+| Chat says "No Claude API key yet" | Do [section 3, step 2](#step-2-put-the-key-into-cardboardcad-once). |
+| Chat says "Claude rejected the API key" | The key is wrong or was deleted. Make a new one at console.anthropic.com and save it in **Settings**. |
+| Chat says "Claude is rate limiting this key" or mentions credit | Wait a minute, or check billing at console.anthropic.com > **Plans & Billing**. |
+| Preview stays blank | Check the engine dot is green, then open `http://127.0.0.1:5001/preview` in Safari. If Safari shows it, use **Engine > Restart Engine**. |
+| "Model files must be inside your home folder" | Move the `.stl` / `.obj` into a folder under `/Users/<you>` (for example `~/Documents`) and attach it again. |
 | A `python3.12` process is still running after quitting | It stops by itself within about 5 seconds. If not, `pkill -f cardboard_engine` stops it. Please report it. |
 
-## 9. `cut_estimate` reference values
+## 10. `cut_estimate` reference values
 
 Use these to check the app form, Grasshopper and the engine agree.
 
@@ -431,7 +551,7 @@ Use these to check the app form, Grasshopper and the engine agree.
 | Machine cost `Cmach` | 2.2521 |
 | Total cost `C` | 9.2521 |
 
-## 10. For developers
+## 11. For developers
 
 Read [AGENTS.md](./AGENTS.md) first. Work is test-first, and the tests are
 sealed by [agentic-uplift](https://github.com/sholtomaud/agentic-uplift).

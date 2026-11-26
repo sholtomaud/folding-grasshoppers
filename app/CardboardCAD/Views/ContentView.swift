@@ -3,22 +3,46 @@ import SwiftUI
 
 struct ContentView: View {
     let engine: EngineManager
+    let assistant: DesignAssistant
+    let claudeKey: ClaudeKey
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         HSplitView {
-            Form {
-                HelloSection(engine: engine)
-                CutEstimateSections(engine: engine)
-            }
-            .formStyle(.grouped)
-            .frame(minWidth: 420, idealWidth: 480)
-            ChatPlaceholder()
-                .frame(minWidth: 260)
+            DesignAssistantView(engine: engine, assistant: assistant, claudeKey: claudeKey)
+                .frame(minWidth: 320, idealWidth: 400, maxWidth: 560)
+            PreviewPane(engine: engine)
+                .frame(minWidth: 420)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             StatusBar(engine: engine, openSettings: { openSettings() })
         }
+        .task(id: runningPort) {
+            assistant.attach(tools: runningPort.map { EngineClient(port: $0) })
+        }
+    }
+
+    private var runningPort: Int? {
+        if case .running(let port) = engine.state { return port }
+        return nil
+    }
+}
+
+// MARK: - Manual tools window
+
+/// The hand-entered forms from before the Design Assistant: still handy for
+/// a quick cut-cost check. Window > Manual Tools.
+struct ManualToolsView: View {
+    static let windowID = "manual-tools"
+    let engine: EngineManager
+
+    var body: some View {
+        Form {
+            HelloSection(engine: engine)
+            CutEstimateSections(engine: engine)
+        }
+        .formStyle(.grouped)
+        .frame(minWidth: 420, idealWidth: 480, minHeight: 500)
     }
 }
 
@@ -295,17 +319,5 @@ struct CutEstimateSections: View {
             result = nil
             self.error = error.localizedDescription
         }
-    }
-}
-
-// MARK: - Chat placeholder
-
-struct ChatPlaceholder: View {
-    var body: some View {
-        ContentUnavailableView(
-            "Design Assistant",
-            systemImage: "bubble.left.and.text.bubble.right",
-            description: Text("Coming in a later version.")
-        )
     }
 }

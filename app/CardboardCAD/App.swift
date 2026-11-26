@@ -1,5 +1,6 @@
 import AppKit
 import CardboardCADKit
+import Observation
 import SwiftUI
 
 enum AppInfo {
@@ -13,6 +14,19 @@ enum AppInfo {
         #else
         return false
         #endif
+    }
+
+    static let assistantModelKey = "assistantModel"
+    static let assistantEffortKey = "assistantEffort"
+
+    static var storedAssistantModel: String {
+        let id = UserDefaults.standard.string(forKey: assistantModelKey) ?? ""
+        return AssistantModel.all.contains { $0.id == id } ? id : AssistantModel.defaultID
+    }
+
+    static var storedAssistantEffort: String {
+        let e = UserDefaults.standard.string(forKey: assistantEffortKey) ?? ""
+        return AssistantModel.efforts.contains(e) ? e : AssistantModel.defaultEffort
     }
 
     static var storedPort: Int {
@@ -32,6 +46,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             port: AppInfo.storedPort,
             allowDevRuntime: AppInfo.allowDevRuntime
         )
+    )
+
+    let claudeKey = ClaudeKey(store: KeychainSecretStore())
+
+    /// The chat. Claude is called from the app with the key from the Keychain;
+    /// the key is read on each request and never passed to the engine.
+    let assistant = DesignAssistant(
+        model: AnthropicClient(apiKey: { try? KeychainSecretStore().read() }),
+        modelID: AppInfo.storedAssistantModel,
+        effort: AppInfo.storedAssistantEffort
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -68,10 +92,12 @@ struct CardboardCADApp: App {
 
     var body: some Scene {
         WindowGroup(AppInfo.name) {
-            ContentView(engine: delegate.engine)
-                .frame(minWidth: 720, minHeight: 520)
+            ContentView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey)
+                .frame(minWidth: 900, minHeight: 600)
         }
+        .defaultSize(width: 1280, height: 800)
         .commands {
+            DesignCommands(assistant: delegate.assistant)
             CommandMenu("Engine") {
                 Button("Restart Engine") {
                     Task { await delegate.engine.restart() }
@@ -83,8 +109,13 @@ struct CardboardCADApp: App {
             }
         }
 
+        Window("Manual Tools", id: ManualToolsView.windowID) {
+            ManualToolsView(engine: delegate.engine)
+        }
+        .defaultSize(width: 520, height: 720)
+
         Settings {
-            SettingsView(engine: delegate.engine)
+            SettingsView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey)
         }
     }
 }
@@ -99,5 +130,79 @@ enum LogsFolder {
         } else {
             NSWorkspace.shared.open(dir)
         }
+    }
+}
+
+// MARK: - Design menu
+
+struct DesignCommands: Commands {
+    let assistant: DesignAssistant
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandMenu("Design") {
+            Button("New Design") {
+                Task { await assistant.newDesign() }
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
+            Divider()
+            Button("Manual Tools") {
+                openWindow(id: ManualToolsView.windowID)
+            }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
+        }
+    }
+}
+
+// MARK: - Claude API key
+
+/// Whether a Claude API key is saved, for the chat and Settings. The key itself
+/// stays in the Keychain; only a masked form is kept here.
+@MainActor
+@Observable
+final class ClaudeKey {
+    private let store: SecretStore
+    private(set) var masked: String?
+    private(set) var error: String?
+
+    init(store: SecretStore) {
+        self.store = store
+        refresh()
+    }
+
+    var isSet: Bool { masked != nil }
+
+    func refresh() {
+        do {
+            masked = try store.read().map(APIKey.masked)
+            error = nil
+        } catch {
+            masked = nil
+            self.error = error.localizedDescription
+        }
+    }
+
+    func save(_ raw: String) {
+        do {
+            try APIKey.save(raw, to: store)
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        refreshKeepingError()
+    }
+
+    func remove() {
+        do {
+            try store.delete()
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        refreshKeepingError()
+    }
+
+    private func refreshKeepingError() {
+        masked = (try? store.read()).map(APIKey.masked)
     }
 }

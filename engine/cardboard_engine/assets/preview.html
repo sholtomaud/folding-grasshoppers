@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CardboardCAD Preview</title>
+<style>
+  :root {
+    --bg: #f5f4f1; --panel: #ffffff; --text: #1d1d1f; --muted: #6e6e73; --line: #dcdad5;
+    --accent: #b5824f; --tab: #e9e7e2; --sheet: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1e1e1e; --panel: #2a2a2a; --text: #f2f2f2; --muted: #a1a1a6; --line: #3a3a3a;
+            --accent: #d9a46c; --tab: #333333; --sheet: #fbfaf7; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { padding: 10px 14px 0; }
+  #title { font-weight: 600; font-size: 14px; }
+  #subtitle { color: var(--muted); margin-top: 2px; min-height: 16px; }
+  nav { display: flex; gap: 4px; padding: 10px 14px 8px; border-bottom: 1px solid var(--line); }
+  nav button { border: 0; background: transparent; color: var(--muted); padding: 5px 12px; border-radius: 6px;
+               font: inherit; cursor: pointer; }
+  nav button.on { background: var(--tab); color: var(--text); font-weight: 600; }
+  main { position: relative; flex: 1; min-height: 0; }
+  .view { position: absolute; inset: 0; display: none; }
+  .view.on { display: block; }
+  #gl { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  #gl:active { cursor: grabbing; }
+  #hint { position: absolute; left: 12px; bottom: 10px; color: var(--muted); font-size: 11px; pointer-events: none; }
+  #legend { position: absolute; right: 12px; bottom: 10px; color: var(--muted); font-size: 11px; text-align: right; }
+  #sheets { overflow: auto; padding: 14px; }
+  .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 14px;
+           padding: 10px; }
+  .sheet h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; }
+  .sheet h3 span { color: var(--muted); font-weight: 400; }
+  .sheet .paper { background: var(--sheet); border-radius: 4px; }
+  .sheet svg { display: block; width: 100%; height: auto; }
+  .keys { color: var(--muted); font-size: 11px; margin: 0 0 12px; }
+  .keys i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin: 0 4px 0 10px; }
+  .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+           text-align: center; color: var(--muted); padding: 30px; line-height: 1.5; }
+  .empty b { color: var(--text); display: block; font-size: 15px; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div id="title">Preview</div>
+  <div id="subtitle"></div>
+</header>
+<nav>
+  <button id="tab3d" class="on" data-view="v3d">3D model</button>
+  <button id="tabSheets" data-view="vsheets">Cut sheets</button>
+</nav>
+<main>
+  <section id="v3d" class="view on">
+    <canvas id="gl"></canvas>
+    <div id="hint">Drag to turn · scroll to zoom · double-click to reset</div>
+    <div id="legend"></div>
+    <div id="empty3d" class="empty"><div><b>Nothing to show yet</b>
+      Ask the Design Assistant for a shape (for example "a stool 450 mm tall"),
+      or open a model (.stl or .obj) from the chat.</div></div>
+  </section>
+  <section id="vsheets" class="view">
+    <div id="sheets"></div>
+    <div id="emptySheets" class="empty"><div><b>No cut sheets yet</b>
+      Ask for waffle ribs, a contour stack or an unfolded net, then for nesting on sheets.</div></div>
+  </section>
+</main>
+<script>
+"use strict";
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let version = -1, state = null, userPickedTab = false;
+
+  // ---- tabs -------------------------------------------------------------
+  function show(viewId) {
+    for (const b of document.querySelectorAll("nav button")) b.classList.toggle("on", b.dataset.view === viewId);
+    for (const v of document.querySelectorAll(".view")) v.classList.toggle("on", v.id === viewId);
+    if (viewId === "v3d") draw(); else requestAnimationFrame(sizeLabels);
+  }
+  for (const b of document.querySelectorAll("nav button"))
+    b.addEventListener("click", () => { userPickedTab = true; show(b.dataset.view); });
+
+  // ---- WebGL viewer -----------------------------------------------------
+  const canvas = $("gl");
+  const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
+  let prog = null, meshes = [], grid = null, bounds = null;
+  const cam = { yaw: -0.9, pitch: 0.45, dist: 1, target: [0, 0, 0], radius: 1 };
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  if (gl) {
+    prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER,
+      "attribute vec3 p; attribute vec3 n; uniform mat4 mvp; uniform float lit; varying float shade;" +
+      "void main(){ gl_Position = mvp * vec4(p, 1.0);" +
+      " vec3 l1 = normalize(vec3(0.4, -0.6, 0.8)); vec3 l2 = normalize(vec3(-0.7, 0.5, 0.3));" +
+      " vec3 nn = normalize(n + vec3(1e-6));" +
+      " float s = 0.42 + 0.48 * abs(dot(nn, l1)) + 0.18 * abs(dot(nn, l2));" +
+      " shade = mix(1.0, s, lit); }"));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER,
+      "precision mediump float; uniform vec3 color; uniform float alpha; varying float shade;" +
+      "void main(){ gl_FragColor = vec4(color * shade, alpha); }"));
+    gl.linkProgram(prog);
+  } else {
+    $("hint").textContent = "3D preview needs WebGL, which is turned off here.";
+  }
+
+  function buffer(data) {
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    return b;
+  }
+
+  function buildMesh(obj) {
+    const v = obj.vertices, idx = obj.indices, n = idx.length - (idx.length % 3);
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3);
+    for (let i = 0; i < n; i += 3) {
+      const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+      const ux = v[b] - v[a], uy = v[b + 1] - v[a + 1], uz = v[b + 2] - v[a + 2];
+      const wx = v[c] - v[a], wy = v[c + 1] - v[a + 1], wz = v[c + 2] - v[a + 2];
+      let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+      const len = Math.hypot(nx, ny, nz) || 1; nx /= len; ny /= len; nz /= len;
+      for (let k = 0; k < 3; k++) {
+        const s = idx[i + k] * 3, o = (i + k) * 3;
+        pos[o] = v[s]; pos[o + 1] = v[s + 1]; pos[o + 2] = v[s + 2];
+        nor[o] = nx; nor[o + 1] = ny; nor[o + 2] = nz;
+      }
+    }
+    return { pos: buffer(pos), nor: buffer(nor), count: n };
+  }
+
+  function niceStep(span) {
+    const raw = span / 8, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    return [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw);
+  }
+
+  function buildGrid(lo, hi) {
+    const span = Math.max(hi[0] - lo[0], hi[1] - lo[1], 1) * 1.6;
+    const step = niceStep(span), cx = (lo[0] + hi[0]) / 2, cy = (lo[1] + hi[1]) / 2;
+    const x0 = Math.floor((cx - span / 2) / step) * step, x1 = Math.ceil((cx + span / 2) / step) * step;
+    const y0 = Math.floor((cy - span / 2) / step) * step, y1 = Math.ceil((cy + span / 2) / step) * step;
+    const pts = [], z = lo[2];
+    for (let x = x0; x <= x1 + 1e-9; x += step) pts.push(x, y0, z, x, y1, z);
+    for (let y = y0; y <= y1 + 1e-9; y += step) pts.push(x0, y, z, x1, y, z);
+    const pos = new Float32Array(pts);
+    return { pos: buffer(pos), nor: buffer(new Float32Array(pos.length)), count: pts.length / 3, step };
+  }
+
+  const PART_COLOURS = [[0.80, 0.62, 0.42], [0.74, 0.55, 0.36], [0.85, 0.69, 0.50], [0.70, 0.52, 0.34]];
+
+  function setScene(scene, model) {
+    if (!gl) return;
+    for (const m of meshes) { gl.deleteBuffer(m.pos); gl.deleteBuffer(m.nor); }
+    meshes = [];
+    const hasParts = scene.objects.some((o) => o.kind === "part");
+    let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], partNo = 0;
+    for (const o of scene.objects) {
+      if (!o.vertices.length) continue;
+      const m = buildMesh(o);
+      if (o.kind === "model") {
+        m.color = hasParts ? [0.55, 0.57, 0.62] : [0.72, 0.71, 0.69];
+        m.alpha = hasParts ? 0.16 : 1;
+      } else {
+        m.color = o.kind === "assembly" ? PART_COLOURS[0] : PART_COLOURS[partNo++ % PART_COLOURS.length];
+        m.alpha = 1;
+      }
+      meshes.push(m);
+      for (let i = 0; i < o.vertices.length; i += 3)
+        for (let k = 0; k < 3; k++) {
+          lo[k] = Math.min(lo[k], o.vertices[i + k]); hi[k] = Math.max(hi[k], o.vertices[i + k]);
+        }
+    }
+    if (grid) { gl.deleteBuffer(grid.pos); gl.deleteBuffer(grid.nor); grid = null; }
+    const newBounds = meshes.length ? JSON.stringify([lo, hi].map((p) => p.map((c) => Math.round(c)))) : null;
+    if (meshes.length) {
+      grid = buildGrid(lo, hi);
+      if (newBounds !== bounds) {
+        cam.target = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2);
+        cam.radius = Math.max(Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2, 1);
+        cam.dist = cam.radius * 2.8;
+      }
+      const s = model ? model.size_mm : null;
+      $("legend").textContent = (s ? s.map((c) => Math.round(c)).join(" × ") + " mm" : "") +
+        " · grid " + grid.step + " mm";
+    } else {
+      $("legend").textContent = "";
+    }
+    bounds = newBounds;
+    $("empty3d").style.display = meshes.length ? "none" : "flex";
+    if (scene.objects.some((o) => o.too_large))
+      $("hint").textContent = "The model has too many faces to preview here; the tools still work on it.";
+    draw();
+  }
+
+  // column-major 4x4 helpers
+  function perspective(fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+    return [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0];
+  }
+  function lookAt(eye, c, up) {
+    let zx = eye[0] - c[0], zy = eye[1] - c[1], zz = eye[2] - c[2];
+    let l = Math.hypot(zx, zy, zz); zx /= l; zy /= l; zz /= l;
+    let xx = up[1] * zz - up[2] * zy, xy = up[2] * zx - up[0] * zz, xz = up[0] * zy - up[1] * zx;
+    l = Math.hypot(xx, xy, xz); xx /= l; xy /= l; xz /= l;
+    const yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+    return [xx, yx, zx, 0, xy, yy, zy, 0, xz, yz, zz, 0,
+      -(xx * eye[0] + xy * eye[1] + xz * eye[2]), -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+      -(zx * eye[0] + zy * eye[1] + zz * eye[2]), 1];
+  }
+  function mul(a, b) {
+    const o = new Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k]; o[c * 4 + r] = s;
+    }
+    return o;
+  }
+
+  function draw() {
+    if (!gl || !$("v3d").classList.contains("on")) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    gl.viewport(0, 0, w, h);
+    const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (dark) gl.clearColor(0.13, 0.13, 0.13, 1); else gl.clearColor(0.96, 0.955, 0.945, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!meshes.length) return;
+    const t = cam.target, cp = Math.cos(cam.pitch);
+    const eye = [t[0] + cam.dist * cp * Math.cos(cam.yaw), t[1] + cam.dist * cp * Math.sin(cam.yaw),
+                 t[2] + cam.dist * Math.sin(cam.pitch)];
+    const mvp = mul(perspective(0.7, w / h, cam.dist / 100, cam.dist + cam.radius * 10), lookAt(eye, t, [0, 0, 1]));
+    gl.useProgram(prog);
+    gl.uniformMatrix4fv(gl.getUniformLocation(prog, "mvp"), false, new Float32Array(mvp));
+    const aP = gl.getAttribLocation(prog, "p"), aN = gl.getAttribLocation(prog, "n");
+    gl.enableVertexAttribArray(aP); gl.enableVertexAttribArray(aN);
+    const uC = gl.getUniformLocation(prog, "color"), uA = gl.getUniformLocation(prog, "alpha"),
+          uL = gl.getUniformLocation(prog, "lit");
+    function paint(m, mode) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, m.pos); gl.vertexAttribPointer(aP, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, m.nor); gl.vertexAttribPointer(aN, 3, gl.FLOAT, false, 0, 0);
+      gl.uniform3fv(uC, m.color); gl.uniform1f(uA, m.alpha);
+      gl.drawArrays(mode, 0, m.count);
+    }
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
+    if (grid) {
+      gl.uniform1f(uL, 0);
+      paint(Object.assign(grid, { color: dark ? [0.3, 0.3, 0.3] : [0.84, 0.83, 0.8], alpha: 1 }), gl.LINES);
+    }
+    gl.uniform1f(uL, 1);
+    gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1, 1);
+    for (const m of meshes) if (m.alpha >= 1) paint(m, gl.TRIANGLES);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    for (const m of meshes) if (m.alpha < 1) paint(m, gl.TRIANGLES);
+    gl.depthMask(true); gl.disable(gl.BLEND); gl.disable(gl.POLYGON_OFFSET_FILL);
+  }
+
+  let drag = null;
+  canvas.addEventListener("pointerdown", (e) => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointerup", () => { drag = null; });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    cam.yaw -= (e.clientX - drag[0]) * 0.008;
+    cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + (e.clientY - drag[1]) * 0.008));
+    drag = [e.clientX, e.clientY]; draw();
+  });
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    cam.dist = Math.max(cam.radius * 0.3, Math.min(cam.radius * 20, cam.dist * Math.exp(e.deltaY * 0.0015)));
+    draw();
+  }, { passive: false });
+  canvas.addEventListener("dblclick", () => { cam.yaw = -0.9; cam.pitch = 0.45; cam.dist = cam.radius * 2.8; draw(); });
+  window.addEventListener("resize", draw);
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+
+  // ---- sheets -----------------------------------------------------------
+  function setSheets(s) {
+    const box = $("sheets");
+    box.textContent = "";
+    $("emptySheets").style.display = s.sheets.length ? "none" : "flex";
+    box.style.display = s.sheets.length ? "block" : "none";
+    $("tabSheets").textContent = s.sheets.length && s.nested ? `Cut sheets (${s.sheets.length})` : "Cut sheets";
+    if (!s.sheets.length) return;
+    const keys = document.createElement("p");
+    keys.className = "keys";
+    keys.innerHTML = 'Lines: <i style="background:#ff0000"></i>cut <i style="background:#0000ff"></i>score/fold ' +
+      '<i style="background:#00a000"></i>etch' + (s.nested ? "" : " · not nested on sheets yet: parts in a row");
+    box.appendChild(keys);
+    for (const sh of s.sheets) {
+      const card = document.createElement("div");
+      card.className = "sheet";
+      const h = document.createElement("h3");
+      h.textContent = s.nested ? `Sheet ${sh.index + 1} ` : "All parts ";
+      const meta = document.createElement("span");
+      let text = `${sh.parts} part${sh.parts === 1 ? "" : "s"}`;
+      if (s.sheet_size) text += ` · ${Math.round(s.sheet_size[0])} × ${Math.round(s.sheet_size[1])} mm`;
+      if (sh.utilisation != null) text += ` · ${Math.round(sh.utilisation * 100)}% used`;
+      meta.textContent = text;
+      h.appendChild(meta);
+      const paper = document.createElement("div");
+      paper.className = "paper";
+      const doc = new DOMParser().parseFromString(sh.svg, "image/svg+xml");
+      const svg = doc.documentElement;
+      if (svg && svg.nodeName === "svg") {
+        svg.removeAttribute("width"); svg.removeAttribute("height");
+        for (const path of svg.querySelectorAll("path")) {
+          path.setAttribute("vector-effect", "non-scaling-stroke");
+          path.setAttribute("stroke-width", path.closest("#SHEET") ? "1" : "1.3");
+        }
+        paper.appendChild(document.importNode(svg, true));
+      }
+      card.appendChild(h); card.appendChild(paper);
+      box.appendChild(card);
+    }
+    requestAnimationFrame(sizeLabels);
+  }
+
+  // Part labels are a few mm tall: readable when cut, tiny on screen. Keep them at least 10 px.
+  function sizeLabels() {
+    for (const svg of document.querySelectorAll(".paper svg")) {
+      const vb = svg.viewBox && svg.viewBox.baseVal, px = svg.getBoundingClientRect().width;
+      if (!vb || !vb.width || !px) continue;
+      const min = 10 * vb.width / px;
+      for (const t of svg.querySelectorAll("text")) {
+        const orig = parseFloat(t.dataset.size || t.getAttribute("font-size") || "3");
+        t.dataset.size = orig;
+        t.setAttribute("font-size", Math.max(orig, min));
+      }
+    }
+  }
+  window.addEventListener("resize", () => requestAnimationFrame(sizeLabels));
+
+  // ---- polling ----------------------------------------------------------
+  function render(s) {
+    const prev = state;
+    state = s;
+    $("title").textContent = s.model ? s.model.name : "Preview";
+    const bits = [];
+    if (s.model) bits.push(s.model.size_mm.map((c) => Math.round(c)).join(" × ") + " mm");
+    if (s.method_summary) bits.push(s.method_summary);
+    if (s.estimate) bits.push(`about ${s.estimate.time_min.toFixed(0)} min to cut, total ${s.estimate.total_cost.toFixed(2)}`);
+    $("subtitle").textContent = bits.join(" · ");
+    setScene(s.scene, s.model);
+    setSheets(s);
+    const last = s.steps.length ? s.steps[s.steps.length - 1] : null;
+    if (!userPickedTab && last && last.ok && (!prev || prev.version !== s.version)) {
+      if (last.tool === "nest_sheets" || last.tool === "export_cut_files") show("vsheets");
+      else if (["create_shape", "load_model_file", "scale_model", "waffle_slice", "contour_stack", "unfold"].includes(last.tool)) show("v3d");
+    }
+    userPickedTab = false;
+  }
+
+  async function poll() {
+    try {
+      const v = await (await fetch("/api/design/version", { cache: "no-store" })).json();
+      if (v.version !== version) {
+        const s = await (await fetch("/api/design/state", { cache: "no-store" })).json();
+        version = s.version;
+        render(s);
+      }
+    } catch (e) { /* engine restarting; try again */ }
+    setTimeout(poll, 700);
+  }
+  poll();
+})();
+</script>
+</body>
+</html>
