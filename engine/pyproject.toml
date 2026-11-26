@@ -1,0 +1,28 @@
+[project]
+name = "cardboard-engine"
+dynamic = ["version"]
+description = "Local Hops-compatible engine for CardboardCAD"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "flask>=3.1,<4",
+    "ghhops-server==1.5.5",
+]
+
+[project.scripts]
+cardboard-engine = "cardboard_engine.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "cardboard_engine/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cardboard_engine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
