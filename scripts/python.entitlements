@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the embedded python3.12 interpreter.
+  Hardened Runtime with NO exceptions. Every library it loads is re-signed
+  with our Team ID, so library validation should pass. Add the narrowest
+  exception only after a documented failing test (scripts/README.md).
+-->
+<plist version="1.0">
+<dict/>
+</plist>
