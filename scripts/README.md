@@ -1,0 +1,114 @@
+# Build, sign and release scripts
+
+| Script | What it does | Runs on |
+|---|---|---|
+| `build_python_runtime.sh` | Downloads pinned python-build-standalone, verifies SHA-256, installs `engine/requirements.lock` (hash-checked, wheels only) and the engine wheel, strips, precompiles, smoke-tests. Output `build/python-runtime/`. | macOS (default target), Linux (`TARGET=x86_64-unknown-linux-gnu`, CI smoke only) |
+| `build_app.sh` | `xcodebuild archive` (unsigned), copies the app out, embeds the runtime, records its location in Info.plist (`CardboardPythonHome`), smoke-tests the engine from inside the bundle. | macOS |
+| `sign.sh` | Inside-out Hardened Runtime signing of every Mach-O (detected with `file`), interpreter last with `python.entitlements`, then the app. No `--deep` when signing. | macOS |
+| `notarize.sh` | `ditto` zip, `notarytool submit --wait`; prints `notarytool log` on failure; staples on success. Works on `.app` or `.dmg`. | macOS |
+| `make_dmg.sh` | `hdiutil` UDZO DMG with an `/Applications` link; signs, notarizes, staples it. | macOS |
+| `verify_bundle.sh` | `codesign --verify --deep --strict`, `spctl` for app and DMG, `otool -L` path audit, hardened-runtime and entitlement checks. `LOCAL_ONLY=1` skips Gatekeeper. | macOS |
+| `release.sh` | All of the above in order. | macOS |
+| `smoke_engine.py` | Starts an interpreter's engine with the app's flags and clean env, checks `/health`, `/version`, `/api/cut_estimate`, SIGTERM exit 0. | any |
+| `demo_hello.py` | Hello-world demo against a running engine using the Hops protocol. | any |
+| `verify.sh` | Local gate used by git hooks: pytest, Swift tests, test floors, proof seal. | any (Swift on macOS) |
+| `ci/` | CI helpers: test floors, end-to-end app launch, layout probe. | |
+
+Settings shared by all scripts are in `config.sh` (app name, bundle ID,
+Team ID, notary profile, runtime layout). Everything can be overridden from
+the environment.
+
+## Pinned interpreter
+
+CPython **3.12.13**, python-build-standalone release **20260718**,
+`install_only` variant. SHA-256 values are in `build_python_runtime.sh`,
+taken from that release's `SHA256SUMS`:
+
+| Target | SHA-256 |
+|---|---|
+| aarch64-apple-darwin | `62aeee6161d57303a71a138b75fd5cc6fb8c89c4b1d9c7f0a052d89fa0b6652b` |
+| x86_64-apple-darwin | `10b47148de86f9d87ba6e96a3db606ced90a206a3454d7d6d8fa68536a05d81f` |
+
+To bump: change `PBS_TAG`, `PY_VERSION` and every SHA together.
+
+## What `build_python_runtime.sh` strips
+
+Logged per build to `build/python-runtime-removed.txt`:
+
+- stdlib: `idlelib`, `tkinter`, `turtledemo`, `turtle.py`, `ensurepip`, `lib2to3`, `pydoc_data`
+- Tcl/Tk: `lib/tcl*`, `lib/tk*`, `lib/itcl*`, `lib/thread*`, `libtcl*`, `libtk*`, `_tkinter*.so`
+- tests: `test/` and `tests/` directories in the stdlib and site-packages
+- `include/`, `share/`, `lib/pkgconfig`, all `*.a`
+- `bin/` launchers other than `python`, `python3`, `python3.12` (they embed
+  the build machine's path in their shebang), `python*-config`, `pip`
+- all `__pycache__` (regenerated with `compileall --invalidation-mode unchecked-hash`)
+
+## Bundle layout
+
+```
+CardboardCAD.app/Contents/
+├── MacOS/CardboardCAD
+├── Frameworks/python/          <- runtime (SPEC default)
+│   ├── bin/python3.12
+│   └── lib/python3.12/...
+├── Info.plist                  <- CardboardPythonHome = Contents/Frameworks/python
+└── Resources/
+```
+
+`build_app.sh` writes the chosen location to Info.plist and the app reads it,
+so switching layouts is `PYTHON_LAYOUT=helpers|resources scripts/build_app.sh`
+with no code change.
+
+**Status: NOT YET CONFIRMED BY NOTARIZATION.** The spec requires a real
+Developer ID signature and notarization pass to settle the layout. CI's
+`Layout probe` step ad-hoc signs all three layouts on macOS 14 and reports
+which pass `codesign --verify --deep --strict` and still start the engine;
+see the job summary. Record the notarization result here:
+
+| Layout | codesign --strict (ad-hoc, CI) | Notarization | Notes |
+|---|---|---|---|
+| `Contents/Frameworks/python` | see CI | not run yet | |
+| `Contents/Helpers/python` | see CI | not run yet | |
+| `Contents/Resources/python` | see CI | not run yet | |
+
+Known risk: codesign treats `Contents/Frameworks` and `Contents/Helpers` as
+code locations, and the runtime puts `.py`/`.pyc` files there. If signing or
+notarization rejects that, `Contents/Resources/python` (with every Mach-O
+inside still signed individually) is the usual working fallback.
+
+## Runtime copy: build_app.sh, not an Xcode build phase
+
+The runtime is embedded by `build_app.sh` after `xcodebuild archive` and
+before signing. Reasons: the Xcode project stays free of build-machine
+paths and script sandboxing exceptions, Debug runs do not copy ~70 MB on
+every build (they use `CARDBOARD_DEV_RUNTIME`), and `sign.sh` always sees the
+final bundle.
+
+## Entitlements
+
+`app/CardboardCAD/CardboardCAD.entitlements` and `scripts/python.entitlements`
+are both **empty**: Hardened Runtime with no exceptions. Every library in the
+runtime is re-signed with our identity, so library validation should pass.
+
+| Exception added | Binary | Failing test that justified it |
+|---|---|---|
+| none | | |
+
+Never add `com.apple.security.cs.disable-library-validation` without a row
+here; `verify_bundle.sh` fails if it is present.
+
+## Interpreter flags
+
+The app runs `python3.12 -I -B -u -m cardboard_engine.server`. `-I`
+(isolated) ignores every `PYTHON*` environment variable, so
+`PYTHONDONTWRITEBYTECODE` and `PYTHONUNBUFFERED` alone would do nothing;
+`-B` and `-u` do the same job as flags. The variables are still set for
+non-isolated debugging runs.
+
+## Placeholders still to fill in
+
+| Setting | Where | Current |
+|---|---|---|
+| Bundle ID | `scripts/config.sh`, Xcode project | `com.example.cardboardcad` |
+| Apple Team ID | `TEAM_ID` env / `scripts/config.sh` | unset |
+| notarytool profile | `NOTARY_PROFILE` env / `scripts/config.sh` | `cardboardcad-notary` |

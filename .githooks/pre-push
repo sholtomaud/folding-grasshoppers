@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Layer 1 local guardrail (sealed in proof-lock.json). CI is the real wall.
+echo "[verify] pre-push: full verification"
+exec "$(git rev-parse --show-toplevel)/scripts/verify.sh"

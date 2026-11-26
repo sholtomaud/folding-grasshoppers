@@ -1,0 +1,11 @@
+# Harness and locked tests need a maintainer review (agentic-uplift Zone A/B).
+*                         @sholtomaud
+/.github/                 @sholtomaud
+/.githooks/               @sholtomaud
+/proof-lock.json          @sholtomaud
+/PROOF_CHANGELOG.md       @sholtomaud
+/uplift.config.json       @sholtomaud
+/test-floors.json         @sholtomaud
+/scripts/ci/              @sholtomaud
+/engine/tests/            @sholtomaud
+/app/CardboardCADKit/Tests/ @sholtomaud

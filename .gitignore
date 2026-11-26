@@ -60,3 +60,25 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# ---- CardboardCAD additions ----
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+engine/dist/
+*.egg-info/
+
+# Build outputs
+build/
+dist/
+
+# Xcode
+app/build/
+app/DerivedData/
+*.xcuserstate
+*.xcarchive
+
+# macOS
+.DS_Store

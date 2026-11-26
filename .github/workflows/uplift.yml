@@ -1,0 +1,46 @@
+name: Agentic Uplift Control Plane
+
+# Publishes readiness audit, proof status, gate decision and economics as JSON
+# (+ a cockpit page) to GitHub Pages. Needs Settings -> Pages -> Source:
+# "GitHub Actions". Until that is enabled, run it with deploy-pages=false.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      deploy-pages:
+        description: Deploy to GitHub Pages
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.uplift.outputs.page-url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Agentic Uplift
+        id: uplift
+        uses: sholtomaud/agentic-uplift@e2158d3a4e92de8e5c07e4bc2c80d82933cf6c17
+        with:
+          deploy-pages: ${{ github.event_name != 'workflow_dispatch' && 'true' || inputs.deploy-pages && 'true' || 'false' }}
+          monthly-agentic-budget: '50'

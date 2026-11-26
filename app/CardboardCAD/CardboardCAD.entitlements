@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened Runtime, no sandbox, and deliberately NO exceptions.
+  Only add the narrowest exception after a documented failing test
+  (see scripts/README.md).
+-->
+<plist version="1.0">
+<dict/>
+</plist>
