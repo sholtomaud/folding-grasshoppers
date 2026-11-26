@@ -5,11 +5,12 @@ struct ContentView: View {
     let engine: EngineManager
     let assistant: DesignAssistant
     let claudeKey: ClaudeKey
+    let projects: ProjectController
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         HSplitView {
-            DesignAssistantView(engine: engine, assistant: assistant, claudeKey: claudeKey)
+            DesignAssistantView(engine: engine, assistant: assistant, claudeKey: claudeKey, projects: projects)
                 .frame(minWidth: 320, idealWidth: 400, maxWidth: 560)
             PreviewPane(engine: engine)
                 .frame(minWidth: 420)
@@ -18,8 +19,20 @@ struct ContentView: View {
             StatusBar(engine: engine, openSettings: { openSettings() })
         }
         .task(id: runningPort) {
-            assistant.attach(tools: runningPort.map { EngineClient(port: $0) })
+            let client = runningPort.map { EngineClient(port: $0) }
+            assistant.attach(tools: client)
+            projects.attach(store: client)
         }
+        .navigationSubtitle(projects.current?.name ?? "")
+        .alert("Project", isPresented: projectErrorShown) {
+            Button("OK") { projects.error = nil }
+        } message: {
+            Text(projects.error ?? "")
+        }
+    }
+
+    private var projectErrorShown: Binding<Bool> {
+        Binding(get: { projects.error != nil }, set: { if !$0 { projects.error = nil } })
     }
 
     private var runningPort: Int? {

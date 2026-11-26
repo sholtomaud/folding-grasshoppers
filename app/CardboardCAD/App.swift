@@ -2,6 +2,7 @@ import AppKit
 import CardboardCADKit
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum AppInfo {
     static let name = "CardboardCAD"
@@ -58,6 +59,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         effort: AppInfo.storedAssistantEffort
     )
 
+    /// Save / Open for the File menu. The chat is saved with the project.
+    lazy var projects: ProjectController = {
+        let p = ProjectController(assistant: self.assistant)
+        p.afterSave = { folder in await PreviewSnapshot.shared.writePNG(into: folder) }
+        return p
+    }()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { await engine.start() }
     }
@@ -92,12 +100,14 @@ struct CardboardCADApp: App {
 
     var body: some Scene {
         WindowGroup(AppInfo.name) {
-            ContentView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey)
+            ContentView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey,
+                        projects: delegate.projects)
                 .frame(minWidth: 900, minHeight: 600)
         }
         .defaultSize(width: 1280, height: 800)
         .commands {
-            DesignCommands(assistant: delegate.assistant)
+            ProjectCommands(projects: delegate.projects, assistant: delegate.assistant)
+            DesignCommands(assistant: delegate.assistant, projects: delegate.projects, engine: delegate.engine)
             CommandMenu("Engine") {
                 Button("Restart Engine") {
                     Task { await delegate.engine.restart() }
@@ -137,12 +147,17 @@ enum LogsFolder {
 
 struct DesignCommands: Commands {
     let assistant: DesignAssistant
+    let projects: ProjectController
+    let engine: EngineManager
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandMenu("Design") {
             Button("New Design") {
-                Task { await assistant.newDesign() }
+                Task {
+                    await assistant.newDesign()
+                    projects.forget()
+                }
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
             Divider()
@@ -150,7 +165,120 @@ struct DesignCommands: Commands {
                 openWindow(id: ManualToolsView.windowID)
             }
             .keyboardShortcut("t", modifiers: [.command, .shift])
+            Divider()
+            Button("Copy Rhino Live Listener Script") {
+                Task { await RhinoLiveSync.copyListenerScript(engine: engine) }
+            }
+            Button("Rhino Live Sync Help") {
+                NSWorkspace.shared.open(RhinoLiveSync.helpURL)
+            }
         }
+    }
+}
+
+// MARK: - File menu: projects
+
+struct ProjectCommands: Commands {
+    let projects: ProjectController
+    let assistant: DesignAssistant
+
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button("Open Project…") {
+                Task { await ProjectPanels.open(projects) }
+            }
+            .keyboardShortcut("o", modifiers: .command)
+            .disabled(projects.isWorking || assistant.isBusy)
+            Divider()
+            Button("Save Project") {
+                Task {
+                    if projects.current == nil {
+                        await ProjectPanels.saveAs(projects)
+                    } else {
+                        await projects.saveAgain()
+                    }
+                }
+            }
+            .keyboardShortcut("s", modifiers: .command)
+            .disabled(projects.isWorking)
+            Button("Save Project As…") {
+                Task { await ProjectPanels.saveAs(projects) }
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .disabled(projects.isWorking)
+            Button("Show Project in Finder") {
+                if let folder = projects.current?.folder {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folder, isDirectory: true)])
+                }
+            }
+            .disabled(projects.current == nil)
+        }
+    }
+}
+
+/// The open and save panels. A project is a folder; Save As names a new folder.
+@MainActor
+enum ProjectPanels {
+    static func saveAs(_ projects: ProjectController) async {
+        let panel = NSSavePanel()
+        panel.title = "Save Project"
+        panel.message = "A project is a folder with the model, parts, cut files, cost estimate and chat."
+        panel.prompt = "Save"
+        panel.nameFieldLabel = "Project name:"
+        panel.nameFieldStringValue = projects.current?.name ?? "Untitled Project"
+        panel.canCreateDirectories = true
+        let base = ProjectController.defaultProjectsFolder()
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        panel.directoryURL = projects.current.map { $0.url.deletingLastPathComponent() } ?? base
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        await projects.save(name: url.lastPathComponent, folder: url.path)
+    }
+
+    static func open(_ projects: ProjectController) async {
+        let panel = NSOpenPanel()
+        panel.title = "Open Project"
+        panel.message = "Choose a project folder (or its project.json)."
+        panel.prompt = "Open"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.folder, .json]
+        panel.allowsMultipleSelection = false
+        let base = ProjectController.defaultProjectsFolder()
+        if FileManager.default.fileExists(atPath: base.path) { panel.directoryURL = base }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        await projects.open(folder: url.path)
+    }
+}
+
+// MARK: - Rhino live sync
+
+@MainActor
+enum RhinoLiveSync {
+    static let helpURL = URL(string: "https://github.com/sholtomaud/folding-grasshoppers/blob/main/docs/RHINO_LIVE_SYNC.md")!
+
+    /// Put the Grasshopper listener script on the clipboard, to paste into a Python script component.
+    static func copyListenerScript(engine: EngineManager) async {
+        guard case .running(let port) = engine.state else {
+            alert("The engine is not running", "Start CardboardCAD's engine first (Engine > Restart Engine).")
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: EngineClient(port: port).liveListenerURL)
+            let script = String(decoding: data, as: UTF8.self)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(script, forType: .string)
+            alert("Listener script copied",
+                  "In Grasshopper, add a Python script component, open it, select all, paste, and give it the inputs On, Interval, Port and the outputs Version, Status. Then connect Version to the LiveDesign Hops component. Design > Rhino Live Sync Help has the full steps.")
+        } catch {
+            alert("Could not get the listener script", error.localizedDescription)
+        }
+    }
+
+    private static func alert(_ title: String, _ text: String) {
+        let a = NSAlert()
+        a.messageText = title
+        a.informativeText = text
+        a.runModal()
     }
 }
 
