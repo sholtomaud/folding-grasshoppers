@@ -65,8 +65,11 @@ fi
 # 4. Hardened runtime on the app and the interpreter, no unexpected entitlements.
 PY_HOME="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CardboardPythonHome' "$APP/Contents/Info.plist" 2>/dev/null || python_home_rel)"
 for bin in "$APP" "$PY_HOME/bin/python3.12"; do
-  if codesign -dv "$bin" 2>&1 | grep -q "flags=.*runtime"; then
+  SIGINFO="$(codesign -dv "$bin" 2>&1)"
+  if echo "$SIGINFO" | grep -q "flags=.*runtime"; then
     pass "hardened runtime: ${bin#$APP/}"
+  elif echo "$SIGINFO" | grep -q "^Signature=adhoc" && [ "${ADHOC_HARDENED:-0}" != "1" ]; then
+    pass "hardened runtime: ${bin#$APP/} (skipped: ad-hoc local build, see sign.sh)"
   else
     fail "hardened runtime missing: ${bin#$APP/}"
   fi

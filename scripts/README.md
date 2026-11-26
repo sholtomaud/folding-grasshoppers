@@ -110,6 +110,25 @@ runtime is re-signed with our identity, so library validation should pass.
 Never add `com.apple.security.cs.disable-library-validation` without a row
 here; `verify_bundle.sh` fails if it is present.
 
+### Ad-hoc (local) builds sign without Hardened Runtime
+
+`SIGN_IDENTITY=- scripts/sign.sh` (`make sign-adhoc`) leaves the Hardened
+Runtime off. On an M4 Mac (2026-11-26) an ad-hoc build with it on failed at
+engine start. Every file was ad-hoc with `TeamIdentifier=not set`, yet
+`import rhino3dm` failed with:
+
+```
+code signature ... _rhino3dm.cpython-312-darwin.so not valid for use in process:
+mapping process and mapped file (non-platform) have different Team IDs
+```
+
+The macOS 15 CI runners allowed the same bundle. Ad-hoc builds are never
+notarized or distributed, so dropping the Hardened Runtime there avoids the
+need for `disable-library-validation`. Developer ID signing (`release.sh`)
+always uses the Hardened Runtime, and every file shares one Team ID there.
+`verify_bundle.sh` still requires the runtime flag on anything that is not
+ad-hoc. `ADHOC_HARDENED=1` restores the old ad-hoc behaviour for experiments.
+
 ## Interpreter flags
 
 The app runs `python3.12 -I -B -u -m cardboard_engine.server`. `-I`
