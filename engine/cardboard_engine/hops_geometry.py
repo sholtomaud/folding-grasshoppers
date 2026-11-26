@@ -5,7 +5,7 @@ Only this module touches rhino3dm. The components themselves
 Python lists, so they are tested without Rhino or HTTP.
 
 Components chain through the ``Parts`` text output (a cardboardcad.parts/1
-JSON document): Waffle Slice -> (Nest) -> Export.
+JSON document): Waffle Slice / Contour Stack -> (Nest) -> Export.
 """
 
 from __future__ import annotations
@@ -16,12 +16,13 @@ from typing import Iterable, List, Sequence
 import ghhops_server as hs
 from flask import Flask, jsonify, request
 
+from .components.contour import ContourError, ContourInput, contour_stack
 from .components.export import ExportError, export_files
 from .components.geometry import GeometryError, Mesh
 from .components.parts import PartsDoc, PartsError
 from .components.waffle import WaffleError, WaffleInput, waffle_slice
 
-INPUT_ERRORS = (GeometryError, PartsError, WaffleError, ExportError)
+INPUT_ERRORS = (GeometryError, PartsError, WaffleError, ContourError, ExportError)
 
 
 def mesh_from_rhino(obj) -> Mesh:
@@ -109,6 +110,60 @@ def register(app: Flask, hops: hs.Hops, *, category: str, subcategory: str, icon
                 kerf=data.get("kerf", 0.0),
             )
             result = waffle_slice(mesh, inp)
+        except (TypeError, *INPUT_ERRORS) as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify({"schema": "cardboardcad.parts/1", "parts": [p.to_dict() for p in result.parts]})
+
+    def _mesh_from_json(data):
+        if not isinstance(data, dict) or not isinstance(data.get("mesh"), dict):
+            raise GeometryError("Body must be an object with a mesh: {vertices, faces}")
+        return Mesh.from_lists(data["mesh"].get("vertices", []), data["mesh"].get("faces", []))
+
+    # ---- /contour_stack ----------------------------------------------------
+    @hops.component(
+        "/contour_stack",
+        name="ContourStack",
+        nickname="Contour",
+        description="Slice a closed mesh into stacked layers of board, etched for alignment (mm)",
+        inputs=[
+            hs.HopsMesh("Mesh", "M", "Closed mesh to slice (mm)"),
+            hs.HopsNumber("Layer thickness (mm)", "T", "Board thickness: one layer per band this thick"),
+            hs.HopsNumber("Kerf (mm)", "K", "Cutter width; outlines grow by K/2"),
+            hs.HopsBoolean("Etch", "E", "Etch neighbouring layers' outlines onto each layer for alignment"),
+            hs.HopsString("Axis", "A", "Stacking axis: x, y or z"),
+        ],
+        outputs=[
+            hs.HopsString("Parts", "P", "Parts document: connect to Nest or Export"),
+            hs.HopsCurve("Cut curves", "Cut", "Flat layer outlines laid out in a row (XY plane)", hs.HopsParamAccess.LIST),
+            hs.HopsCurve("Etch curves", "Etch", "Alignment etch lines, in the same layout", hs.HopsParamAccess.LIST),
+            hs.HopsCurve("Layers 3D", "L3", "Layer outlines in place, to preview the stack", hs.HopsParamAccess.LIST),
+            hs.HopsString("Labels", "L", "Layer labels L01, L02... bottom up", hs.HopsParamAccess.LIST),
+        ],
+        **brand,
+    )
+    def contour(M, T=3.0, K=0.0, E=True, A="z"):
+        result = contour_stack(
+            mesh_from_rhino(M), ContourInput(thickness=float(T), kerf=float(K), etch=bool(E), axis=str(A))
+        )
+        doc = PartsDoc(parts=result.parts)
+        flat = doc.layout()[0]
+        cut = _curves(loop for p in flat.parts for loop in p.cut)
+        etch = _curves((line for p in flat.parts for line in p.etch), closed=False)
+        layers = _curves(loop for p in result.parts for loop in result.layers3d[p.id])
+        return doc.to_json(), cut, etch, layers, [p.id for p in result.parts]
+
+    @app.post("/api/contour_stack")
+    def api_contour_stack():
+        data = request.get_json(silent=True)
+        try:
+            mesh = _mesh_from_json(data)
+            inp = ContourInput(
+                thickness=data.get("thickness", 3.0),
+                kerf=data.get("kerf", 0.0),
+                etch=bool(data.get("etch", True)),
+                axis=str(data.get("axis", "z")),
+            )
+            result = contour_stack(mesh, inp)
         except (TypeError, *INPUT_ERRORS) as exc:
             return jsonify(error="invalid_input", message=str(exc)), 422
         return jsonify({"schema": "cardboardcad.parts/1", "parts": [p.to_dict() for p in result.parts]})

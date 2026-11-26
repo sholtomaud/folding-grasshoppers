@@ -8,7 +8,7 @@ SPEC.md §14 "Geometry endpoints". Each endpoint ships in its own PR.
 |---|---|---|
 | `/waffle_slice` | done | 1 |
 | `/export` (DXF + SVG) | done | 1 |
-| `/contour_stack` | planned | 2 |
+| `/contour_stack` | done | 2 |
 | `/nest` (multi-sheet) | planned | 3 |
 | `/unfold` | planned | 4 |
 | `/parts_from_curves` (hand-drawn parts into the pipeline) | planned | 3 |
@@ -99,16 +99,31 @@ outline, once nested). SVG is in real mm with the same layers as groups.
 Any local process can reach the engine, so the folder must be inside the
 home folder, the name is sanitised, and the extension is forced.
 
-## `/contour_stack` (planned, PR 2)
+## `/contour_stack` (done)
 
-Stacked horizontal layers (the classic "sliced model" in board).
+Stacked layers of board (the classic "sliced model").
 
-Inputs: Mesh M; Layer thickness T (3.0); Kerf K (0); Etch next layer E
-(True); Axis A (`z`). Outputs: P, Cut curves, Layers 3D, Labels (`L01..`).
+| In | Nick | Type | Default |
+|---|---|---|---|
+| Mesh | M | Mesh | |
+| Layer thickness (mm) | T | Number | 3.0 |
+| Kerf (mm) | K | Number | 0.0 |
+| Etch | E | Boolean | True |
+| Axis | A | Text | `z` (or `x`, `y`) |
 
-Layer k is the section at the middle of its band. With E on, each layer gets
-the outline of the layer above etched on it, for registration. A layer that
-falls apart gets `L05a`, `L05b`. Later: dowel holes through common area.
+| Out | Nick | |
+|---|---|---|
+| Parts | P | parts document |
+| Cut curves | Cut | flat layer outlines in a row on XY |
+| Etch curves | Etch | alignment lines, same layout |
+| Layers 3D | L3 | layer outlines in place (stack preview) |
+| Labels | L | `L01`, `L02`... bottom up; a layer that falls apart gets `L05a`, `L05b` |
+
+The model is cut into bands T thick from the bottom of its bounding box;
+each layer is the section through the middle of its band (a thinner last
+band still gets one). With E on, each layer is etched with the parts of its
+neighbours' outlines that land on it, which is where the next layer sits.
+Later: dowel holes through the common area.
 
 ## `/nest` (planned, PR 3)
 

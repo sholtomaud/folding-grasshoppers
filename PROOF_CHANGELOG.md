@@ -51,3 +51,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Geometry milestone PR 1: /waffle_slice and /export (DXF/SVG), parts document, pyclipper dependency; new tests, pytest floor 64 -> 122
 - **Previous Attestation:** `6392bac427066477687d370a0d5e80e1ee5ea9590b99022b494aa30e3aac12de`
 - **Attestation SHA-256:** `5cc857272b0b67acd3989f34f1a411a2bb21edd98f5e2b20cf6c60d4fd95ff50`
+
+## 2026-11-26T08:16:15Z — `c67d871` (PASS)
+
+- **Commit:** `c67d871`
+- **Timestamp:** `2026-11-26T08:16:15Z`
+- **Proof Lock Root SHA-256:** `90366b81b0082123edbcbf8dff32a825a0b5f54110b9f2a28157de410980f771`
+- **Verdict:** `PASS`
+- **Summary:** Geometry milestone PR 2: /contour_stack with neighbour-outline etching; pytest floor 122 -> 142
+- **Previous Attestation:** `5cc857272b0b67acd3989f34f1a411a2bb21edd98f5e2b20cf6c60d4fd95ff50`
+- **Attestation SHA-256:** `33a0a6a05dc0aa014d57024fa89ee5aed64743aaa7352d3fb5d7744a7a7fe818`
