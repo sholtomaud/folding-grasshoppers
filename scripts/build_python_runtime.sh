@@ -12,6 +12,13 @@
 #
 # Other targets (e.g. x86_64-unknown-linux-gnu) are accepted only so the script
 # can be exercised on a Linux CI box; the app itself is macOS-only.
+#
+# Cross mode (RUNTIME_MODE=cross, the default when TARGET's OS differs from
+# this machine's): the target interpreter is never executed. Wheels are
+# installed with `uv pip install --target ... --python-platform $TARGET`, and
+# bytecode is compiled by a build-machine CPython of the same version. This is
+# how `make runtime` builds the macOS runtime inside a Linux container. The
+# import and server smoke tests then run on the Mac (`make smoke`).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -57,6 +64,19 @@ sha256_of() {
 command -v uv >/dev/null 2>&1 || die "uv is required (https://docs.astral.sh/uv/)"
 command -v curl >/dev/null 2>&1 || die "curl is required"
 
+case "$TARGET" in
+  *-apple-darwin) TARGET_OS=Darwin ;;
+  *)              TARGET_OS=Linux ;;
+esac
+if [ -z "${RUNTIME_MODE:-}" ]; then
+  if [ "$TARGET_OS" = "$(uname -s)" ]; then RUNTIME_MODE=native; else RUNTIME_MODE=cross; fi
+fi
+case "$RUNTIME_MODE" in
+  native|cross) ;;
+  *) die "RUNTIME_MODE must be native or cross (got $RUNTIME_MODE)" ;;
+esac
+log "Target $TARGET, mode $RUNTIME_MODE"
+
 # ---------------------------------------------------------------------------
 # 1. Download (cached) and verify. Fail hard on mismatch.
 # ---------------------------------------------------------------------------
@@ -100,23 +120,52 @@ export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-14.0}"
 # ---------------------------------------------------------------------------
 # 3. Install locked deps (hash-checked, wheels only), then the engine itself.
 # ---------------------------------------------------------------------------
-log "Installing locked dependencies into the runtime"
-uv pip install \
-  --python "$PY" \
-  --break-system-packages \
-  --require-hashes \
-  --no-deps \
-  --only-binary :all: \
-  --no-cache \
-  -r "$ENGINE/requirements.lock"
-
-log "Building and installing cardboard_engine (non-editable)"
+log "Building cardboard_engine wheel"
 rm -rf "$BUILD/engine-dist"
-uv build --wheel --out-dir "$BUILD/engine-dist" "$ENGINE"
-uv pip install --python "$PY" --break-system-packages --no-deps --no-cache "$BUILD"/engine-dist/*.whl
+if [ "$RUNTIME_MODE" = native ]; then
+  uv build --wheel --out-dir "$BUILD/engine-dist" "$ENGINE"
+else
+  uv build --wheel --python "$PY_VERSION" --out-dir "$BUILD/engine-dist" "$ENGINE"
+fi
 
-# pip is not needed at runtime and would be a writable-install footgun.
-uv pip uninstall --python "$PY" --break-system-packages pip >/dev/null 2>&1 || true
+if [ "$RUNTIME_MODE" = native ]; then
+  log "Installing locked dependencies into the runtime"
+  uv pip install \
+    --python "$PY" \
+    --break-system-packages \
+    --require-hashes \
+    --no-deps \
+    --only-binary :all: \
+    --no-cache \
+    -r "$ENGINE/requirements.lock"
+  log "Installing cardboard_engine (non-editable)"
+  uv pip install --python "$PY" --break-system-packages --no-deps --no-cache "$BUILD"/engine-dist/*.whl
+  # pip is not needed at runtime and would be a writable-install footgun.
+  uv pip uninstall --python "$PY" --break-system-packages pip >/dev/null 2>&1 || true
+else
+  # MACOSX_DEPLOYMENT_TARGET (above) sets which macOS wheel tags uv accepts.
+  log "Installing locked dependencies for $TARGET (cross; target interpreter not run)"
+  uv pip install \
+    --target "$SITE" \
+    --python-platform "$TARGET" \
+    --python-version "$PY_VERSION" \
+    --require-hashes \
+    --no-deps \
+    --only-binary :all: \
+    --no-cache \
+    -r "$ENGINE/requirements.lock"
+  log "Installing cardboard_engine (non-editable, cross)"
+  uv pip install --target "$SITE" --python-platform "$TARGET" --python-version "$PY_VERSION" \
+    --no-deps --no-cache "$BUILD"/engine-dist/*.whl
+  # --target puts console scripts in $SITE/bin; the app runs `python -m`.
+  rm -rf "$SITE/bin" "$SITE"/pip "$SITE"/pip-*.dist-info
+  # Every native wheel must be built for the target OS, not this machine.
+  case "$TARGET" in *-apple-darwin) WANT_TAG='-macosx_' ;; *) WANT_TAG='linux' ;; esac
+  for wheel in "$SITE"/*.dist-info/WHEEL; do
+    grep -q '^Root-Is-Purelib: true' "$wheel" && continue
+    grep -q "^Tag: .*${WANT_TAG}" "$wheel" || die "wrong-platform wheel installed: ${wheel#$RUNTIME/}"
+  done
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Strip what the engine does not need. Keep this list in sync with
@@ -174,7 +223,14 @@ log "Removed $(wc -l < "$REMOVED_LIST" | tr -d ' ') paths (list: ${REMOVED_LIST#
 #    needs to recompile (and -B means it could not write anyway).
 # ---------------------------------------------------------------------------
 log "Precompiling bytecode"
-"$PY" -I -m compileall -q -j0 --invalidation-mode unchecked-hash "$STDLIB" >/dev/null
+if [ "$RUNTIME_MODE" = native ]; then
+  COMPILE_PY=("$PY")
+else
+  # Same CPython version as the target, so the .pyc magic number matches.
+  COMPILE_PY=(uv run --no-project --python "$PY_VERSION" python)
+  "${COMPILE_PY[@]}" -I -c "import sys; v='%d.%d.%d' % sys.version_info[:3]; assert v == '$PY_VERSION', v"
+fi
+"${COMPILE_PY[@]}" -I -m compileall -q -j0 --invalidation-mode unchecked-hash "$STDLIB" >/dev/null
 
 # ---------------------------------------------------------------------------
 # 6. Size report
@@ -188,6 +244,12 @@ fi
 # ---------------------------------------------------------------------------
 # 7. Smoke tests: imports in isolated mode, then a real engine start/stop.
 # ---------------------------------------------------------------------------
+if [ "$RUNTIME_MODE" = cross ]; then
+  log "Smoke tests skipped in cross mode; on the Mac run: make smoke"
+  log "Done: ${RUNTIME#$ROOT/} (Python $PY_VERSION, $TARGET, pbs $PBS_TAG, cross)"
+  exit 0
+fi
+
 PYC_BEFORE="$(find "$RUNTIME" -name '*.pyc' | wc -l | tr -d ' ')"
 log "Smoke test: imports"
 "$PY" -I -B -c "import cardboard_engine, flask, ghhops_server, rhino3dm; print('imports ok', cardboard_engine.__version__)"

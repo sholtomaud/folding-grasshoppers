@@ -11,3 +11,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Milestone 1 follow-up: Resources layout, README, audit fixes; harness changes need allow-harness-change
 - **Previous Attestation:** `0000000000000000000000000000000000000000000000000000000000000000`
 - **Attestation SHA-256:** `f08a858184b303bf582aef6234514c7b26c86e99ef96ca36becff0b59f7eef64`
+
+## 2026-11-26T02:16:42Z — `c1d882c` (PASS)
+
+- **Commit:** `c1d882c`
+- **Timestamp:** `2026-11-26T02:16:42Z`
+- **Proof Lock Root SHA-256:** `1b8a93fda3608e6c329b73cc81c37ce936b4abc3552752e27bd7cd13deb8c766`
+- **Verdict:** `PASS`
+- **Summary:** Run Python/uv/Node in the dev container: verify.sh dispatches to scripts/tools.sh when uv is absent; CI builds the macOS runtime in cross mode
+- **Previous Attestation:** `f08a858184b303bf582aef6234514c7b26c86e99ef96ca36becff0b59f7eef64`
+- **Attestation SHA-256:** `f6f554413bacc9cd716cd97e8e477dd929db5ef45440a3542388088663a54162`

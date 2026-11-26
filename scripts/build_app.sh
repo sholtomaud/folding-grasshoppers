@@ -21,7 +21,9 @@ HOME_REL="$(python_home_rel)"
 
 if [ ! -x "$RUNTIME/bin/python3.12" ] || [ "${REBUILD_RUNTIME:-0}" = "1" ]; then
   log "Building Python runtime"
-  "$ROOT/scripts/build_python_runtime.sh"
+  # In the dev container when uv is not installed on this Mac (cross mode).
+  "$ROOT/scripts/tools.sh" scripts/build_python_runtime.sh
+  "$ROOT/scripts/smoke_runtime.sh"
 fi
 
 log "xcodebuild archive ($CONFIGURATION, $ARCHS)"

@@ -55,6 +55,15 @@ your tree with the base branch's lock.
 Enable the local hooks once per clone: `git config core.hooksPath .githooks`.
 Never bypass them with `--no-verify`.
 
+## Toolchain rule
+
+Python, uv and Node.js are never installed or run on the developer's Mac.
+Use the `Makefile` (`make help`) or `scripts/tools.sh <cmd>`, which run them
+in the dev container (`Containerfile`, Apple's `container` CLI). Only Xcode,
+Swift, codesign and the app's own bundled interpreter
+(`build/python-runtime/bin/python3.12`) run on the Mac. CI runners have uv
+installed, so the same scripts run directly there.
+
 ## Engine rules
 
 - Bind `127.0.0.1` only. Never `0.0.0.0`.
@@ -63,8 +72,9 @@ Never bypass them with `--no-verify`.
   `ENGINE_DATA_DIR` / `ENGINE_CACHE_DIR` the app passes in.
 - Hops components wrap pure functions; validation errors must raise (Hops
   shows them as component errors), never return zeros.
-- New dependencies go in `engine/pyproject.toml`, then `uv lock` and
-  `uv export --frozen --format requirements-txt --no-dev --no-emit-project -o requirements.lock`.
+- New dependencies go in `engine/pyproject.toml`, then `make lock` (runs
+  `uv lock` and `uv export --frozen --format requirements-txt --no-dev --no-emit-project -o requirements.lock`
+  in the dev container).
   CI fails if the two drift. Check new native wheels exist for
   `macosx_14_0_arm64` (or universal2).
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "6c58d0d761054d1a8b3faed55409219930499d83f5dc629289d550778602f123",
+  "rootSha256": "1b8a93fda3608e6c329b73cc81c37ce936b4abc3552752e27bd7cd13deb8c766",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -26,7 +26,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "zone": "harness",
-      "sha256": "596857cc619febe3917104ef867d932da0f86477fca58c80d6e790fdb8383cf9"
+      "sha256": "98f1732c2b46626da204ba804775babdbd03acd2946fe3462e94558c72accb5f"
     },
     {
       "path": "app/CardboardCADKit/Package.swift",
@@ -106,7 +106,7 @@
     {
       "path": "scripts/verify.sh",
       "zone": "harness",
-      "sha256": "e5ac1254e185410d42215a0bcde23761b121cc2ec0858652174f086de074578b"
+      "sha256": "8943ad5b3df60729369a4b4b2ca3d840098f6c758cd32b0da0734625f3373ae0"
     },
     {
       "path": "test-floors.json",
