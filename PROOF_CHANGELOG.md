@@ -92,12 +92,22 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Previous Attestation:** `6ff93bbfbc05d1e96bda82e0fefcde494bcdceb38c5edde210ce2fdcfd1a6035`
 - **Attestation SHA-256:** `be140f3140bfe652cbc897b3c8df8d3c3ff5b0197af7ba653171f1bfd63cb85e`
 
-## 2026-11-26T22:24:16Z — `3491f2e` (PASS)
+## 2026-11-26T22:13:49Z — `3491f2e` (PASS)
 
 - **Commit:** `3491f2e`
-- **Timestamp:** `2026-11-26T22:24:16Z`
-- **Proof Lock Root SHA-256:** `a3926fffd83c9aa28abbef9ca89eeda7198c39ec7602aaef5d0c3c13d5907d34`
+- **Timestamp:** `2026-11-26T22:13:49Z`
+- **Proof Lock Root SHA-256:** `216e99bf3b741e89a607934fdaa19489d4187f573e325f18c7190b5dddc870cc`
 - **Verdict:** `PASS`
-- **Summary:** Project save/open and Rhino live sync: new engine tests (test_project, test_live_sync) and Swift ProjectTests; floors pytest 321, swift 106
+- **Summary:** Chat layout fix; estimate_cost flags missing prices (1 new engine test, pytest floor 266)
 - **Previous Attestation:** `be140f3140bfe652cbc897b3c8df8d3c3ff5b0197af7ba653171f1bfd63cb85e`
-- **Attestation SHA-256:** `b847a06c7ff33f7a859ecb55f32d1160ca39c6950df23de6a7c18fbd2f9e1af8`
+- **Attestation SHA-256:** `9c9da5e111daab769af25ef7e505bff0926dbcf4c7dffe7d9b2fd071bb7b6c33`
+
+## 2026-11-26T22:42:13Z — `917cce2` (PASS)
+
+- **Commit:** `917cce2`
+- **Timestamp:** `2026-11-26T22:42:13Z`
+- **Proof Lock Root SHA-256:** `685c5fee483a31ebfd98aeb2b67b013e64306ef55602f66db0a70832c3256741`
+- **Verdict:** `PASS`
+- **Summary:** Merge main into project saving / Rhino live sync; floors pytest 322, swift 106
+- **Previous Attestation:** `9c9da5e111daab769af25ef7e505bff0926dbcf4c7dffe7d9b2fd071bb7b6c33`
+- **Attestation SHA-256:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`

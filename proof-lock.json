@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "a3926fffd83c9aa28abbef9ca89eeda7198c39ec7602aaef5d0c3c13d5907d34",
+  "rootSha256": "685c5fee483a31ebfd98aeb2b67b013e64306ef55602f66db0a70832c3256741",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -134,6 +134,11 @@
       "sha256": "f11c431957df675d8b586a5d3026e98f639f7434ffa1130dff2625a0574ed4a9"
     },
     {
+      "path": "engine/tests/test_design_cost_prompts.py",
+      "zone": "tests",
+      "sha256": "c4c5a1c6b6d911a99fa74d69800ce5ce5d7bb892456e7204a0465dffd2890d52"
+    },
+    {
       "path": "engine/tests/test_design_session.py",
       "zone": "tests",
       "sha256": "003b4170179161c4d46fc67cc521b0305a75975ab491b944edd409ae001e1475"
@@ -246,7 +251,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "fb80e42196edea8ff92065b28afcb14baa42da1134c4cba9508d23ade988ffc7"
+      "sha256": "7d8ba6e44121d88534130de36ffab0b1cc9d170b68f19c81322f1a30d914a357"
     },
     {
       "path": "uplift.config.json",

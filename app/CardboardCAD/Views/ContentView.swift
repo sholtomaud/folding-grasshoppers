@@ -9,13 +9,17 @@ struct ContentView: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        HSplitView {
-            DesignAssistantView(engine: engine, assistant: assistant, claudeKey: claudeKey, projects: projects)
-                .frame(minWidth: 320, idealWidth: 400, maxWidth: 560)
-            PreviewPane(engine: engine)
-                .frame(minWidth: 420)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // A plain VStack, not .safeAreaInset: HSplitView (an NSSplitView) ignores
+        // safe-area insets, so its panes ran underneath the status bar and the
+        // chat's message box was hidden behind it.
+        VStack(spacing: 0) {
+            HSplitView {
+                DesignAssistantView(engine: engine, assistant: assistant, claudeKey: claudeKey, projects: projects)
+                    .frame(minWidth: 340, idealWidth: 420, maxWidth: 600, maxHeight: .infinity)
+                PreviewPane(engine: engine)
+                    .frame(minWidth: 420, maxHeight: .infinity)
+            }
+            .frame(maxHeight: .infinity)
             StatusBar(engine: engine, openSettings: { openSettings() })
         }
         .task(id: runningPort) {

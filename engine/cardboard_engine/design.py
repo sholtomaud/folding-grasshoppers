@@ -62,7 +62,9 @@ Everything is in millimetres. Z is up and models sit on the ground. Typical boar
 
 The app shows a live preview next to this chat: the 3D model (and the assembled ribs, layers or folded nets) and the flat cut sheets. It updates after every tool call, so describe results briefly instead of listing every part. Point the designer to the preview when it helps ("see the Sheets tab").
 
-Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files or save_project when the designer asks for files or to save; they write into their Documents folder."""
+Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files or save_project when the designer asks for files or to save; they write into their Documents folder. For estimate_cost, ask for the sheet price and machine rate if you do not know them, rather than reporting a cost of 0.
+
+Format replies as short paragraphs; use "- " bullet lists only for short lists."""
 
 
 def _num(desc: str, default=None, minimum=None, maximum=None, integer=False) -> dict:
@@ -485,6 +487,9 @@ class DesignSession:
                 f"Total {r.total_cost:.2f}.")
         if not self.nested:
             text += " (Not nested yet, so 1 sheet was assumed.)"
+        if not machine.get("sheet_price") and not machine.get("machine_rate"):
+            text += (" No sheet price or machine rate was given, so the costs are 0: ask the designer "
+                     "for their sheet price and hourly machine rate.")
         return text
 
     def _t_export_cut_files(self, format="dxf", name="cardboardcad", folder=""):
