@@ -24,7 +24,7 @@ if [ "$FAST" -eq 0 ] && [ "$(uname -s)" = "Darwin" ]; then
   (cd app/CardboardCADKit && swift test --parallel --xunit-output "$ROOT/build/swift-xunit.xml")
   python3 scripts/ci/check_test_floors.py swift build/swift-xunit.xml
 elif [ "$FAST" -eq 0 ]; then
-  echo "==> swift test skipped (not macOS; CI runs it on macos-14)"
+  echo "==> swift test skipped (not macOS; CI runs it on macos-15)"
 fi
 
 echo "==> proof seal (agentic-uplift)"

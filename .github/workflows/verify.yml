@@ -60,7 +60,7 @@ jobs:
 
   macos:
     name: macOS (Swift tests, runtime, app)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -112,13 +112,12 @@ jobs:
     name: Proof tamper gate (agentic-uplift)
     runs-on: ubuntu-24.04
     steps:
+      # Full history so origin/<base> (and its proof-lock.json) is available
+      # without keeping credentials around for a later fetch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Fetch base branch
-        env:
-          BASE_REF: ${{ github.base_ref || 'main' }}
-        run: git fetch --no-tags --depth=1 origin "$BASE_REF"
+          fetch-depth: 0
       - name: Proof gate
         uses: sholtomaud/agentic-uplift/actions/proof-gate@e2158d3a4e92de8e5c07e4bc2c80d82933cf6c17
         with:
