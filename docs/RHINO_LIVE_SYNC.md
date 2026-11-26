@@ -56,6 +56,14 @@ Grasshopper basics used below:
   over the little balloon at its top-right corner to read it), **red** means
   an error.
 
+When you are done, the Grasshopper canvas looks like this. The red numbers
+are the step numbers below.
+
+![Diagram of the finished Grasshopper wiring: Boolean Toggle, 500 and 5001 into the listener's On, Interval and Port; Version into LiveDesign's V; Status into a Panel](images/rhino-live-wiring.svg)
+
+*This is a diagram, not a screenshot. Real screenshots go in
+`docs/images/screenshots/` (see the list at the end of this page).*
+
 ### Step 1: add the listener (Python script component)
 
 1. In CardboardCAD choose **Design > Copy Rhino Live Listener Script**.
@@ -130,6 +138,10 @@ If you would rather not use the script, Grasshopper's own Timer can ask the
 app again and again. It re-downloads the design on every tick even when
 nothing changed, so it uses more computer time, but it has fewer steps:
 
+![Diagram: a Timer wired onto the LiveDesign Hops component](images/rhino-live-timer.svg)
+
+*Diagram, not a screenshot.*
+
 1. Do steps 9 and 10 above (Hops with `http://127.0.0.1:5001/live_design`).
 2. Right-click the Hops component and **untick Cache In Memory** (otherwise
    Hops keeps returning its first answer).
@@ -181,6 +193,19 @@ design back to itself.
 | Grasshopper does not update | Is **On** True (or unconnected)? Does Status show a version number that changes when you change the design? If the number changes but LiveDesign does not, check the wire from **Version** to **V**. |
 | The listener stopped after editing the script | Recompute: Grasshopper menu **Solution > Recompute** (F5). |
 | `M` is empty, Summary says "No design" | The app has no model yet. Make one in the Design Assistant, or open a project (**File > Open Project…**). |
+
+## Screenshots still to add
+
+The pictures on this page are drawings. Real screenshots help most here; save
+them as PNG in `docs/images/screenshots/` with these names and they can be
+swapped in:
+
+| File | What it should show |
+|---|---|
+| `01-script-component-renamed.png` | the Python 3 Script component with On, Interval, Port / Version, Status (step 4) |
+| `02-hops-path-dialog.png` | the Hops **Path…** dialog with `http://127.0.0.1:5001/live_design` (step 10) |
+| `03-canvas-wired.png` | the whole canvas after step 11, Status panel reading `Live: …` |
+| `04-rhino-viewport.png` | Rhino's Perspective view with the model, ribs and sheets previewed (step 12) |
 
 ## For developers
 
