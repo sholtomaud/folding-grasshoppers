@@ -1,0 +1,304 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A4000152C069EB93CAEFAACE /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863FF2791839B92B7BE02C78 /* App.swift */; };
+		41BD03BDEB0DBAAABE277E6B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20D02C8A810CF63B7013039 /* ContentView.swift */; };
+		3AA3BC6535FC70B9E16CEF64 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874FEAB9AD5771AD4CB90DE7 /* SettingsView.swift */; };
+		C5CACA5955A5E6CFC223889C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 32BB636196F91ED59D7A4919 /* Assets.xcassets */; };
+		D0CBAA91C3D9B6287E36D725 /* CardboardCADKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2BAFBE90D711F96380E9193E /* CardboardCADKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		863FF2791839B92B7BE02C78 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		B20D02C8A810CF63B7013039 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		874FEAB9AD5771AD4CB90DE7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		32BB636196F91ED59D7A4919 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BB5944C6515D6D2B678426AB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		86B3BC083DF59791BE56CFAE /* CardboardCAD.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CardboardCAD.entitlements; sourceTree = "<group>"; };
+		B1F0EC91477E7DD9C138A3AC /* CardboardCADKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = CardboardCADKit; sourceTree = "<group>"; };
+		F5BF48AA40CAD7891EB709FC /* CardboardCAD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CardboardCAD.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D0CBAA91C3D9B6287E36D725 /* CardboardCADKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		FAD58DE7366495DB4650CFEF = {
+			isa = PBXGroup;
+			children = (
+				20F4BD606C0F6D1645AE4919 /* CardboardCAD */,
+				B1F0EC91477E7DD9C138A3AC /* CardboardCADKit */,
+				86024CAD1E83101D97359D73 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F5BF48AA40CAD7891EB709FC /* CardboardCAD.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		20F4BD606C0F6D1645AE4919 /* CardboardCAD */ = {
+			isa = PBXGroup;
+			children = (
+				863FF2791839B92B7BE02C78 /* App.swift */,
+				9179F0FC37316449DB951690 /* Views */,
+				32BB636196F91ED59D7A4919 /* Assets.xcassets */,
+				BB5944C6515D6D2B678426AB /* Info.plist */,
+				86B3BC083DF59791BE56CFAE /* CardboardCAD.entitlements */,
+			);
+			path = CardboardCAD;
+			sourceTree = "<group>";
+		};
+		9179F0FC37316449DB951690 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B20D02C8A810CF63B7013039 /* ContentView.swift */,
+				874FEAB9AD5771AD4CB90DE7 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* CardboardCAD */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FDF364E1380B97A6B748142A /* Build configuration list for PBXNativeTarget "CardboardCAD" */;
+			buildPhases = (
+				F2AB5FB218DA8B84623F4557 /* Sources */,
+				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
+				55B558C7EF820E6E00E5993B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CardboardCAD;
+			packageProductDependencies = (
+				2BAFBE90D711F96380E9193E /* CardboardCADKit */,
+			);
+			productName = CardboardCAD;
+			productReference = F5BF48AA40CAD7891EB709FC /* CardboardCAD.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					42AEFBAE01D2DFD981F7DA7D = {
+						CreatedOnToolsVersion = 15.4;
+					};
+				};
+			};
+			buildConfigurationList = FB0A9E0824BEDFF6DE8AA308 /* Build configuration list for PBXProject "CardboardCAD" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = FAD58DE7366495DB4650CFEF;
+			packageReferences = (
+				00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference "CardboardCADKit" */,
+			);
+			productRefGroup = 86024CAD1E83101D97359D73 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* CardboardCAD */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C5CACA5955A5E6CFC223889C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2AB5FB218DA8B84623F4557 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A4000152C069EB93CAEFAACE /* App.swift in Sources */,
+				41BD03BDEB0DBAAABE277E6B /* ContentView.swift in Sources */,
+				3AA3BC6535FC70B9E16CEF64 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		EC86DC4F4B4C60C3EC031655 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		7BF40F069D95C38DE60AA602 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		8CBC338D09B9279147FBD852 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CardboardCAD/CardboardCAD.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CardboardCAD/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.cardboardcad;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C286FC8B91125F435CB47F15 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CardboardCAD/CardboardCAD.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CardboardCAD/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.cardboardcad;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		FB0A9E0824BEDFF6DE8AA308 /* Build configuration list for PBXProject "CardboardCAD" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EC86DC4F4B4C60C3EC031655 /* Debug */,
+				7BF40F069D95C38DE60AA602 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FDF364E1380B97A6B748142A /* Build configuration list for PBXNativeTarget "CardboardCAD" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CBC338D09B9279147FBD852 /* Debug */,
+				C286FC8B91125F435CB47F15 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference "CardboardCADKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = CardboardCADKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2BAFBE90D711F96380E9193E /* CardboardCADKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 00399ED3B3FA2FCA129B1CCE /* XCLocalSwiftPackageReference "CardboardCADKit" */;
+			productName = CardboardCADKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

@@ -125,6 +125,8 @@ final class FakeEngineClient: EngineClientProtocol {
         throw FakeError()
     }
 
+    func hello(name: String) async throws -> String { "Hello, \(name)" }
+
     func shutdown(token: String) async throws -> Int {
         shutdownTokens.append(token)
         onShutdown?()
