@@ -7,97 +7,186 @@ struct ContentView: View {
 
     var body: some View {
         HSplitView {
-            VStack(spacing: 0) {
-                HelloCard(engine: engine)
-                CutEstimateForm(engine: engine)
+            Form {
+                HelloSection(engine: engine)
+                CutEstimateSections(engine: engine)
             }
-            .frame(minWidth: 380)
+            .formStyle(.grouped)
+            .frame(minWidth: 420, idealWidth: 480)
             ChatPlaceholder()
-                .frame(minWidth: 240)
+                .frame(minWidth: 260)
         }
-        .toolbar {
-            ToolbarItem(placement: .status) {
-                EngineStatusBadge(engine: engine, openSettings: { openSettings() })
-            }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            StatusBar(engine: engine, openSettings: { openSettings() })
         }
     }
 }
 
-// MARK: - Status
+// MARK: - Status bar
 
-struct EngineStatusBadge: View {
+/// Bottom bar, like Xcode's or Finder's: engine state on the left, when
+/// Grasshopper last called on the right. Replaces the toolbar pill.
+struct StatusBar: View {
     let engine: EngineManager
     let openSettings: () -> Void
+    @State private var hops: HopsActivity?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(color)
-                .frame(width: 10, height: 10)
-                .accessibilityLabel(engine.state.summary)
-            Text(label).font(.callout)
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 12) {
+                engineStatus
+                Spacer(minLength: 12)
+                if runningPort != nil { hopsStatus }
+            }
+            .font(.callout)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+        }
+        .background(.bar)
+        .task(id: runningPort) { await pollHops() }
+    }
+
+    // MARK: engine
+
+    private var engineStatus: some View {
+        HStack(spacing: 6) {
+            StatusDot(color: engineColor)
+            Text(engineTitle)
+            if let detail = engineDetail {
+                Text(detail).foregroundStyle(.secondary)
+            }
             if case .failed(let failure) = engine.state {
                 switch failure.action {
                 case .openSettings:
-                    Button("Open Settings", action: openSettings)
+                    Button("Open Settings…", action: openSettings).buttonStyle(.link)
                 case .viewLogs:
-                    Button("View Logs") { LogsFolder.reveal(engine) }
+                    Button("Show Logs") { LogsFolder.reveal(engine) }.buttonStyle(.link)
                 }
             }
         }
-        .help(tooltip)
+        .lineLimit(1)
+        .help(engineTooltip)
+        .accessibilityElement(children: .combine)
     }
 
-    private var color: Color {
+    private var runningPort: Int? {
+        if case .running(let port) = engine.state { return port }
+        return nil
+    }
+
+    private var engineColor: Color {
         switch engine.state {
-        case .stopped: return .gray
+        case .stopped: return .secondary
         case .starting, .restarting: return .orange
         case .running: return .green
         case .failed: return .red
         }
     }
 
-    private var label: String {
+    private var engineTitle: String {
         switch engine.state {
-        case .stopped: return "Stopped"
-        case .starting: return "Starting…"
-        case .restarting(let n): return "Restarting (\(n))…"
-        case .running(let port): return "Running on \(port)"
+        case .stopped: return "Engine stopped"
+        case .starting: return "Engine starting…"
+        case .restarting(let n): return "Engine restarting (attempt \(n))…"
+        case .running: return "Engine running"
         case .failed(let f): return f.reason
         }
     }
 
-    private var tooltip: String {
+    private var engineDetail: String? {
+        guard let port = runningPort else { return nil }
+        var s = "127.0.0.1:\(port)"
+        if let v = engine.engineVersion { s += " · v\(v)" }
+        return s
+    }
+
+    private var engineTooltip: String {
         var s = engine.state.summary
         if let v = engine.engineVersion { s += "\nEngine \(v)" }
         if engine.config.usesDevRuntime { s += "\nDev runtime" }
         return s
+    }
+
+    // MARK: Grasshopper
+
+    private var hopsStatus: some View {
+        HStack(spacing: 6) {
+            StatusDot(color: hopsColor)
+            Text(hops?.summary ?? "Grasshopper: no calls yet")
+                .foregroundStyle(hops?.level == .recent ? .primary : .secondary)
+        }
+        .lineLimit(1)
+        .help(hopsTooltip)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var hopsColor: Color {
+        switch hops?.level ?? .never {
+        case .never: return .secondary
+        case .recent: return .green
+        case .idle: return .secondary
+        case .error: return .red
+        }
+    }
+
+    private var hopsTooltip: String {
+        guard let port = runningPort else { return "" }
+        var s = "Hops calls the engine each time a component loads or solves.\n"
+        s += "Paste http://127.0.0.1:\(port)/hello into a Hops component's Path."
+        if let h = hops, h.requests > 0 {
+            s += "\n\n\(h.requests) call(s) so far"
+            if let path = h.lastPath { s += "\nLast: \(path)" }
+            if let status = h.lastStatus { s += " → HTTP \(status)" }
+        }
+        return s
+    }
+
+    private func pollHops() async {
+        hops = nil
+        guard let port = runningPort else { return }
+        let client = EngineClient(port: port)
+        while !Task.isCancelled {
+            if let a = try? await client.hopsActivity() { hops = a }
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+}
+
+struct StatusDot: View {
+    let color: Color
+    var body: some View {
+        Circle().fill(color).frame(width: 8, height: 8)
     }
 }
 
 // MARK: - Hello world demo
 
 /// Smallest app -> engine round trip: POST /api/hello.
-struct HelloCard: View {
+struct HelloSection: View {
     let engine: EngineManager
     @State private var name = "world"
     @State private var reply: String?
 
     var body: some View {
-        Form {
-            Section("Hello world") {
+        Section("Hello world") {
+            LabeledContent("Name") {
                 HStack {
                     TextField("Name", text: $name)
-                    Button("Say hello") { Task { await sayHello() } }
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 180)
+                        .onSubmit { Task { await sayHello() } }
+                    Button("Say Hello") { Task { await sayHello() } }
                         .disabled(!isRunning)
                 }
-                if let reply {
-                    Text(reply).textSelection(.enabled)
+            }
+            if let reply {
+                LabeledContent("Reply") {
+                    Text(reply).textSelection(.enabled).foregroundStyle(.secondary)
                 }
             }
         }
-        .formStyle(.grouped)
-        .frame(maxHeight: 150)
     }
 
     private var isRunning: Bool {
@@ -117,7 +206,7 @@ struct HelloCard: View {
 
 // MARK: - Cut estimate
 
-struct CutEstimateForm: View {
+struct CutEstimateSections: View {
     let engine: EngineManager
     @State private var input = CutEstimateInput(cutLength: 2000)
     @State private var result: CutEstimateResult?
@@ -125,7 +214,7 @@ struct CutEstimateForm: View {
     @State private var busy = false
 
     var body: some View {
-        Form {
+        Group {
             Section("Cutting") {
                 field("Cut length (mm)", "Lc", $input.cutLength)
                 field("Score length (mm)", "Ls", $input.scoreLength)
@@ -142,12 +231,15 @@ struct CutEstimateForm: View {
                 field("Sheet price", "Ps", $input.sheetPrice)
                 field("Machine rate (per hour)", "R", $input.machineRate)
             }
-            Section {
+            Section("Estimate") {
                 HStack {
                     Button("Estimate") { Task { await run() } }
                         .keyboardShortcut(.return, modifiers: [.command])
+                        .buttonStyle(.borderedProminent)
                         .disabled(!isRunning || busy)
                     if busy { ProgressView().controlSize(.small) }
+                    Spacer()
+                    Text("⌘↩").foregroundStyle(.tertiary)
                 }
                 if let error {
                     Text(error).foregroundStyle(.red).textSelection(.enabled)
@@ -160,7 +252,6 @@ struct CutEstimateForm: View {
                 }
             }
         }
-        .formStyle(.grouped)
     }
 
     private var isRunning: Bool {
@@ -170,11 +261,22 @@ struct CutEstimateForm: View {
 
     private func field(_ name: String, _ nick: String, _ value: Binding<Double>) -> some View {
         LabeledContent {
-            TextField(nick, value: value, format: .number)
+            TextField(name, value: value, format: .number)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 140)
+                .monospacedDigit()
+                .frame(width: 110)
         } label: {
-            Text(name) + Text("  \(nick)").foregroundColor(.secondary)
+            HStack(spacing: 6) {
+                Text(name)
+                Text(nick)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
+                    .help("Hops input nickname")
+            }
         }
     }
 
@@ -199,16 +301,11 @@ struct CutEstimateForm: View {
 // MARK: - Chat placeholder
 
 struct ChatPlaceholder: View {
-    @State private var draft = ""
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Chat (coming soon)").font(.headline)
-            Spacer()
-            TextField("Ask about your design…", text: $draft)
-                .disabled(true)
-        }
-        .padding()
-        .foregroundStyle(.secondary)
+        ContentUnavailableView(
+            "Design Assistant",
+            systemImage: "bubble.left.and.text.bubble.right",
+            description: Text("Coming in a later version.")
+        )
     }
 }

@@ -31,3 +31,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** verify.yml: re-run on labeled/unlabeled so allow-* labels take effect
 - **Previous Attestation:** `f6f554413bacc9cd716cd97e8e477dd929db5ef45440a3542388088663a54162`
 - **Attestation SHA-256:** `38562ae6685aab9bb3f637ed4a7a0f1f15546e6a5332cee35d4e0508a1727319`
+
+## 2026-11-26T05:09:38Z — `3b40ed6` (PASS)
+
+- **Commit:** `3b40ed6`
+- **Timestamp:** `2026-11-26T05:09:38Z`
+- **Proof Lock Root SHA-256:** `c7a1bef58fd2e046b286a85307aee20b04eb32066d2e1ee4dac1caffeb8d1633`
+- **Verdict:** `PASS`
+- **Summary:** Hops activity endpoint + status bar; raise floors (pytest 64, swift 58)
+- **Previous Attestation:** `38562ae6685aab9bb3f637ed4a7a0f1f15546e6a5332cee35d4e0508a1727319`
+- **Attestation SHA-256:** `6392bac427066477687d370a0d5e80e1ee5ea9590b99022b494aa30e3aac12de`

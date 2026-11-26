@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "ab634e9fa99b844982f4c9ad2250a19424378869bfad2c71c55eff85e742e9ba",
+  "rootSha256": "c7a1bef58fd2e046b286a85307aee20b04eb32066d2e1ee4dac1caffeb8d1633",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -54,6 +54,11 @@
       "sha256": "260f81602720ac3a2ad5e6b8be370aef112a618b89670884355d116788a5865d"
     },
     {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/HopsActivityTests.swift",
+      "zone": "tests",
+      "sha256": "5dd49f3ba0c60538e2e82e64882f8b7a70bcfbcc626b787a0bcf2d60e1ed5bdd"
+    },
+    {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/RotatingLogWriterTests.swift",
       "zone": "tests",
       "sha256": "10ddbda661937ec90fa62483f39050fd58a793b4144133fa298b9707a1092dab"
@@ -89,6 +94,11 @@
       "sha256": "7102ab0078e13ed56b08f7324a2b0ca463456bebb7d0da4943573ec4e4ff5545"
     },
     {
+      "path": "engine/tests/test_hops_activity.py",
+      "zone": "tests",
+      "sha256": "f108bd0474db6162eefd5f1bb014351c647557f11634f57d6ea7a0412bd51696"
+    },
+    {
       "path": "engine/tests/test_process.py",
       "zone": "tests",
       "sha256": "6503d1e8b5f7deb2ca668f3e1ceffd81dc7dd203221688eada0dd645a2fce8d7"
@@ -111,7 +121,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "bdb46a0473d45e37b76173e5b6f4419a9021a29468b6670b686b099fe25e7d81"
+      "sha256": "e631c51c1441471f89e7425abcb120ec1aea884223acd2c50e468771956400c8"
     },
     {
       "path": "uplift.config.json",

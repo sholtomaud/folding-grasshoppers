@@ -71,17 +71,28 @@ Skip this until the releases page lists a release.
    downloaded from the Internet. Are you sure you want to open it?* Click
    **Open**. You only see this once.
    (Your own unsigned build is blocked instead: see
-   [section 6, step 6](#6-build-the-app-yourself).)
-3. Look at the dot in the window's toolbar. It turns **green**, with the text
-   "Running on 5001", within about 20 seconds the first time and a few seconds
-   after that.
+   [section 6](#6-build-the-app-yourself).)
+3. Look at the status bar along the bottom of the window. On the left, the
+   engine dot turns **green** and says "Engine running · 127.0.0.1:5001",
+   within about 20 seconds the first time and a few seconds after that.
 
-| Dot | Meaning |
+| Engine dot (bottom left) | Meaning |
 |---|---|
 | grey | engine stopped |
 | amber | starting, or restarting after a problem |
 | green | running. Hover over it to see the engine version. |
-| red | failed. The text says why, with an **Open Settings** or **View Logs** button. |
+| red | failed. The text says why, with an **Open Settings…** or **Show Logs** link. |
+
+On the right, the status bar shows when Grasshopper last called the engine.
+Hops never stays connected: it sends a request each time a component loads or
+solves, so this is the way to check that Grasshopper can reach CardboardCAD.
+
+| Grasshopper dot (bottom right) | Meaning |
+|---|---|
+| grey, "no calls yet" | no Hops component has reached the engine since it started |
+| green, "last call 12 s ago" | Hops called within the last 2 minutes |
+| grey, "last call 10 min ago" | Hops reached it before, but not recently |
+| red, "failed (HTTP 500)" | the last call reached the engine but the component reported an error |
 
 Quitting CardboardCAD (**CardboardCAD > Quit**, or ⌘Q) also stops the engine.
 
@@ -123,7 +134,12 @@ You need Rhino 8 for Mac. Hops ships with Rhino 8. If it is missing, type
 | `http://127.0.0.1:5001/cut_estimate` | Lc, Ls, N, S, Vc, Vs, Tp, k, Ps, R (numbers) | T, Cm, Cmach, C |
 | `http://127.0.0.1:5001/echo` | N (number) | N (the same number) |
 
-Use your own port number if you changed it in Settings.
+Use your own port number if you changed it in Settings. Use `127.0.0.1`,
+not `localhost`: the engine listens on the IPv4 loopback address only.
+
+After you paste a path, the status bar's Grasshopper dot should say "last call
+just now". If it still says "no calls yet", the request never reached the
+engine: check the address and port.
 
 If an input makes no sense, for example a negative length or a zero speed,
 the component turns red and says why. It never returns zeros silently.

@@ -87,6 +87,15 @@ public protocol EngineClientProtocol: AnyObject {
     func hello(name: String) async throws -> String
     /// Returns the HTTP status (202 accepted, 403 bad token) instead of throwing on it.
     func shutdown(token: String) async throws -> Int
+    /// Hops requests the engine has served (GET /api/hops_activity).
+    func hopsActivity() async throws -> HopsActivity
+}
+
+public extension EngineClientProtocol {
+    /// Default for clients that do not report Hops activity.
+    func hopsActivity() async throws -> HopsActivity {
+        throw EngineClientError.httpStatus(404)
+    }
 }
 
 /// Typed client for the engine on `http://127.0.0.1:<port>`.
@@ -141,6 +150,10 @@ public final class EngineClient: EngineClientProtocol, @unchecked Sendable {
         guard status == 200 else { throw EngineClientError.httpStatus(status) }
         let reply: Reply = try decode(data)
         return reply.message
+    }
+
+    public func hopsActivity() async throws -> HopsActivity {
+        try await get("/api/hops_activity", timeout: min(timeout, 1))
     }
 
     public func shutdown(token: String) async throws -> Int {
