@@ -42,54 +42,109 @@ Everything stays on your own Mac (`127.0.0.1`). Nothing goes over the network.
 
 ## Set it up (once per Grasshopper file)
 
-### 1. Add the listener
+Before you start: CardboardCAD is open, the dot in its bottom-left corner is
+**green**, and the Design Assistant has made something (for example "make a
+cylinder stool 450 mm tall as a waffle"), so there is a design to see.
 
-1. In CardboardCAD, choose **Design > Copy Rhino Live Listener Script**. The
-   script is now on the clipboard. (It is also at
-   `http://127.0.0.1:5001/rhino/live_listener.py`, and in this repository at
-   `engine/cardboard_engine/assets/rhino_live_listener.py`.)
-2. In Rhino, type `Grasshopper` and press Return.
-3. Add a Python script component:
-   - Rhino 8: tab **Maths**, group **Script**, **Python 3 Script**
-     (or double-click the canvas, type `Python 3 Script`, press Return).
-   - Rhino 7: tab **Maths**, group **Script**, **GhPython Script**.
-4. Double-click the component to open its editor. Select all the text in it
-   (⌘A), paste (⌘V), and close the editor (Rhino 8: the **Save and close**
-   button or ⌘S then close the window; Rhino 7: **OK**).
-5. Set its inputs and outputs. Zoom in on the component until you see small
-   **+** and **−** signs next to the inputs and outputs. Use them, then
-   right-click each one and **Rename** it, so the component has exactly:
+Grasshopper basics used below:
+- **Add a component:** double-click an empty part of the canvas, type its
+  name in the search box that appears, press Return.
+- **Wire two components:** press on the small half-circle on the *right*
+  side of one (an output), drag to the half-circle on the *left* side of the
+  other (an input), let go.
+- **Colours:** grey or green means fine, **orange** means a warning (hover
+  over the little balloon at its top-right corner to read it), **red** means
+  an error.
 
-   | Inputs | Type (right-click > Type hint) | Optional? |
-   |---|---|---|
-   | `On` | bool | yes, default on |
-   | `Interval` | int | yes, default 500 (milliseconds) |
-   | `Port` | int | yes, default 5001 |
+### Step 1: add the listener (Python script component)
 
-   | Outputs |
-   |---|
-   | `Version` |
-   | `Status` |
+1. In CardboardCAD choose **Design > Copy Rhino Live Listener Script**.
+2. In Grasshopper, double-click the canvas, type `Python 3 Script`, press
+   Return. (Rhino 7: type `GhPython`.)
+3. Double-click the new component to open its editor, press ⌘A then ⌘V to
+   replace everything with the script, then close the editor.
+4. Rename its inputs and outputs so it shows **On**, **Interval**, **Port**
+   on the left and **Version**, **Status** on the right: zoom in until small
+   **+** / **−** signs appear to add or remove one, and right-click each name >
+   type the new name in the box at the top of the menu, press Return.
 
-   In Rhino 8, the default script component has inputs `x`, `y` and output
-   `a`: rename `x` to `On`, `y` to `Interval`, add a third input `Port`,
-   rename `a` to `Version` and add a second output `Status`. (Rhino 8 may also
-   show an `out` output; leave it.)
-6. Connect a **Panel** to **Status**. It should say
-   `Live: CardboardCAD design version N ...`. If it says
-   `Waiting for CardboardCAD on port 5001`, start the app (or check the port
-   in CardboardCAD **Settings**).
+### Step 2: give the listener its three inputs
 
-### 2. Add LiveDesign
+5. **On:** double-click the canvas, type `Boolean Toggle`, press Return. A
+   small box saying **False** appears. Double-click it so it says **True**.
+   Wire its right side to the listener's **On**.
+6. **Interval:** double-click the canvas and type `500` (just the number),
+   press Return. Grasshopper makes a small number box holding 500. Wire it to
+   **Interval**. (500 means "check twice a second".)
+7. **Port:** the same way, type `5001`, press Return, and wire it to **Port**.
+   (Use the port shown in CardboardCAD **Settings** if you changed it.)
 
-1. Tab **Params**, group **Util**, drag **Hops** onto the canvas.
-2. Right-click it, **Path…**, paste `http://127.0.0.1:5001/live_design`,
-   **OK**. It reshapes into **LiveDesign** with the Fold Theory icon.
-3. Connect the listener's **Version** to LiveDesign's **V**.
-4. Right-click the Hops component and make sure **Cache In Memory** is ticked
-   (the default). It then only asks the app again when the version changes.
+### Step 3: see what the listener is doing
 
-LiveDesign's outputs:
+8. Double-click the canvas, type `Panel`, press Return. A yellow note
+   appears. Wire the listener's **Status** output into the panel's left side.
+   Within a second it should read
+   `Live: CardboardCAD design version 7 (checking every 500 ms).`
+   (any number). If it says `Waiting for CardboardCAD on port 5001`, the app
+   is not running or the port is wrong.
+
+### Step 4: add LiveDesign (the Hops component that brings the design in)
+
+9. Double-click the canvas, type `Hops`, press Return. A grey Hops
+   component appears.
+10. Right-click it > **Path…**, paste `http://127.0.0.1:5001/live_design`,
+    click **OK**. It turns into **LiveDesign** with one input, **V**, and
+    outputs **V, M, R3, Cut, Sc, Sh, L, P, S**.
+11. Wire the listener's **Version** output to LiveDesign's **V** input.
+
+### Step 5: look at it in Rhino
+
+12. Switch to the Rhino window. The design is already drawn in the
+    viewports as a light red preview: the model (**M**), the ribs in place
+    (**R3**) and the flat cut sheets beside it on the ground (**Cut**, **Sc**,
+    **Sh**). Grasshopper previews every output. Type `Zoom` > **All**
+    (or double-click the middle mouse button) if you can't see it.
+13. To show only some of it: right-click the LiveDesign component and
+    untick **Preview** (everything disappears), then add a `Custom Preview`
+    component and wire just the output you want (for example **M**) into its
+    **G** input.
+14. Optional: wire **S** into another Panel to read the size, method, sheets
+    and cost.
+
+### Step 6: check that it is live
+
+15. In CardboardCAD, ask the assistant for a change, for example "use 6 ribs
+    each way". In Grasshopper the Status panel's version number goes up, and
+    the preview in Rhino changes within about half a second.
+
+That's it. To stop live updates, double-click the Boolean Toggle so it says
+**False**. To keep a copy as real Rhino geometry, right-click an output
+(**M**, **Cut**…) > **Bake…** > **OK**; baked objects stay as they are.
+
+Save the Grasshopper file (**File > Save Document** in the Grasshopper
+window) so you don't have to wire this again.
+
+### Simpler alternative: no script, just a Timer
+
+If you would rather not use the script, Grasshopper's own Timer can ask the
+app again and again. It re-downloads the design on every tick even when
+nothing changed, so it uses more computer time, but it has fewer steps:
+
+1. Do steps 9 and 10 above (Hops with `http://127.0.0.1:5001/live_design`).
+2. Right-click the Hops component and **untick Cache In Memory** (otherwise
+   Hops keeps returning its first answer).
+3. Double-click the canvas, type `Timer`, press Return. Wire the Timer's
+   output (right side) onto the Hops component itself. Right-click the
+   Timer > **Interval** > 1 second.
+
+### Ready-made Grasshopper file
+
+There is no ready-made `.gh` file yet: Grasshopper files can only be made
+reliably inside Grasshopper. Once you have wired steps 1 to 11, save the
+file as `CardboardCAD Live.gh` and it can be added to this repository
+(`rhino/CardboardCAD Live.gh`) for everyone to open instead of wiring.
+
+### LiveDesign's outputs
 
 | Output | What |
 |---|---|
@@ -103,16 +158,7 @@ LiveDesign's outputs:
 | **P** | the parts document: connect it to the `/nest` or `/export` Hops components |
 | **S** | a text summary: size, method, sheets, cost |
 
-Now change the design in CardboardCAD (for example ask the assistant "use 6
-ribs each way"). Within half a second, Grasshopper updates.
-
-To keep a copy in Rhino, right-click an output (for example **M** or
-**Cut**) and choose **Bake…**. Baked geometry does not change afterwards.
-
-Turn live updates off by connecting a **Boolean Toggle** set to False to the
-listener's **On** input.
-
-### 3. Send a Rhino model to CardboardCAD (optional)
+### Send a Rhino model to CardboardCAD (optional)
 
 1. Another Hops component with path `http://127.0.0.1:5001/send_to_cardboardcad`.
 2. Connect a closed mesh to **M** (for a Brep or a Rhino object, use
