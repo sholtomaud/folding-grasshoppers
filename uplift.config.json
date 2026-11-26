@@ -14,8 +14,14 @@
       "engine/pyproject.toml",
       "app/CardboardCADKit/Package.swift"
     ],
-    "testRoots": ["engine/tests", "app/CardboardCADKit/Tests"],
-    "testFilePatterns": [".py", ".swift"]
+    "testRoots": [
+      "engine/tests",
+      "app/CardboardCADKit/Tests"
+    ],
+    "testFilePatterns": [
+      ".py",
+      ".swift"
+    ]
   },
   "limits": {
     "securityDays": 7,
@@ -25,5 +31,9 @@
   "gate": {
     "maxOpenAgentPrs": 2,
     "requireProofSeal": true
+  },
+  "costs": {
+    "monthlyAgenticBudget": 50,
+    "agentModel": "claude-opus-5-5"
   }
 }

@@ -1,0 +1,33 @@
+name: Bug report
+description: Something in CardboardCAD, the engine or Hops does not work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - CardboardCAD app
+        - Grasshopper / Hops component
+        - Engine (HTTP API)
+        - Build, signing or release scripts
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Hover the status dot in the app, or run `curl http://127.0.0.1:5001/version`.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Engine log
+      description: Last lines of ~/Library/Logs/CardboardCAD/engine.log (Engine > Show Logs).
+      render: text

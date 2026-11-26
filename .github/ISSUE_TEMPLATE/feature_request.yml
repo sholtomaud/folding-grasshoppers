@@ -1,0 +1,18 @@
+name: Feature request
+description: A new component, endpoint or app feature
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you need
+      description: The problem, in the designer's words. Inputs and outputs if it is a Hops component.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: How we will know it works
+      description: A worked example with numbers (this becomes the first failing test).
+    validations:
+      required: true

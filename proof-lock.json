@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "72472da8533480bc4c5814c7b413a86dff5f98358d4e0bb1fbdbca0f5c7bfd15",
+  "rootSha256": "6c58d0d761054d1a8b3faed55409219930499d83f5dc629289d550778602f123",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -21,12 +21,12 @@
     {
       "path": ".github/CODEOWNERS",
       "zone": "harness",
-      "sha256": "32eaf7cc4b9062108c08471dbb8c5173951b881e347de8766a4c040de762885b"
+      "sha256": "fbf0ac914073f4bdf4ac797b3dc69451758de0079f676ceca813c2ca33475e97"
     },
     {
       "path": ".github/workflows/verify.yml",
       "zone": "harness",
-      "sha256": "faeb0d3ccabf033451901255ee4e8ab2c1f9edf7125ff9d60b84535de4475b8c"
+      "sha256": "596857cc619febe3917104ef867d932da0f86477fca58c80d6e790fdb8383cf9"
     },
     {
       "path": "app/CardboardCADKit/Package.swift",
@@ -116,7 +116,7 @@
     {
       "path": "uplift.config.json",
       "zone": "harness",
-      "sha256": "996fd520b05255499dbe2aec42079f1a3cd752beade02430fb988a260bb0dd3d"
+      "sha256": "7b7ef67ece30fe59b053975e218938f09fb33bfb3f3f7dbbcccad65e1e5953ce"
     }
   ]
 }
