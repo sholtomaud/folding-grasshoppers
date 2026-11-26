@@ -38,7 +38,18 @@ You need a Mac with Apple silicon (M1 or newer) running macOS 14 Sonoma or
 later. To check, open the Apple menu  > **About This Mac**: "Chip" should
 say Apple M-something, and "macOS" should be 14 or higher.
 
-### From a release (once one exists)
+### Today: build it yourself
+
+There is no download yet: the releases page
+(https://github.com/sholtomaud/folding-grasshoppers/releases) is empty until
+the first signed release is published. Follow
+[section 6](#6-build-the-app-yourself) (about 10 minutes). It produces
+`~/src/folding-grasshoppers/build/app/CardboardCAD.app`, which you copy to
+`/Applications`.
+
+### Later: download a release (not available yet)
+
+Skip this until the releases page lists a release.
 
 1. Go to the releases page:
    **https://github.com/sholtomaud/folding-grasshoppers/releases**
@@ -52,12 +63,6 @@ say Apple M-something, and "macOS" should be 14 or higher.
 5. Eject the disk image: in the Finder sidebar, click the eject button next to
    **CardboardCAD 0.1.0**. You can then delete
    `~/Downloads/CardboardCAD.dmg`.
-
-### From your own build (today)
-
-Follow [section 6](#6-build-the-app-yourself). It produces
-`~/src/folding-grasshoppers/build/app/CardboardCAD.app`, which you copy to
-`/Applications`.
 
 ## 2. First launch
 
