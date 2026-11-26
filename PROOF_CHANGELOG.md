@@ -41,3 +41,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Hops activity endpoint + status bar; raise floors (pytest 64, swift 58)
 - **Previous Attestation:** `38562ae6685aab9bb3f637ed4a7a0f1f15546e6a5332cee35d4e0508a1727319`
 - **Attestation SHA-256:** `6392bac427066477687d370a0d5e80e1ee5ea9590b99022b494aa30e3aac12de`
+
+## 2026-11-26T08:13:17Z — `4291ba9` (PASS)
+
+- **Commit:** `4291ba9`
+- **Timestamp:** `2026-11-26T08:13:17Z`
+- **Proof Lock Root SHA-256:** `409644a6429eaaf348a1f662c221eaafa814ea682da9af54628c5674e6f842b0`
+- **Verdict:** `PASS`
+- **Summary:** Geometry milestone PR 1: /waffle_slice and /export (DXF/SVG), parts document, pyclipper dependency; new tests, pytest floor 64 -> 122
+- **Previous Attestation:** `6392bac427066477687d370a0d5e80e1ee5ea9590b99022b494aa30e3aac12de`
+- **Attestation SHA-256:** `5cc857272b0b67acd3989f34f1a411a2bb21edd98f5e2b20cf6c60d4fd95ff50`

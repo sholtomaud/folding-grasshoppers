@@ -6,13 +6,18 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "flask>=3.1,<4",
     "ghhops-server==1.5.5",
+    # Polygon booleans and offsets (slots, kerf, nesting). One small native
+    # extension; universal2 wheel, signed like every other runtime Mach-O.
+    "pyclipper>=1.3,<2",
 ]
 
 [project.scripts]
 cardboard-engine = "cardboard_engine.server:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+# ezdxf is dev-only: tests read our DXF back with an independent parser.
+# It is not exported to requirements.lock, so it never reaches the app.
+dev = ["pytest>=8", "ezdxf>=1.3"]
 
 [build-system]
 requires = ["hatchling>=1.25"]

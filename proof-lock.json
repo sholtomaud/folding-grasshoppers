@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "c7a1bef58fd2e046b286a85307aee20b04eb32066d2e1ee4dac1caffeb8d1633",
+  "rootSha256": "409644a6429eaaf348a1f662c221eaafa814ea682da9af54628c5674e6f842b0",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -71,7 +71,7 @@
     {
       "path": "engine/pyproject.toml",
       "zone": "harness",
-      "sha256": "de3544531fa6f66d638602c2e56f5e5882481fcef6832a165c0afb12f753a265"
+      "sha256": "d894815fa073d71512b4bc4148a15a70419c390d3d1aeeb917f8a96caa1c1924"
     },
     {
       "path": "engine/tests/__init__.py",
@@ -84,9 +84,19 @@
       "sha256": "b4c32db3cd21738ed0fb1da1f1241c855e7d9f47da30aea6eab6478e008cf2ba"
     },
     {
+      "path": "engine/tests/meshes.py",
+      "zone": "tests",
+      "sha256": "c1fe8ad213cca1227ff0fc771313d0786c53ca8c7bbf69ad1634bc042b3dbea9"
+    },
+    {
       "path": "engine/tests/test_cut_estimate.py",
       "zone": "tests",
       "sha256": "72eba6c765518ff233008364155000ca0a0c90ad4903a928189721db54a782a4"
+    },
+    {
+      "path": "engine/tests/test_geometry_core.py",
+      "zone": "tests",
+      "sha256": "6635837553191bbc7cd82752f123edb84d1c036d93dde28a826c6f7b568b02c9"
     },
     {
       "path": "engine/tests/test_hello_and_branding.py",
@@ -99,6 +109,16 @@
       "sha256": "f108bd0474db6162eefd5f1bb014351c647557f11634f57d6ea7a0412bd51696"
     },
     {
+      "path": "engine/tests/test_hops_geometry.py",
+      "zone": "tests",
+      "sha256": "b85f1a5ca856e5ed02a4e5942105c94ac57211523c55ccfc15b5f80bc28dc40c"
+    },
+    {
+      "path": "engine/tests/test_parts_and_export.py",
+      "zone": "tests",
+      "sha256": "3d73e44dc341f8e96c0a5172d29cd7d24018e94b3e4e63b85c21d838b87278ea"
+    },
+    {
       "path": "engine/tests/test_process.py",
       "zone": "tests",
       "sha256": "6503d1e8b5f7deb2ca668f3e1ceffd81dc7dd203221688eada0dd645a2fce8d7"
@@ -107,6 +127,11 @@
       "path": "engine/tests/test_server.py",
       "zone": "tests",
       "sha256": "95ea3aea3a5a0b6d2f7985a193ffe774ffa0dfd3067f8697d7420d8940f4b28d"
+    },
+    {
+      "path": "engine/tests/test_waffle.py",
+      "zone": "tests",
+      "sha256": "2fcc5ef210760a631053e5eeed1278a9bffe3118e7c1a64cf3007180a4db7964"
     },
     {
       "path": "scripts/ci/check_test_floors.py",
@@ -121,7 +146,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "e631c51c1441471f89e7425abcb120ec1aea884223acd2c50e468771956400c8"
+      "sha256": "3ea56e7a3cebb689bc1dda9b2e0e09449052ea6a456ae33d6d54f26694e30541"
     },
     {
       "path": "uplift.config.json",

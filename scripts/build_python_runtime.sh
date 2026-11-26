@@ -252,7 +252,7 @@ fi
 
 PYC_BEFORE="$(find "$RUNTIME" -name '*.pyc' | wc -l | tr -d ' ')"
 log "Smoke test: imports"
-"$PY" -I -B -c "import cardboard_engine, flask, ghhops_server, rhino3dm; print('imports ok', cardboard_engine.__version__)"
+"$PY" -I -B -c "import cardboard_engine, flask, ghhops_server, rhino3dm, pyclipper; print('imports ok', cardboard_engine.__version__)"
 
 if [ "${SKIP_SERVER_SMOKE:-0}" != "1" ]; then
   log "Smoke test: start engine, GET /health, SIGTERM"

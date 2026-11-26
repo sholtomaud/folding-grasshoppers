@@ -18,7 +18,7 @@ pyc_count() { find "$RUNTIME" -name '*.pyc' | wc -l | tr -d ' '; }
 BEFORE="$(pyc_count)"
 
 echo "==> Smoke test: imports"
-"$PY" -I -B -c "import cardboard_engine, flask, ghhops_server, rhino3dm; print('imports ok', cardboard_engine.__version__)"
+"$PY" -I -B -c "import cardboard_engine, flask, ghhops_server, rhino3dm, pyclipper; print('imports ok', cardboard_engine.__version__)"
 echo "==> Smoke test: start engine, GET /health, SIGTERM"
 "$PY" -I -B -u "$ROOT/scripts/smoke_engine.py" "$PY"
 
