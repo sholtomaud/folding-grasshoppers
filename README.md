@@ -162,13 +162,14 @@ Expected output:
 {"message":"Hello, Terminal, from CardboardCAD by Fold Theory"}
 ```
 
-If you have the source code checked out (section 6), this script does exactly
-what a Hops component does: it fetches the component description, then asks it
-to solve.
+If you have the source code checked out and the app built (section 6), this
+script does exactly what a Hops component does: it fetches the component
+description, then asks it to solve. It runs with the app's own bundled
+Python, so nothing else needs installing:
 
 ```bash
 cd ~/src/folding-grasshoppers
-python3 scripts/demo_hello.py --name Grasshopper
+build/python-runtime/bin/python3.12 -I scripts/demo_hello.py --name Grasshopper
 ```
 
 ```text
@@ -208,6 +209,11 @@ first time.
 
 ### Step 1: install the tools (once)
 
+Python, uv and Node.js are **not** installed on your Mac. Every step that
+needs them runs inside a Linux container, using Apple's `container` tool,
+and a `Makefile` runs the right command in the right place. You install
+three things.
+
 Open `/Applications/Utilities/Terminal.app` and run these one at a time.
 
 1. **Xcode 16 or newer**: install it from the Mac App Store, open it once, and
@@ -216,14 +222,22 @@ Open `/Applications/Utilities/Terminal.app` and run these one at a time.
    sudo xcode-select --switch /Applications/Xcode.app
    xcodebuild -version        # should print Xcode 16.x or newer
    ```
-2. **uv**, which builds the bundled Python:
+   This also gives you **git** and **make**. Check with `git --version` and
+   `make --version`.
+2. **Apple's container tool**: download the signed installer (`.pkg`) from
+   https://github.com/apple/container/releases and double-click it. That page
+   lists the macOS versions it supports. Then start it, once after installing
+   and again after each restart of your Mac:
    ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+   container system start
+   container --version
    ```
-   Close and reopen Terminal, then check with `uv --version`.
-3. **git** comes with Xcode. Check with `git --version`.
-4. Optional: **Node.js 22.18 or newer**, only needed for the test-seal check
-   in `scripts/verify.sh`. Get it from https://nodejs.org (LTS installer).
+   The first `container system start` may offer to download a Linux kernel;
+   answer **Y**.
+3. Nothing else. The first `make` command that needs the container builds
+   the dev image from `~/src/folding-grasshoppers/Containerfile`. That image
+   holds uv 0.11.32, Python 3.12.13 and Node.js 22.23.5, all pinned, and the
+   first build takes a few minutes.
 
 ### Step 2: get the source code
 
@@ -241,22 +255,30 @@ cd ~/src/folding-grasshoppers
 
 ```bash
 cd ~/src/folding-grasshoppers
-scripts/build_python_runtime.sh
+make runtime
 ```
 
-This downloads a pinned Python 3.12 (checked against a fixed SHA-256), installs
-the engine into it, and tests it. It writes:
+This happens in two parts:
+
+- **In the container:** it downloads a pinned Python 3.12 for macOS, checked
+  against a fixed SHA-256, and installs the engine and its locked
+  dependencies into it. The container never runs that macOS Python. It only
+  unpacks it and copies files into it.
+- **On your Mac:** it tests the result by starting the engine with that
+  bundled Python. This is the same thing the app does when it opens.
+
+It writes:
 
 - `~/src/folding-grasshoppers/build/python-runtime/`: the Python that goes inside the app
-- `~/src/folding-grasshoppers/build/cache/`: the downloaded archive, reused next time
+- `~/src/folding-grasshoppers/build/cache/`: downloads, reused next time
 
-It ends with `==> Done: build/python-runtime (Python 3.12.13, aarch64-apple-darwin, ...)`.
+It ends with `==> Runtime smoke tests passed`.
 
 ### Step 4: build the app
 
 ```bash
 cd ~/src/folding-grasshoppers
-scripts/build_app.sh
+make app
 ```
 
 It ends with `==> Built build/app/CardboardCAD.app (...)`. The app is now at:
@@ -265,27 +287,22 @@ It ends with `==> Built build/app/CardboardCAD.app (...)`. The app is now at:
 
 The Xcode log is at `~/src/folding-grasshoppers/build/xcodebuild-archive.log`.
 
-### Step 5: install it
-
-```bash
-ditto ~/src/folding-grasshoppers/build/app/CardboardCAD.app /Applications/CardboardCAD.app
-```
-
-### Step 6: open an unsigned build
+### Step 5: sign it for this Mac and install it
 
 macOS refuses to open unsigned apps by double-click. Sign it for your own
-Mac only (an "ad-hoc" signature), then open it:
+Mac only (an "ad-hoc" signature), copy it to `/Applications` and open it:
 
 ```bash
 cd ~/src/folding-grasshoppers
-SIGN_IDENTITY=- scripts/sign.sh /Applications/CardboardCAD.app
-open /Applications/CardboardCAD.app
+make sign-adhoc install open
 ```
 
 If macOS still says it cannot verify the app, open **System Settings >
 Privacy & Security**, scroll to the message about CardboardCAD and click
 **Open Anyway**. An ad-hoc signed app only works on the Mac that built it. To
 give it to someone else, make a signed release (section 7).
+
+Run `make help` to list every command.
 
 ## 7. Make a signed release (DMG)
 
@@ -314,10 +331,10 @@ xcrun notarytool store-credentials cardboardcad-notary \
 
 ```bash
 cd ~/src/folding-grasshoppers
-TEAM_ID=ABCDE12345 NOTARY_PROFILE=cardboardcad-notary scripts/release.sh
+TEAM_ID=ABCDE12345 NOTARY_PROFILE=cardboardcad-notary make release
 ```
 
-This rebuilds Python and the app, signs everything, sends the app and then the
+This rebuilds Python (in the container) and the app, signs everything, sends the app and then the
 DMG to Apple for notarization (usually 2 to 15 minutes each), staples the
 approval, and runs the final checks. The result is:
 
@@ -342,7 +359,7 @@ in `~/src/folding-grasshoppers/scripts/README.md`.
 | Red dot: "Engine crashed 4 times within 60 s" | Click **View Logs** and send `~/Library/Logs/CardboardCAD/engine.log` to the developers. **Engine > Restart Engine** tries again. |
 | Red dot: "Engine did not become ready within 20 s" | Restart the engine once. If it happens again, send the log. |
 | Hops component stays grey or empty | Check the dot is green and the port in the URL matches **Settings**. Paste the URL into Safari: it should show text starting with `{"Uri":`. |
-| "CardboardCAD can't be opened" | You opened an unsigned build. See [section 6, step 6](#step-6-open-an-unsigned-build). |
+| "CardboardCAD can't be opened" | You opened an unsigned build. See [section 6, step 5](#step-5-sign-it-for-this-mac-and-install-it). |
 | A `python3.12` process is still running after quitting | It stops by itself within about 5 seconds. If not, `pkill -f cardboard_engine` stops it. Please report it. |
 
 ## 9. `cut_estimate` reference values
@@ -378,25 +395,35 @@ sealed by [agentic-uplift](https://github.com/sholtomaud/agentic-uplift).
 
 All commands below run from `~/src/folding-grasshoppers`.
 
-```bash
-git config core.hooksPath .githooks              # once: run the test gate on commit and push
+Python, uv and Node run only in the dev container. `make` and
+`scripts/verify.sh` start it for you through `scripts/tools.sh`. On a machine
+that already has uv on its PATH, such as GitHub Actions, the same commands
+run directly instead.
 
-cd ~/src/folding-grasshoppers/engine && uv run pytest              # engine tests (59)
-cd ~/src/folding-grasshoppers/app/CardboardCADKit && swift test    # Swift tests (52)
-cd ~/src/folding-grasshoppers && scripts/verify.sh                 # everything CI checks
+```bash
+git config core.hooksPath .githooks   # once: run the test gate on commit and push
+
+make test         # engine tests, pytest (59)         [container]
+make swift-test   # Swift tests (52)                  [Mac]
+make verify       # everything CI checks              [container + Mac]
+make shell        # a bash shell in the dev container, repo at /work
+make lock         # after editing engine/pyproject.toml dependencies
 ```
 
-Run the engine on its own, without the app, while working on Python:
+Run the engine on its own, without the app, while working on Python. Run it
+on the Mac with the bundled Python, because a server inside the container
+listens on the container's own 127.0.0.1, which the Mac can't reach:
 
 ```bash
-cd ~/src/folding-grasshoppers/engine
-uv run python -m cardboard_engine.server --port 5001
+cd ~/src/folding-grasshoppers
+make runtime      # after each engine change
+build/python-runtime/bin/python3.12 -I -B -u -m cardboard_engine.server --port 5001
 ```
 
 Run the app from Xcode: `open ~/src/folding-grasshoppers/app/CardboardCAD.xcodeproj`,
 pick the **CardboardCAD** scheme and press ⌘R. Debug runs use
-`~/src/folding-grasshoppers/build/python-runtime/`, so run
-`scripts/build_python_runtime.sh` first.
+`~/src/folding-grasshoppers/build/python-runtime/`, so run `make runtime`
+first.
 
 | Path (in `~/src/folding-grasshoppers/`) | What |
 |---|---|
@@ -408,6 +435,8 @@ pick the **CardboardCAD** scheme and press ⌘R. Debug runs use
 | `app/CardboardCAD.xcodeproj` | Xcode project |
 | `scripts/` | build, sign, notarize, DMG and check scripts ([scripts/README.md](./scripts/README.md)) |
 | `build/` | everything the scripts produce (not in git) |
+| `Makefile` | every command above; `make help` lists them |
+| `Containerfile` | the dev image: pinned uv, Python 3.12.13, Node.js |
 | `SPEC.md` | the milestone specification |
 | `.github/workflows/verify.yml` | CI: tests, macOS build, end-to-end app test, proof gate |
 | `.github/workflows/uplift.yml` | publishes the agentic-uplift readiness cockpit |

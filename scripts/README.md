@@ -2,7 +2,9 @@
 
 | Script | What it does | Runs on |
 |---|---|---|
-| `build_python_runtime.sh` | Downloads pinned python-build-standalone, verifies SHA-256, installs `engine/requirements.lock` (hash-checked, wheels only) and the engine wheel, strips, precompiles, smoke-tests. Output `build/python-runtime/`. | macOS (default target), Linux (`TARGET=x86_64-unknown-linux-gnu`, CI smoke only) |
+| `build_python_runtime.sh` | Downloads pinned python-build-standalone, verifies SHA-256, installs `engine/requirements.lock` (hash-checked, wheels only) and the engine wheel, strips, precompiles, smoke-tests. Output `build/python-runtime/`. Cross mode (default when the target OS differs from the build machine's) never runs the target interpreter: `uv pip install --target --python-platform`, bytecode from a same-version CPython, smoke tests left to `smoke_runtime.sh`. | dev container (`make runtime`, cross), macOS with uv (CI, native), Linux (`TARGET=x86_64-unknown-linux-gnu`, CI smoke only) |
+| `smoke_runtime.sh` | Imports + engine start/stop using `build/python-runtime`'s own interpreter in isolated mode; fails if bytecode was written. | macOS |
+| `tools.sh` | Runs a Python/uv/Node command directly when uv is on PATH, otherwise in the dev container (`Containerfile`) via Apple's `container` CLI. | macOS, Linux |
 | `build_app.sh` | `xcodebuild archive` (unsigned), copies the app out, embeds the runtime, records its location in Info.plist (`CardboardPythonHome`), smoke-tests the engine from inside the bundle. | macOS |
 | `sign.sh` | Inside-out Hardened Runtime signing of every Mach-O (detected with `file`), interpreter last with `python.entitlements`, then the app. No `--deep` when signing. | macOS |
 | `notarize.sh` | `ditto` zip, `notarytool submit --wait`; prints `notarytool log` on failure; staples on success. Works on `.app` or `.dmg`. | macOS |
@@ -11,7 +13,7 @@
 | `release.sh` | All of the above in order. | macOS |
 | `smoke_engine.py` | Starts an interpreter's engine with the app's flags and clean env, checks `/health`, `/version`, `/api/cut_estimate`, SIGTERM exit 0. | any |
 | `demo_hello.py` | Hello-world demo against a running engine using the Hops protocol. | any |
-| `verify.sh` | Local gate used by git hooks: pytest, Swift tests, test floors, proof seal. | any (Swift on macOS) |
+| `verify.sh` | Local gate used by git hooks: pytest, Swift tests, test floors, proof seal. Without uv on PATH the pytest/floor/seal half runs in the dev container. | any (Swift on macOS) |
 | `ci/` | CI helpers: test floors, end-to-end app launch, layout probe. | |
 
 Settings shared by all scripts are in `config.sh` (app name, bundle ID,
