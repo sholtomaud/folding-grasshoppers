@@ -12,6 +12,10 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled: adding allow-test-change / allow-harness-change must
+    # re-run the gate with the new labels (a "Re-run jobs" click replays the
+    # original event, which had none).
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:

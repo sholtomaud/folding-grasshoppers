@@ -21,3 +21,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Run Python/uv/Node in the dev container: verify.sh dispatches to scripts/tools.sh when uv is absent; CI builds the macOS runtime in cross mode
 - **Previous Attestation:** `f08a858184b303bf582aef6234514c7b26c86e99ef96ca36becff0b59f7eef64`
 - **Attestation SHA-256:** `f6f554413bacc9cd716cd97e8e477dd929db5ef45440a3542388088663a54162`
+
+## 2026-11-26T02:35:32Z — `b0ae35b` (PASS)
+
+- **Commit:** `b0ae35b`
+- **Timestamp:** `2026-11-26T02:35:32Z`
+- **Proof Lock Root SHA-256:** `ab634e9fa99b844982f4c9ad2250a19424378869bfad2c71c55eff85e742e9ba`
+- **Verdict:** `PASS`
+- **Summary:** verify.yml: re-run on labeled/unlabeled so allow-* labels take effect
+- **Previous Attestation:** `f6f554413bacc9cd716cd97e8e477dd929db5ef45440a3542388088663a54162`
+- **Attestation SHA-256:** `38562ae6685aab9bb3f637ed4a7a0f1f15546e6a5332cee35d4e0508a1727319`
