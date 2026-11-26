@@ -91,3 +91,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Design Assistant: new engine tests (shapes, OBJ/STL import, triangulation, design tools, preview routes) and Swift tests (JSONValue, AnthropicClient, DesignAssistant loop, design client, secret store); raised floors to pytest 265, swift 89
 - **Previous Attestation:** `6ff93bbfbc05d1e96bda82e0fefcde494bcdceb38c5edde210ce2fdcfd1a6035`
 - **Attestation SHA-256:** `be140f3140bfe652cbc897b3c8df8d3c3ff5b0197af7ba653171f1bfd63cb85e`
+
+## 2026-11-26T22:24:16Z — `3491f2e` (PASS)
+
+- **Commit:** `3491f2e`
+- **Timestamp:** `2026-11-26T22:24:16Z`
+- **Proof Lock Root SHA-256:** `a3926fffd83c9aa28abbef9ca89eeda7198c39ec7602aaef5d0c3c13d5907d34`
+- **Verdict:** `PASS`
+- **Summary:** Project save/open and Rhino live sync: new engine tests (test_project, test_live_sync) and Swift ProjectTests; floors pytest 321, swift 106
+- **Previous Attestation:** `be140f3140bfe652cbc897b3c8df8d3c3ff5b0197af7ba653171f1bfd63cb85e`
+- **Attestation SHA-256:** `b847a06c7ff33f7a859ecb55f32d1160ca39c6950df23de6a7c18fbd2f9e1af8`
