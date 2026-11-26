@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "943d0156ee4514a590d6f6246a0246d7038311ea6bdf3317a8b12a81611b5089",
+  "rootSha256": "ee0a8c80899cd26a5bd88732f2255e1280e49402464accf8e4aad24d60ff2823",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -34,6 +34,21 @@
       "sha256": "bb50df8b923cff26e8ba906622c958f30441c516bf0a32b2ee9ed5d36afc7b79"
     },
     {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/AnthropicClientTests.swift",
+      "zone": "tests",
+      "sha256": "6e8f364cc449b92cac6d72a9729ae84cb26326c6c3aa23c8fcebb14019160f1d"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/DesignAssistantTests.swift",
+      "zone": "tests",
+      "sha256": "4e4a2bc074d21253df7dc696e22e3262614969cb845f87debd94926d683ee00c"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/DesignClientTests.swift",
+      "zone": "tests",
+      "sha256": "cd129278365686f9c3392fc0239f4d459bfc642c3a3c544a8e899bfa547f7c0b"
+    },
+    {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineClientTests.swift",
       "zone": "tests",
       "sha256": "a39a884f69cb4cc4a07f6b12dff5efef94b1fb15d67755f04ebde584dd49f6eb"
@@ -59,9 +74,19 @@
       "sha256": "5dd49f3ba0c60538e2e82e64882f8b7a70bcfbcc626b787a0bcf2d60e1ed5bdd"
     },
     {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/JSONValueTests.swift",
+      "zone": "tests",
+      "sha256": "ea528b50e7eccf7f5d01ff62cf6910efae47ed5e3eb6e65971c0fc32c4ae80fd"
+    },
+    {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/RotatingLogWriterTests.swift",
       "zone": "tests",
       "sha256": "10ddbda661937ec90fa62483f39050fd58a793b4144133fa298b9707a1092dab"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/SecretStoreTests.swift",
+      "zone": "tests",
+      "sha256": "e90253e8dfd0e3e2b107450635695055b3fb39adf23d38827c19c5cfce2c7255"
     },
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/TestFakes.swift",
@@ -99,6 +124,16 @@
       "sha256": "72eba6c765518ff233008364155000ca0a0c90ad4903a928189721db54a782a4"
     },
     {
+      "path": "engine/tests/test_design_api.py",
+      "zone": "tests",
+      "sha256": "f11c431957df675d8b586a5d3026e98f639f7434ffa1130dff2625a0574ed4a9"
+    },
+    {
+      "path": "engine/tests/test_design_session.py",
+      "zone": "tests",
+      "sha256": "003b4170179161c4d46fc67cc521b0305a75975ab491b944edd409ae001e1475"
+    },
+    {
       "path": "engine/tests/test_geometry_core.py",
       "zone": "tests",
       "sha256": "6635837553191bbc7cd82752f123edb84d1c036d93dde28a826c6f7b568b02c9"
@@ -134,6 +169,11 @@
       "sha256": "492c47fda31962051ade730ad0cef767bab3d998afcdf98559897fb48c41c7f0"
     },
     {
+      "path": "engine/tests/test_mesh_io.py",
+      "zone": "tests",
+      "sha256": "b40051ae2329ee087f920800e1c4a942211180fedc1935e450696b4e3b7b7dfc"
+    },
+    {
       "path": "engine/tests/test_nest.py",
       "zone": "tests",
       "sha256": "40aff4e506a4c96d93f54193ae07e8aa8dc2f6ad2cee65ce6c6e3d7467bd56fa"
@@ -149,6 +189,11 @@
       "sha256": "3d73e44dc341f8e96c0a5172d29cd7d24018e94b3e4e63b85c21d838b87278ea"
     },
     {
+      "path": "engine/tests/test_primitives.py",
+      "zone": "tests",
+      "sha256": "8287a66ffff0357a01d9472bf5b40dc8dd3dffbca117b90368a4dc1606771163"
+    },
+    {
       "path": "engine/tests/test_process.py",
       "zone": "tests",
       "sha256": "6503d1e8b5f7deb2ca668f3e1ceffd81dc7dd203221688eada0dd645a2fce8d7"
@@ -157,6 +202,11 @@
       "path": "engine/tests/test_server.py",
       "zone": "tests",
       "sha256": "95ea3aea3a5a0b6d2f7985a193ffe774ffa0dfd3067f8697d7420d8940f4b28d"
+    },
+    {
+      "path": "engine/tests/test_triangulate.py",
+      "zone": "tests",
+      "sha256": "af8c558d03fdec9926c99dd70ade5c8e84e94e8eb7e356558c2c2827c6a534c3"
     },
     {
       "path": "engine/tests/test_unfold.py",
@@ -181,7 +231,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "feb1024931af95b9e9990321c559082be60b448592fc1c516f9bf81da5a75c6f"
+      "sha256": "c70335af0cbb8885a09985a86368d6cea1fea0bc2483b57f5891faeac8460562"
     },
     {
       "path": "uplift.config.json",
