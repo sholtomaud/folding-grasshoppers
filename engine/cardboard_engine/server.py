@@ -35,6 +35,7 @@ from .components.cut_estimate import (  # noqa: E402
     estimate,
 )
 from .components.hello import greet  # noqa: E402
+from .hops_activity import HopsActivity  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
 BIND_HOST = "127.0.0.1"  # never 0.0.0.0
@@ -110,6 +111,11 @@ def create_app(
         except CutEstimateError as exc:
             return jsonify(error="invalid_input", message=str(exc)), 422
         return jsonify(result.to_dict())
+
+    @app.get("/api/hops_activity")
+    def api_hops_activity():
+        """When Grasshopper (Hops) last called the engine, for the app's status bar."""
+        return jsonify(app.config["HOPS_ACTIVITY"].snapshot())
 
     @app.post("/api/hello")
     def api_hello():
@@ -208,7 +214,22 @@ def create_app(
         )
         return r.time_min, r.material_cost, r.machine_cost, r.total_cost
 
+    # Outermost, so it also sees the requests ghhops_server answers itself.
+    activity = HopsActivity(app.wsgi_app, is_hops_path=_hops_path_check(hops))
+    app.wsgi_app = activity
+    app.config["HOPS_ACTIVITY"] = activity
     return app
+
+
+def _hops_path_check(hops):
+    """Return a predicate for the paths ghhops_server answers (components, /solve, /)."""
+    from types import SimpleNamespace
+
+    def is_hops_path(path: str) -> bool:
+        # HopsBase.handles() only looks at request.path.
+        return bool(hops.handles(SimpleNamespace(path=path)))
+
+    return is_hops_path
 
 
 # ---------------------------------------------------------------------------
