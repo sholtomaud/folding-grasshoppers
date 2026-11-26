@@ -26,6 +26,7 @@ struct DesignAssistantView: View {
                 missingKey
             } else {
                 transcript
+                    .frame(maxHeight: .infinity)
                 Divider()
                 composer
             }
@@ -140,33 +141,50 @@ struct DesignAssistantView: View {
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            Button(action: openModel) {
-                Image(systemName: "paperclip")
-            }
-            .buttonStyle(.borderless)
-            .help("Open a model from Rhino (.stl or .obj)")
-            .disabled(!isRunning || assistant.isBusy)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .bottom, spacing: 8) {
+                Button(action: openModel) {
+                    Image(systemName: "paperclip").font(.title3)
+                }
+                .buttonStyle(.borderless)
+                .help("Open a model from Rhino (.stl or .obj)")
+                .disabled(!isRunning || assistant.isBusy)
+                .padding(.bottom, 8)
 
-            TextField(isRunning ? "Describe what to make…" : "Waiting for the engine…", text: $draft, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...6)
-                .focused($composerFocused)
-                .onSubmit(send)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 8)
-                .background(.background, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary))
+                TextField(isRunning ? "Describe what to make…" : "Waiting for the engine…", text: $draft, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .lineLimit(2...8)
+                    .focused($composerFocused)
+                    .onSubmit(send)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 56, alignment: .topLeading)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(composerFocused ? Color.accentColor : Color.secondary.opacity(0.35),
+                                          lineWidth: composerFocused ? 2 : 1)
+                    )
 
-            Button(action: send) {
-                Image(systemName: "arrow.up.circle.fill").font(.title2)
+                Button(action: send) {
+                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 28))
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut(.return, modifiers: [.command])
+                .help("Send (Return)")
+                .disabled(!canSend)
+                .padding(.bottom, 6)
             }
-            .buttonStyle(.borderless)
-            .keyboardShortcut(.return, modifiers: [.command])
-            .help("Send (Return)")
-            .disabled(!canSend)
+            Text("Return sends · Option-Return adds a new line")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 34)
         }
-        .padding(10)
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(.bar)
     }
 
     private func send() {
@@ -235,7 +253,14 @@ struct ChatRow: View {
         }
     }
 
-    private func markdown(_ text: String) -> AttributedString {
+    private func markdown(_ raw: String) -> AttributedString {
+        // Inline-only parsing keeps line breaks but not list syntax: show "- x" as "• x".
+        let text = raw.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
+            let t = line.drop { $0 == " " }
+            let indent = String(repeating: " ", count: line.count - t.count)
+            if t.hasPrefix("- ") || t.hasPrefix("* ") { return indent + "• " + t.dropFirst(2) }
+            return String(line)
+        }.joined(separator: "\n")
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }

@@ -91,3 +91,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Design Assistant: new engine tests (shapes, OBJ/STL import, triangulation, design tools, preview routes) and Swift tests (JSONValue, AnthropicClient, DesignAssistant loop, design client, secret store); raised floors to pytest 265, swift 89
 - **Previous Attestation:** `6ff93bbfbc05d1e96bda82e0fefcde494bcdceb38c5edde210ce2fdcfd1a6035`
 - **Attestation SHA-256:** `be140f3140bfe652cbc897b3c8df8d3c3ff5b0197af7ba653171f1bfd63cb85e`
+
+## 2026-11-26T22:13:49Z — `3491f2e` (PASS)
+
+- **Commit:** `3491f2e`
+- **Timestamp:** `2026-11-26T22:13:49Z`
+- **Proof Lock Root SHA-256:** `216e99bf3b741e89a607934fdaa19489d4187f573e325f18c7190b5dddc870cc`
+- **Verdict:** `PASS`
+- **Summary:** Chat layout fix; estimate_cost flags missing prices (1 new engine test, pytest floor 266)
+- **Previous Attestation:** `be140f3140bfe652cbc897b3c8df8d3c3ff5b0197af7ba653171f1bfd63cb85e`
+- **Attestation SHA-256:** `9c9da5e111daab769af25ef7e505bff0926dbcf4c7dffe7d9b2fd071bb7b6c33`
