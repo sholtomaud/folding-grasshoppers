@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build CardboardCAD.app (unsigned) and embed the Python runtime.
 #
-#   scripts/build_app.sh            # Release, arm64, runtime in Contents/Frameworks/python
+#   scripts/build_app.sh            # Release, arm64, runtime in Contents/Resources/python
 #   PYTHON_LAYOUT=resources scripts/build_app.sh
 #
 # Embedding happens here, after the Xcode build and before signing, rather

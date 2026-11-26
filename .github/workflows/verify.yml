@@ -107,7 +107,7 @@ jobs:
       - name: Layout probe (informational)
         if: always()
         continue-on-error: true
-        run: scripts/ci/layout_probe.sh build/app/CardboardCAD.app >> "$GITHUB_STEP_SUMMARY"
+        run: scripts/ci/layout_probe.sh build/app/CardboardCAD.app | tee -a "$GITHUB_STEP_SUMMARY"
 
   proof-gate:
     name: Proof tamper gate (agentic-uplift)
