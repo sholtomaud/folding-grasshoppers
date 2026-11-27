@@ -38,12 +38,13 @@ from .components.hello import greet  # noqa: E402
 from . import hops_geometry  # noqa: E402
 from .design import SYSTEM_PROMPT, TOOLS, DesignSession  # noqa: E402,F401
 from .workflow import WorkflowError  # noqa: E402
-from .project import ProjectChangedError, ProjectError  # noqa: E402
+from .project import ProjectError  # noqa: E402
 from . import hops_live  # noqa: E402
 from . import rhino_sync  # noqa: E402
 from .components.geometry import GeometryError  # noqa: E402
 from .components.parts import PartsError  # noqa: E402
 from .hops_activity import HopsActivity  # noqa: E402
+from .project import ProjectChangedError  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
 BIND_HOST = "127.0.0.1"  # never 0.0.0.0

@@ -34,7 +34,7 @@ from .components.waffle import WaffleError, WaffleInput, waffle_slice
 from . import project as proj
 from . import rhino_sync
 from .rhino_sync import Override
-from .project import ProjectChangedError, ProjectError
+from .project import ProjectError
 from .workflow import WorkflowError, WorkflowStore
 
 INPUT_ERRORS = (
@@ -371,9 +371,7 @@ class DesignSession:
         self._lock = threading.RLock()
         self.version = 0
         self._state_cache: Optional[dict] = None
-        self.project: Optional[dict] = None  # {name, folder, saved_version, files: fingerprint}
-        # Where this Mac keeps per-Mac settings (projects location): the app's ENGINE_DATA_DIR.
-        self.data_dir: Optional[str] = None
+        self.project: Optional[dict] = None  # {name, folder, saved_version}
         self.workflows = WorkflowStore(home, _TOOLS_BY_NAME, _check_args, WORKFLOW_TOOLS)
         # Rhino hand edits of flat parts, by part id. Kept through re-runs (see rhino_sync.py).
         self.overrides: Dict[str, Override] = {}
@@ -381,6 +379,9 @@ class DesignSession:
         self.notices: List[str] = []  # recent things the app should show (conflicts, stale edits)
         self._clear_all()
         self.steps: List[dict] = []
+        # Where this Mac keeps per-Mac settings (projects location): the app's ENGINE_DATA_DIR.
+        # self.project also keeps "files", a fingerprint of what was saved or opened.
+        self.data_dir: Optional[str] = None
 
     # ---- state -----------------------------------------------------------
     def _clear_all(self) -> None:
@@ -705,7 +706,7 @@ class DesignSession:
                     known.pop(proj.CHAT, None)  # left as it is on disk
                 found = proj.outside_changes(directory, known)
                 if found["changed"] or found["missing"]:
-                    raise ProjectChangedError(found["changed"] + found["missing"])
+                    raise proj.ProjectChangedError(found["changed"] + found["missing"])
             previous = proj.check_writable(directory)
             files = self._project_files(clean)
             if chat is not None:
