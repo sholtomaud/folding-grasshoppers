@@ -160,6 +160,7 @@ struct CardboardCADApp: App {
                         projects: delegate.projects, workflows: delegate.workflows,
                         projectViews: delegate.projectViews)
                 .frame(minWidth: 900, minHeight: 480)
+                .projectChangeAlert(delegate.projects)
         }
         .defaultSize(width: 1280, height: 800)
         .commands {
@@ -189,7 +190,7 @@ struct CardboardCADApp: App {
 
         Settings {
             SettingsView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey,
-                         workflows: delegate.workflows)
+                         workflows: delegate.workflows, projects: delegate.projects)
         }
     }
 }
@@ -300,7 +301,8 @@ enum ProjectPanels {
         panel.nameFieldLabel = "Project name:"
         panel.nameFieldStringValue = projects.current?.name ?? "Untitled Project"
         panel.canCreateDirectories = true
-        let base = ProjectController.defaultProjectsFolder()
+        await projects.refreshLocations()
+        let base = projects.projectsFolder
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         panel.directoryURL = projects.current.map { $0.url.deletingLastPathComponent() } ?? base
         guard await ModalUI.run(panel) == .OK, let url = panel.url else { return }
@@ -316,7 +318,8 @@ enum ProjectPanels {
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.folder, .json]
         panel.allowsMultipleSelection = false
-        let base = ProjectController.defaultProjectsFolder()
+        await projects.refreshLocations()
+        let base = projects.projectsFolder
         if FileManager.default.fileExists(atPath: base.path) { panel.directoryURL = base }
         guard await ModalUI.run(panel) == .OK, let url = panel.url else { return }
         await projects.open(folder: url.path)

@@ -359,6 +359,39 @@ longer exist. Anything else you put in the folder (sketches, logos, notes)
 is left alone. The folder is ordinary files, so it can live in a Google Drive
 or OneDrive folder inside your home folder, or be zipped and emailed.
 
+### Keep projects in Google Drive, OneDrive or iCloud Drive
+
+**Settings (⌘,) > Locations > Projects > Choose…** sets the folder that new
+projects are saved into, and where Open starts. Pick a folder inside the one
+your sync app already syncs, and every cut file, quote and picture reaches the
+cloud with no sign-in in Fold Theory:
+
+| Sync app | Folder to choose (made for you if it is missing) |
+|---|---|
+| Google Drive for desktop | `~/Library/CloudStorage/GoogleDrive-<you>@<domain>/My Drive/Fold Theory/Projects` |
+| OneDrive | `~/Library/CloudStorage/OneDrive-<name>/Fold Theory/Projects` |
+| iCloud Drive | `~/Library/Mobile Documents/com~apple~CloudDocs/Fold Theory/Projects` |
+
+**Library** is the same choice for the module library (Phase 2). **Use
+Default** goes back to `~/Documents/Fold Theory/Projects` and
+`~/Documents/Fold Theory/Library`. The folder must be inside your home folder,
+and a sync folder whose app is not signed in on this Mac is refused. The
+setting is kept on this Mac only, in
+`~/Library/Application Support/Fold Theory/locations.json`, because the path
+of the synced folder differs from Mac to Mac.
+
+When the same project is opened on two Macs:
+
+- Each time Fold Theory comes to the front it checks the open project. If its
+  files changed on disk (another Mac saved it), or the sync app made a
+  conflict copy such as `project (1).json`, an alert says which files, with
+  **Open Again** (load the files as they are now) and **Save Anyway**
+  (replace them with this design).
+- **Save Project** (⌘S) never silently writes over files another Mac
+  changed: it shows the same alert first.
+- A file iCloud has not downloaded yet is reported as *still syncing*. Wait
+  for it, then open the project again.
+
 If the chat says *No Claude API key yet*, do step 2 again. If it says
 *Claude rejected the API key*, the key was mistyped or deleted in the console:
 make a new one and save it in Settings.

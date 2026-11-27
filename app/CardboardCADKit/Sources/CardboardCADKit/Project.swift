@@ -152,6 +152,13 @@ public final class ProjectController {
     /// Runs after a successful save with the project folder, e.g. to add a preview snapshot.
     @ObservationIgnored public var afterSave: ((URL) async -> Void)?
 
+    /// Where projects and the library are saved on this Mac (see ProjectLocations.swift).
+    public internal(set) var locations: ProjectLocations?
+    /// The last failure to change a location, for Settings.
+    public internal(set) var locationError: String?
+    /// Set when the open project's files changed on disk (another Mac, a sync), for an alert.
+    public internal(set) var outsideChanges: ProjectStatus?
+
     @ObservationIgnored private let assistant: DesignAssistant
     @ObservationIgnored private var store: DesignProjectStore?
 
@@ -166,13 +173,21 @@ public final class ProjectController {
 
     public var canSaveAgain: Bool { current != nil && store != nil && !isWorking }
 
+    var attachedStore: DesignProjectStore? { store }
+
+    /// Dismiss the changed-on-disk alert without saving or reopening.
+    public func dismissOutsideChanges() {
+        outsideChanges = nil
+    }
+
     public static func defaultProjectsFolder(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         AppBrand.documentsFolder(home: home).appendingPathComponent("Projects", isDirectory: true)
     }
 
-    /// Save As: `folder` empty means ~/Documents/Fold Theory/Projects/<name>.
+    /// Save As: `folder` empty means <projects location>/<name>.
+    /// `overwrite` saves over files that changed on disk since this Mac saved or opened the project.
     @discardableResult
-    public func save(name: String, folder: String = "") async -> Bool {
+    public func save(name: String, folder: String = "", overwrite: Bool = false) async -> Bool {
         guard let store else {
             error = "The engine is not running, so the project cannot be saved."
             return false
@@ -180,26 +195,44 @@ public final class ProjectController {
         isWorking = true
         defer { isWorking = false }
         do {
-            let saved = try await store.saveProject(name: name, folder: folder, chat: assistant.conversation)
+            let saved: ProjectSaved
+            if overwrite, let locationStore = store as? ProjectLocationStore {
+                saved = try await locationStore.saveProject(name: name, folder: folder, chat: assistant.conversation,
+                                                            overwrite: true)
+            } else {
+                saved = try await store.saveProject(name: name, folder: folder, chat: assistant.conversation)
+            }
             current = ProjectRef(name: saved.name, folder: saved.folder)
+            outsideChanges = nil
             error = nil
             lastMessage = "Saved \(saved.name)"
             if let afterSave { await afterSave(URL(fileURLWithPath: saved.folder, isDirectory: true)) }
             return true
+        } catch EngineClientError.httpStatus(409) {
+            // Files changed on disk between the check and the save.
+            if let locationStore = store as? ProjectLocationStore,
+               let st = try? await locationStore.projectStatus(), st.outsideChanges {
+                outsideChanges = st  // the changed-on-disk alert offers Open Again / Save Anyway
+            } else {
+                self.error = "The project's files changed on disk, perhaps on another Mac. Open it again to see them."
+            }
+            return false
         } catch {
             self.error = error.localizedDescription
             return false
         }
     }
 
-    /// Save into the current project's folder.
+    /// Save into the current project's folder. If its files changed on disk (another Mac),
+    /// nothing is written and `outsideChanges` is set, unless `overwrite`.
     @discardableResult
-    public func saveAgain() async -> Bool {
+    public func saveAgain(overwrite: Bool = false) async -> Bool {
         guard let current else {
             error = "This design has not been saved yet. Use Save As."
             return false
         }
-        return await save(name: current.name, folder: current.folder)
+        if !overwrite, await blockedByOutsideChanges() { return false }
+        return await save(name: current.name, folder: current.folder, overwrite: overwrite)
     }
 
     @discardableResult
@@ -217,6 +250,7 @@ public final class ProjectController {
         do {
             let opened = try await store.openProject(folder: folder)
             current = ProjectRef(name: opened.name, folder: opened.folder)
+            outsideChanges = nil
             if let chat = opened.chat, assistant.restore(conversation: chat) {
                 // restored
             } else {
