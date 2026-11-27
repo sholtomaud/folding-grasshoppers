@@ -116,7 +116,7 @@ struct CardboardCADApp: App {
         WindowGroup(AppInfo.name) {
             ContentView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey,
                         projects: delegate.projects, workflows: delegate.workflows)
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: 900, minHeight: 480)
         }
         .defaultSize(width: 1280, height: 800)
         .commands {

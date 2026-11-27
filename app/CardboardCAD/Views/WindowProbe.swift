@@ -28,8 +28,8 @@ enum WindowProbe {
 
     static let sizes: [NSSize] = [
         NSSize(width: 1280, height: 800),
-        NSSize(width: 1100, height: 600),
-        NSSize(width: 900, height: 560),
+        NSSize(width: 1110, height: 604),   // the size in the bug report
+        NSSize(width: 900, height: 480),    // the smallest window
     ]
 
     static func run(engine: EngineManager, assistant: DesignAssistant) async {
@@ -39,37 +39,44 @@ enum WindowProbe {
             if case .running = engine.state { break }
             try? await Task.sleep(nanoseconds: 250_000_000)
         }
-        fillChat(assistant)
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-        for size in sizes {
-            guard let window = mainWindow() else {
-                write(["error": "no main window"], to: folder.appendingPathComponent("probe-error.json"))
-                break
+        // A short chat (no scrolling, as in the bug report) and a long one.
+        for (chat, rounds) in [("short", 1), ("long", 3)] {
+            fillChat(assistant, rounds: rounds)
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            for size in sizes {
+                guard let window = mainWindow() else {
+                    write(["error": "no main window"], to: folder.appendingPathComponent("probe-error.json"))
+                    break
+                }
+                window.setContentSize(size)
+                window.center()
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                window.contentView?.layoutSubtreeIfNeeded()
+                let name = "probe-\(chat)-\(Int(size.width))x\(Int(size.height))"
+                write(measure(window, requested: size), to: folder.appendingPathComponent("\(name).json"))
+                writeCachedImage(window, to: folder.appendingPathComponent("\(name)-cache.png"))
+                FileManager.default.createFile(atPath: folder.appendingPathComponent("\(name).ready").path,
+                                               contents: Data("\(window.windowNumber)\n".utf8))
+                // Time for the script to take a screenshot of this size.
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
             }
-            window.setContentSize(size)
-            window.center()
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            window.contentView?.layoutSubtreeIfNeeded()
-            let name = "probe-\(Int(size.width))x\(Int(size.height))"
-            write(measure(window, requested: size), to: folder.appendingPathComponent("\(name).json"))
-            writeCachedImage(window, to: folder.appendingPathComponent("\(name)-cache.png"))
-            FileManager.default.createFile(atPath: folder.appendingPathComponent("\(name).ready").path,
-                                           contents: Data("\(window.windowNumber)\n".utf8))
-            // Time for the script to take a screenshot of this size.
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
         }
         // Quit the way Cmd+Q does: through the menu item that owns the shortcut.
         let quit = quitMenuItem()
         write(["found": quit != nil, "title": quit?.title ?? ""],
               to: folder.appendingPathComponent("quit-menu.json"))
         FileManager.default.createFile(atPath: folder.appendingPathComponent("done").path, contents: Data())
-        if let quit, let action = quit.action {
-            NSApp.sendAction(action, to: quit.target, from: quit)
-        } else {
-            NSApp.terminate(nil)
+        // From the run loop, as a key press would be, not from inside this task:
+        // termination waits on main-actor work (stopping the engine), which
+        // cannot run while this task holds the main actor.
+        DispatchQueue.main.async {
+            if let quit, let action = quit.action {
+                NSApp.sendAction(action, to: quit.target, from: quit)
+            } else {
+                NSApp.terminate(nil)
+            }
         }
     }
 
@@ -90,7 +97,7 @@ enum WindowProbe {
 
     /// A chat like a real one: the designer's request, tool rows, and Claude's
     /// replies with bold text and "- " lists.
-    private static func fillChat(_ assistant: DesignAssistant) {
+    private static func fillChat(_ assistant: DesignAssistant, rounds: Int) {
         let reply = """
         I made the stool: a **350 mm wide, 450 mm tall** cylinder, sliced into a waffle for 6 mm board.
 
@@ -100,7 +107,7 @@ enum WindowProbe {
         You can change the number of ribs or the sheet size. I can also do a cost estimate, or export the cut files.
         """
         var items: [JSONValue] = []
-        for _ in 0..<3 {
+        for _ in 0..<rounds {
             items.append(["kind": "user", "text": "Make a cylinder stool 450 mm tall and 350 mm wide as a waffle from 6 mm board"])
             items.append(["kind": "tool", "tool": "create_shape", "is_error": false,
                           "text": "Created cylinder: 350 x 350 x 450 mm (W x D x H), 96 faces"])
