@@ -235,6 +235,12 @@ struct DesignCommands: Commands {
             Button("Rhino Live Sync Help") {
                 NSWorkspace.shared.open(RhinoLiveSync.helpURL)
             }
+            Button("Copy Rhino Two-Way Script") {
+                Task { await RhinoLiveSync.copyTwoWayScript(engine: engine) }
+            }
+            Button("Rhino Two-Way Help") {
+                NSWorkspace.shared.open(RhinoLiveSync.twoWayHelpURL)
+            }
         }
     }
 }
@@ -334,6 +340,25 @@ enum RhinoLiveSync {
                   "In Grasshopper, add a Python script component, open it, select all, paste, and give it the inputs On, Interval, Port and the outputs Version, Status. Then connect Version to the LiveDesign Hops component. Design > Rhino Live Sync Help has the full steps.")
         } catch {
             alert("Could not get the listener script", error.localizedDescription)
+        }
+    }
+
+    static let twoWayHelpURL = URL(string: "https://github.com/sholtomaud/folding-grasshoppers/blob/main/docs/RHINO_TWO_WAY.md")!
+
+    /// Put the two-way Rhino script on the clipboard, to paste into Rhino 8's Script Editor.
+    static func copyTwoWayScript(engine: EngineManager) async {
+        guard case .running(let port) = engine.state else {
+            alert("The engine is not running", "Start the engine first (Engine > Restart Engine).")
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: EngineClient(port: port).rhinoScriptURL)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(String(decoding: data, as: UTF8.self), forType: .string)
+            alert("Rhino script copied",
+                  "In Rhino 8, type ScriptEditor and press Return. Click New (the page with a +) and choose Python 3, then select all and paste, and press the green Run button. The design appears on the Fold Theory layers, and your edits come back here. Run it again to stop. Design > Rhino Two-Way Help has the full steps.")
+        } catch {
+            alert("Could not get the Rhino script", error.localizedDescription)
         }
     }
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "dce00fa15110da9d35e573c2b4c8d6273d89aabea73d85b0077a29fddec24841",
+  "rootSha256": "bd0d963ec1c15096a3e46a8d18be9e4ab6685b99118f364b3787d36cd4610ebd",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -26,7 +26,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "zone": "harness",
-      "sha256": "4c38a2c1c81bc167052b75f107189718c13843e152f9c7ddcd03b13b2ad2bb76"
+      "sha256": "dd1d87793f0ea9a224368a00078e4c7ad0ef8499c37737a377f58b29cd76847d"
     },
     {
       "path": "app/CardboardCADKit/Package.swift",
@@ -56,7 +56,7 @@
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineConfigTests.swift",
       "zone": "tests",
-      "sha256": "fe37bc8245bc9b7d32b53298dc2f60568c211b608a48131d5abce9b404cf6ea9"
+      "sha256": "8cafc5ad6b75ec666984b2c295d0e54472b3ceb3c26231bc3c1a3230991a4659"
     },
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineManagerTests.swift",
@@ -67,6 +67,11 @@
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineQuitTests.swift",
       "zone": "tests",
       "sha256": "45847d3b185aaef7b9284a1abba8d1bdcfcff974996cbab37c7a29396c428e0d"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/FoldTheoryNameTests.swift",
+      "zone": "tests",
+      "sha256": "35446894228dbd698ab79a432a7ac0ae1731190ee6536f298d77d21c2596cab9"
     },
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/HelloTests.swift",
@@ -86,7 +91,12 @@
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/ProjectTests.swift",
       "zone": "tests",
-      "sha256": "d705135666f0c7313e7161da5b6da1732751cc116b189251c3a9dcfdccc45b29"
+      "sha256": "587d50072342f8c9d7e4577ad1e8d387ed555d495b9a7d204245e6c8a7a1df40"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/RhinoTwoWayTests.swift",
+      "zone": "tests",
+      "sha256": "4de5f4f720e6b19f3272719de241ece78f00b6c9e1c10c6f5d83d6b92073a137"
     },
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/RotatingLogWriterTests.swift",
@@ -106,7 +116,7 @@
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/WorkflowTests.swift",
       "zone": "tests",
-      "sha256": "f384559f8d6a4fbcad47052719fe93f8c56b22384950d4dbf210a138f5bf73a9"
+      "sha256": "f8fa3bf861db8477f3d38f5f42b59306ac70a246d902192947bd41e5760ef63b"
     },
     {
       "path": "engine/pyproject.toml",
@@ -151,7 +161,12 @@
     {
       "path": "engine/tests/test_design_session.py",
       "zone": "tests",
-      "sha256": "003b4170179161c4d46fc67cc521b0305a75975ab491b944edd409ae001e1475"
+      "sha256": "2f98bdbfd01dc88f0e49644e268f8bc078bbdf40b8e9f8ddb2c2b6c7cb91c6b5"
+    },
+    {
+      "path": "engine/tests/test_fold_theory_name.py",
+      "zone": "tests",
+      "sha256": "a37d296e023b38125e260eb740d641af61aa6883bddf02e6a68c118bf3f61c04"
     },
     {
       "path": "engine/tests/test_geometry_core.py",
@@ -161,7 +176,7 @@
     {
       "path": "engine/tests/test_hello_and_branding.py",
       "zone": "tests",
-      "sha256": "7102ab0078e13ed56b08f7324a2b0ca463456bebb7d0da4943573ec4e4ff5545"
+      "sha256": "786f93e1ac89e321e417167d84980be823cc26b3fe5021429671b2ddf0fd3164"
     },
     {
       "path": "engine/tests/test_hops_activity.py",
@@ -176,7 +191,7 @@
     {
       "path": "engine/tests/test_hops_geometry.py",
       "zone": "tests",
-      "sha256": "b85f1a5ca856e5ed02a4e5942105c94ac57211523c55ccfc15b5f80bc28dc40c"
+      "sha256": "975bb3e0cb8784767edb0f1061edec5330e20e30765da0330734ff309e4d25ec"
     },
     {
       "path": "engine/tests/test_hops_nest.py",
@@ -216,7 +231,7 @@
     {
       "path": "engine/tests/test_parts_and_export.py",
       "zone": "tests",
-      "sha256": "3d73e44dc341f8e96c0a5172d29cd7d24018e94b3e4e63b85c21d838b87278ea"
+      "sha256": "acb6b2e73ef2b64ee08b7202068ebff1ffe0f8ca63c79ffc4eacdae3587d9149"
     },
     {
       "path": "engine/tests/test_primitives.py",
@@ -231,7 +246,12 @@
     {
       "path": "engine/tests/test_project.py",
       "zone": "tests",
-      "sha256": "5ff79d4a4ae1943ca3c257e33022996079074a087ad6c52f83ae4454e451304a"
+      "sha256": "ddada3175875cd5a17757689d1244fb1550f3703ec43f043c4a47ae173dc171b"
+    },
+    {
+      "path": "engine/tests/test_rhino_two_way.py",
+      "zone": "tests",
+      "sha256": "fa89ac77a892aa536832cdfa98f7dc09eda36f049823e47ae3b1d3bc529b728d"
     },
     {
       "path": "engine/tests/test_server.py",
@@ -256,7 +276,7 @@
     {
       "path": "engine/tests/test_workflows.py",
       "zone": "tests",
-      "sha256": "fd9b6389e9eacbc64422af4b7675d61d21054bcfe8a0369d1c38598d53e5e008"
+      "sha256": "ca03d11d1d9177d7ee679427e0d0e9a995b9191cdef9e4314a3305622853fa19"
     },
     {
       "path": "scripts/ci/check_test_floors.py",
@@ -271,7 +291,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "1386a74c57d381cca6e45f6fbd06bd2ae2ca63c81949f84e617def948da8fa77"
+      "sha256": "46382df1e8b480f9c1059c0e99e3f571901da7608d53676fc8fcbda61ae74133"
     },
     {
       "path": "uplift.config.json",
