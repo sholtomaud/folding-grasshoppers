@@ -193,6 +193,7 @@ design back to itself.
 | Grasshopper does not update | Is **On** True (or unconnected)? Does Status show a version number that changes when you change the design? If the number changes but LiveDesign does not, check the wire from **Version** to **V**. |
 | The listener stopped after editing the script | Recompute: Grasshopper menu **Solution > Recompute** (F5). |
 | `M` is empty, Summary says "No design" | The app has no model yet. Make one in the Design Assistant, or open a project (**File > Open Project…**). |
+| Anything else | Open the app's **Diagnostics** tab (above the preview) and pick the **Grasshopper** source, or ask the Design Assistant "why is Grasshopper not updating?". The listener reports when **On** turns off and on (with the last version it saw), and the engine records every LiveDesign fetch and SendToFoldTheory. To get the reporting, paste the listener script in again from **Design > Copy Rhino Live Listener Script**. |
 
 ## Screenshots still to add
 

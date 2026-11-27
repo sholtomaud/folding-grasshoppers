@@ -219,12 +219,15 @@ public struct DesignToolOutput: Codable, Equatable, Sendable {
     public var version: Int
     /// The engine's system prompt changed (a workflow tool ran), so fetch the setup again.
     public var setupChanged: Bool
+    /// request_inputs: the form to show in the chat.
+    public var form: InputForm?
 
-    public init(content: String, isError: Bool, version: Int, setupChanged: Bool = false) {
+    public init(content: String, isError: Bool, version: Int, setupChanged: Bool = false, form: InputForm? = nil) {
         self.content = content
         self.isError = isError
         self.version = version
         self.setupChanged = setupChanged
+        self.form = form
     }
 
     enum CodingKeys: String, CodingKey {
@@ -232,6 +235,7 @@ public struct DesignToolOutput: Codable, Equatable, Sendable {
         case isError = "is_error"
         case version
         case setupChanged = "setup_changed"
+        case form
     }
 
     public init(from decoder: Decoder) throws {
@@ -240,6 +244,7 @@ public struct DesignToolOutput: Codable, Equatable, Sendable {
         isError = try c.decode(Bool.self, forKey: .isError)
         version = try c.decode(Int.self, forKey: .version)
         setupChanged = try c.decodeIfPresent(Bool.self, forKey: .setupChanged) ?? false
+        form = try c.decodeIfPresent(InputForm.self, forKey: .form)
     }
 }
 
@@ -248,6 +253,16 @@ public protocol DesignToolRunner: AnyObject {
     func designSetup() async throws -> DesignSetup
     func runDesignTool(name: String, input: JSONValue) async throws -> DesignToolOutput
     func resetDesign() async throws
+    /// The designer's answer to a request_inputs form (POST /api/settings/form). Values are as typed.
+    func submitInputForm(id: String, values: [String: String], scope: String, setBy: String) async throws
+        -> FormSubmission
+}
+
+public extension DesignToolRunner {
+    func submitInputForm(id: String, values: [String: String], scope: String, setBy: String) async throws
+        -> FormSubmission {
+        throw EngineClientError.httpStatus(404)
+    }
 }
 
 extension EngineClient: DesignToolRunner {
@@ -294,5 +309,22 @@ extension EngineClient: DesignToolRunner {
     public func resetDesign() async throws {
         let (_, status) = try await send(makeRequest("/api/design/reset", method: "POST", timeout: 5))
         guard status == 200 else { throw EngineClientError.httpStatus(status) }
+    }
+
+    public func submitInputForm(id: String, values: [String: String], scope: String, setBy: String) async throws
+        -> FormSubmission {
+        var request = makeRequest("/api/settings/form", method: "POST", timeout: 30)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: JSONValue = [
+            "form_id": .string(id),
+            "values": .object(values.mapValues { .string($0) }),
+            "scope": .string(scope),
+            "set_by": .string(setBy),
+        ]
+        request.httpBody = try JSONValue.encoder.encode(body)
+        let (data, status) = try await send(request)
+        // 422 carries the field errors to show next to each field.
+        guard status == 200 || status == 422 else { throw EngineClientError.httpStatus(status) }
+        return try decode(data)
     }
 }

@@ -68,6 +68,10 @@ extension DesignAssistant {
             case .assistant: return ["kind": "assistant", "text": .string(item.text)]
             case .error: return ["kind": "error", "text": .string(item.text)]
             case .notice: return ["kind": "notice", "text": .string(item.text)]
+            // A form is only live while the engine holds it: keep it as a note.
+            case .form(let form):
+                return ["kind": "notice", "text": .string("Form: " + (form.question.isEmpty
+                    ? form.fields.map(\.label).joined(separator: ", ") : form.question))]
             case .tool(let name, let isError):
                 return ["kind": "tool", "tool": .string(name), "is_error": .bool(isError), "text": .string(item.text)]
             }
