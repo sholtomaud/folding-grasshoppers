@@ -32,13 +32,16 @@ from .components.unfold import UnfoldError, UnfoldInput, unfold
 from .components.waffle import WaffleError, WaffleInput, waffle_slice
 from . import project as proj
 from .project import ProjectError
+from .workflow import WorkflowError, WorkflowStore
 
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
-    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError,
+    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, WorkflowError,
 )
+# Tools that read or change workflows (workflow.py), not the design.
+WORKFLOW_TOOLS = {"list_workflows", "save_workflow", "use_workflow", "set_workflow_defaults"}
 # Tools that do not change the design: a saved project stays saved.
-READ_ONLY_TOOLS = {"model_info", "export_cut_files", "save_project"}
+READ_ONLY_TOOLS = {"model_info", "export_cut_files", "save_project"} | WORKFLOW_TOOLS
 MODEL_TOOLS = {"create_shape", "load_model_file", "scale_model"}
 METHOD_TOOLS = {"waffle_slice", "contour_stack", "unfold"}
 SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
@@ -56,13 +59,14 @@ You turn what the designer asks for into calls to the tools you have. The tools 
    A new method replaces the previous parts.
 3. Sheets: nest_sheets lays the parts onto as few sheets of board as it can.
 4. Then estimate_cost (machine time and money) and export_cut_files (DXF or SVG cut files, one per sheet).
+The active workflow (below) says which of these steps to run, in what order, and with which saved values.
 5. save_project saves everything (model, parts, cut files, estimate, a preview picture) as a project folder the designer can reopen. To present several concepts to a client, save each one under its own name, for example "Acme Expo - Concept A", then "Acme Expo - Concept B".
 
 Everything is in millimetres. Z is up and models sit on the ground. Typical board: single-wall corrugated 3 mm, double-wall 6 mm, honeycomb board 10 to 20 mm. Common sheet sizes: 1200 x 800, 1000 x 700, 2400 x 1200 mm. When the designer gives no value, use the tool defaults and say which you used.
 
 The app shows a live preview next to this chat: the 3D model (and the assembled ribs, layers or folded nets) and the flat cut sheets. It updates after every tool call, so describe results briefly instead of listing every part. Point the designer to the preview when it helps ("see the Sheets tab").
 
-Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files or save_project when the designer asks for files or to save; they write into their Documents folder. For estimate_cost, ask for the sheet price and machine rate if you do not know them, rather than reporting a cost of 0.
+Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files or save_project when the designer asks for files or to save; they write into their Documents folder. For estimate_cost, ask for the sheet price and machine rate if you do not know them, rather than reporting a cost of 0. When a question would block you (no board size, no price) and the workflow does not answer it, ask it plainly and wait.
 
 Format replies as short paragraphs; use "- " bullet lists only for short lists."""
 
@@ -205,6 +209,64 @@ TOOLS: List[dict] = [
         },
     ),
 ]
+
+_STEP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string", "description": "Short name of the step, e.g. \"Nest on sheets\""},
+        "tools": {"type": "array", "items": {"type": "string"},
+                  "description": "The design tools this step uses, e.g. [\"nest_sheets\"]"},
+        "instructions": {"type": "string", "description": "How to do the step, in the designer's words"},
+        "optional": {"type": "boolean", "description": "true: only when the designer asks (e.g. export)"},
+    },
+    "required": ["title", "tools"],
+}
+
+TOOLS += [
+    _tool(
+        "list_workflows",
+        "List the saved workflows (the step-by-step ways of working the assistant follows), which one is "
+        "active, and whether apply defaults is on.",
+        {},
+    ),
+    _tool(
+        "save_workflow",
+        "Save a workflow from this conversation so the assistant follows it in future designs: its steps in "
+        "order (each naming the design tools it uses), saved values for tool inputs (board size, gap, prices) "
+        "and questions to ask at the start. Saving under an existing name replaces that workflow. Only after "
+        "the designer agrees to save it.",
+        {
+            "name": {"type": "string", "description": "Workflow name, e.g. \"Honeycomb stools\""},
+            "description": {"type": "string", "default": "", "description": "One sentence on when to use it"},
+            "steps": {"type": "array", "items": _STEP_SCHEMA, "description": "The steps, in order"},
+            "defaults": {"type": "object", "default": {},
+                         "description": "Saved input values per tool: {tool name: {input name: value}}, e.g. "
+                                        "{\"nest_sheets\": {\"sheet_width_mm\": 2400, \"sheet_height_mm\": 1200}}. "
+                                        "Use null for a value to always ask the designer for."},
+            "questions": {"type": "array", "items": {"type": "string"}, "default": [],
+                          "description": "Questions to ask at the start of a new design, e.g. \"Who is the client?\""},
+            "make_active": {"type": "boolean", "default": True, "description": "Use it from now on"},
+        },
+        required=["name", "steps"],
+    ),
+    _tool(
+        "use_workflow",
+        "Switch to another saved workflow (see list_workflows). Only when the designer asks.",
+        {"name": {"type": "string", "description": "The workflow's name"}},
+        required=["name"],
+    ),
+    _tool(
+        "set_workflow_defaults",
+        "Remember input values in a workflow, merged into what it already saves, e.g. the designer's sheet "
+        "price and machine rate: {\"estimate_cost\": {\"sheet_price\": 12.5, \"machine_rate\": 60}}. "
+        "Only after the designer agrees.",
+        {
+            "defaults": {"type": "object", "description": "{tool name: {input name: value}}"},
+            "workflow": {"type": "string", "default": "", "description": "Workflow name; empty means the active one"},
+        },
+        required=["defaults"],
+    ),
+]
 _TOOLS_BY_NAME = {t["name"]: t for t in TOOLS}
 
 
@@ -252,10 +314,20 @@ def _check_args(tool: dict, args) -> Dict[str, Any]:
             if not isinstance(v, bool):
                 raise ToolInputError(f"{name} must be true or false")
         elif t == "array":
-            if not isinstance(v, list) or not all(
+            item = (spec.get("items") or {}).get("type", "number")
+            if item == "string":
+                if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+                    raise ToolInputError(f"{name} must be a list of text")
+            elif item == "object":
+                if not isinstance(v, list) or not all(isinstance(x, dict) for x in v):
+                    raise ToolInputError(f"{name} must be a list of objects")
+            elif not isinstance(v, list) or not all(
                 isinstance(x, (int, float)) and not isinstance(x, bool) for x in v
             ):
                 raise ToolInputError(f"{name} must be a list of numbers")
+        elif t == "object":
+            if not isinstance(v, dict):
+                raise ToolInputError(f"{name} must be an object")
         out[name] = v
     return out
 
@@ -264,6 +336,8 @@ def _check_args(tool: dict, args) -> Dict[str, Any]:
 class ToolResult:
     text: str
     is_error: bool = False
+    # The system prompt changed (a workflow tool ran): the app fetches it again.
+    setup_changed: bool = False
 
 
 def _mm(v: float) -> str:
@@ -286,6 +360,7 @@ class DesignSession:
         self.version = 0
         self._state_cache: Optional[dict] = None
         self.project: Optional[dict] = None  # {name, folder, saved_version}
+        self.workflows = WorkflowStore(home, _TOOLS_BY_NAME, _check_args, WORKFLOW_TOOLS)
         self._clear_all()
         self.steps: List[dict] = []
 
@@ -325,9 +400,17 @@ class DesignSession:
         with self._lock:
             was_saved = self._is_saved()
             try:
+                used, ask = {}, []
+                if name not in WORKFLOW_TOOLS:
+                    args, used, ask = self.workflows.fill(name, args)
                 checked = _check_args(tool, args)
                 text = getattr(self, "_t_" + name)(**checked)
-                result = ToolResult(text)
+                if name not in WORKFLOW_TOOLS:
+                    extra = " ".join(x for x in (self.workflows.notes(name, used, ask),
+                                                 self.workflows.next_step(name)) if x)
+                    if extra:
+                        text += "\n" + extra
+                result = ToolResult(text, setup_changed=name in WORKFLOW_TOOLS - {"list_workflows"})
                 self._record(name, checked)
             except (ToolInputError, *INPUT_ERRORS) as exc:
                 result = ToolResult(str(exc), True)
@@ -337,6 +420,40 @@ class DesignSession:
                     result.is_error or name in READ_ONLY_TOOLS):
                 self.project["saved_version"] = self.version
             return result
+
+    def system_prompt(self) -> str:
+        """The system prompt for Claude: the fixed part and the active workflow."""
+        return SYSTEM_PROMPT + "\n\n" + self.workflows.prompt_section()
+
+    # ---- workflow tools ----------------------------------------------------
+    def _t_list_workflows(self):
+        info = self.workflows.listing()
+        lines = [f"Active workflow: {info['active']}. Apply defaults is {'on' if info['apply_defaults'] else 'off'} "
+                 "(the designer changes that in the app). Saved in " + info["folder"]]
+        for w in info["workflows"]:
+            tag = " (built in)" if w["builtin"] else ""
+            desc = f": {w['description']}" if w["description"] else ""
+            lines.append(f"- {w['name']}{tag}, {w['steps']} steps{desc}")
+        return "\n".join(lines)
+
+    def _t_save_workflow(self, name, steps, description="", defaults=None, questions=None, make_active=True):
+        wf = self.workflows.save({"name": name, "description": description, "steps": steps,
+                                  "defaults": defaults or {}, "questions": questions or []},
+                                 make_active=make_active)
+        state = "It is now the active workflow." if make_active else "The active workflow is unchanged."
+        return (f"Saved workflow \"{wf['name']}\" with {len(wf['steps'])} steps to "
+                f"{self.workflows._path(wf['name'])}. {state}")
+
+    def _t_use_workflow(self, name):
+        s = self.workflows.set_settings(active=name)
+        wf = self.workflows.active()
+        return f"Now using workflow \"{s['active']}\": " + ", ".join(st["title"] for st in wf["steps"]) + "."
+
+    def _t_set_workflow_defaults(self, defaults, workflow=""):
+        wf = self.workflows.set_defaults(defaults, workflow)
+        saved = "; ".join(f"{t}: " + ", ".join(f"{k} {v if v is not None else 'ask'}" for k, v in ins.items())
+                          for t, ins in wf["defaults"].items())
+        return f"Workflow \"{wf['name']}\" now saves: {saved}."
 
     def _log_step(self, name: str, ok: bool, text: str) -> None:
         self.steps.append({"tool": name, "ok": ok, "summary": text.split("\n")[0][:200]})
@@ -573,6 +690,8 @@ class DesignSession:
             "units": "mm",
             "model": {"file": proj.MODEL_FILE, "name": self.model_name},
             "recipe": self.recipe,
+            "workflow": {"name": self.workflows.active()["name"],
+                         "apply_defaults": self.workflows.settings()["apply_defaults"]},
             "summary": self._summary(),
             "files": files,
         }

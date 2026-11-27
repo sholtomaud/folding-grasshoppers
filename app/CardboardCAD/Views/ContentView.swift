@@ -6,6 +6,7 @@ struct ContentView: View {
     let assistant: DesignAssistant
     let claudeKey: ClaudeKey
     let projects: ProjectController
+    let workflows: WorkflowController
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
@@ -26,7 +27,10 @@ struct ContentView: View {
             let client = runningPort.map { EngineClient(port: $0) }
             assistant.attach(tools: client)
             projects.attach(store: client)
+            workflows.attach(client: client)
+            await workflows.refresh()
         }
+        .toolbar { WorkflowToolbar(workflows: workflows) }
         .navigationSubtitle(projects.current?.name ?? "")
         .alert("Project", isPresented: projectErrorShown) {
             Button("OK") { projects.error = nil }

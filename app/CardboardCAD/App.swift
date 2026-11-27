@@ -66,7 +66,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return p
     }()
 
+    /// The workflow the assistant follows and the Apply Defaults switch (kept by the engine).
+    let workflows = WorkflowController()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let assistant = assistant
+        let workflows = workflows
+        workflows.onChange = { assistant.reloadSetup() }
+        assistant.onSetupChanged = { Task { await workflows.refresh() } }
         Task { await engine.start() }
     }
 
@@ -101,13 +108,14 @@ struct CardboardCADApp: App {
     var body: some Scene {
         WindowGroup(AppInfo.name) {
             ContentView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey,
-                        projects: delegate.projects)
+                        projects: delegate.projects, workflows: delegate.workflows)
                 .frame(minWidth: 900, minHeight: 600)
         }
         .defaultSize(width: 1280, height: 800)
         .commands {
             ProjectCommands(projects: delegate.projects, assistant: delegate.assistant)
-            DesignCommands(assistant: delegate.assistant, projects: delegate.projects, engine: delegate.engine)
+            DesignCommands(assistant: delegate.assistant, projects: delegate.projects, engine: delegate.engine,
+                           workflows: delegate.workflows)
             CommandMenu("Engine") {
                 Button("Restart Engine") {
                     Task { await delegate.engine.restart() }
@@ -125,7 +133,8 @@ struct CardboardCADApp: App {
         .defaultSize(width: 520, height: 720)
 
         Settings {
-            SettingsView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey)
+            SettingsView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey,
+                         workflows: delegate.workflows)
         }
     }
 }
@@ -149,6 +158,7 @@ struct DesignCommands: Commands {
     let assistant: DesignAssistant
     let projects: ProjectController
     let engine: EngineManager
+    let workflows: WorkflowController
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
@@ -160,6 +170,8 @@ struct DesignCommands: Commands {
                 }
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
+            Divider()
+            WorkflowMenu(workflows: workflows)
             Divider()
             Button("Manual Tools") {
                 openWindow(id: ManualToolsView.windowID)

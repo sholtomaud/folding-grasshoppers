@@ -217,17 +217,29 @@ public struct DesignToolOutput: Codable, Equatable, Sendable {
     public var content: String
     public var isError: Bool
     public var version: Int
+    /// The engine's system prompt changed (a workflow tool ran), so fetch the setup again.
+    public var setupChanged: Bool
 
-    public init(content: String, isError: Bool, version: Int) {
+    public init(content: String, isError: Bool, version: Int, setupChanged: Bool = false) {
         self.content = content
         self.isError = isError
         self.version = version
+        self.setupChanged = setupChanged
     }
 
     enum CodingKeys: String, CodingKey {
         case content
         case isError = "is_error"
         case version
+        case setupChanged = "setup_changed"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        content = try c.decode(String.self, forKey: .content)
+        isError = try c.decode(Bool.self, forKey: .isError)
+        version = try c.decode(Int.self, forKey: .version)
+        setupChanged = try c.decodeIfPresent(Bool.self, forKey: .setupChanged) ?? false
     }
 }
 
@@ -257,6 +269,11 @@ extension EngineClient: DesignToolRunner {
         let (data, status) = try await send(request)
         guard status == 200 else { throw EngineClientError.httpStatus(status) }
         return try decode(data)
+    }
+
+    /// GET a JSON reply (for routes defined in other files).
+    func getJSON<T: Decodable>(_ path: String, timeout: TimeInterval = 5) async throws -> T {
+        try await get(path, timeout: timeout)
     }
 
     /// POST a JSON body. 400/422 become `.invalidInput` with the engine's message.
