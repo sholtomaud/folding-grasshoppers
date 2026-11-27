@@ -34,7 +34,7 @@ from .components.waffle import WaffleError, WaffleInput, waffle_slice
 from . import project as proj
 from . import rhino_sync
 from .rhino_sync import Override
-from .project import ProjectError
+from .project import ProjectChangedError, ProjectError
 from .workflow import WorkflowError, WorkflowStore
 
 INPUT_ERRORS = (
@@ -371,7 +371,9 @@ class DesignSession:
         self._lock = threading.RLock()
         self.version = 0
         self._state_cache: Optional[dict] = None
-        self.project: Optional[dict] = None  # {name, folder, saved_version}
+        self.project: Optional[dict] = None  # {name, folder, saved_version, files: fingerprint}
+        # Where this Mac keeps per-Mac settings (projects location): the app's ENGINE_DATA_DIR.
+        self.data_dir: Optional[str] = None
         self.workflows = WorkflowStore(home, _TOOLS_BY_NAME, _check_args, WORKFLOW_TOOLS)
         # Rhino hand edits of flat parts, by part id. Kept through re-runs (see rhino_sync.py).
         self.overrides: Dict[str, Override] = {}
@@ -686,14 +688,24 @@ class DesignSession:
         return f"Saved project \"{out['name']}\" ({len(out['files'])} files) to {out['folder']}"
 
     # ---- projects --------------------------------------------------------
-    def save_project(self, folder: str = "", name: str = "", chat=None) -> dict:
-        """Write the design as a project folder (see ``project.py``). Raises ProjectError."""
+    def save_project(self, folder: str = "", name: str = "", chat=None, overwrite: bool = False) -> dict:
+        """Write the design as a project folder (see ``project.py``). Raises ProjectError.
+
+        Saving into the open project's folder after its files changed on disk (another Mac,
+        a sync) raises ProjectChangedError, unless ``overwrite``."""
         with self._lock:
             if self.model is None:
                 raise ProjectError("There is nothing to save yet: make or load a model first")
             if not isinstance(name, str) or not isinstance(folder, str):
                 raise ProjectError("name and folder must be text")
-            directory, clean = proj.resolve_save_dir(folder, name, self.home)
+            directory, clean = proj.resolve_save_dir(folder, name, self.home, self.locations()["projects"])
+            if not overwrite and self.project is not None and self.project["folder"] == directory:
+                known = dict(self.project.get("files") or {})
+                if chat is None:
+                    known.pop(proj.CHAT, None)  # left as it is on disk
+                found = proj.outside_changes(directory, known)
+                if found["changed"] or found["missing"]:
+                    raise ProjectChangedError(found["changed"] + found["missing"])
             previous = proj.check_writable(directory)
             files = self._project_files(clean)
             if chat is not None:
@@ -702,7 +714,8 @@ class DesignSession:
                 {proj.CHAT} if os.path.isfile(os.path.join(directory, proj.CHAT)) else set()))
             files[proj.MANIFEST] = json.dumps(self._manifest(clean, manifest_files), indent=2) + "\n"
             proj.write_files(directory, files, previous)
-            self.project = {"name": clean, "folder": directory, "saved_version": self.version}
+            self.project = {"name": clean, "folder": directory, "saved_version": self.version,
+                            "files": proj.fingerprint(directory, manifest_files)}
             return {"name": clean, "folder": directory, "files": manifest_files, "version": self.version}
 
     def _project_files(self, name: str) -> Dict[str, str]:
@@ -812,9 +825,32 @@ class DesignSession:
             self.steps = []
             self._log_step("open_project", True, f"Opened project {name} from {directory}")
             self._bump()
-            self.project = {"name": name, "folder": directory, "saved_version": self.version}
+            listed = m.get("files") if isinstance(m.get("files"), list) else []
+            known = set(listed) | {proj.MANIFEST, proj.CHAT, rel}
+            self.project = {"name": name, "folder": directory, "saved_version": self.version,
+                            "files": proj.fingerprint(directory, known)}
             return {"name": name, "folder": directory, "chat": chat, "version": self.version,
                     "summary": m.get("summary")}
+
+    def locations(self) -> dict:
+        """Where projects and the library are saved on this Mac (see ``project.read_locations``)."""
+        return proj.read_locations(self.home, self.data_dir)
+
+    def set_locations(self, projects=None, library=None) -> dict:
+        """Change the projects and/or library location. An empty value goes back to the default."""
+        return proj.write_locations(self.home, self.data_dir, projects=projects, library=library)
+
+    def project_status(self) -> dict:
+        """Did the open project's files change on disk since this Mac saved or opened it?"""
+        with self._lock:
+            if self.project is None:
+                return {"project": None, "folder": None, "changed": [], "missing": [], "syncing": [],
+                        "conflicts": [], "outside_changes": False}
+            name, directory = self.project["name"], self.project["folder"]
+            known = dict(self.project.get("files") or {})
+        found = proj.outside_changes(directory, known)
+        found["outside_changes"] = bool(found["changed"] or found["missing"] or found["conflicts"])
+        return {"project": name, "folder": directory, **found}
 
     def push_model(self, mesh: Mesh, name: str) -> int:
         """A model sent from Rhino (Hops SendToFoldTheory) replaces the current one."""

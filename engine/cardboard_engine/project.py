@@ -23,10 +23,23 @@ alone. Only files listed in the previous manifest are ever removed.
 Any local process can reach the engine, so projects are read and written
 only inside the home folder, and a folder that is not empty is only written
 to when it already holds a ``project.json``.
+
+The *projects location* (and the library location) can point into a folder
+that Google Drive for desktop, OneDrive or iCloud Drive syncs, such as
+``~/Library/CloudStorage/GoogleDrive-<account>/My Drive/Fold Theory/Projects``.
+The setting is kept per Mac (``$ENGINE_DATA_DIR/locations.json``), because the
+synced folder's path differs from Mac to Mac.
+
+Because another Mac can change a synced project, the engine remembers what
+each file held when it saved or opened the project (``fingerprint``).
+``outside_changes`` compares the folder with that, notices sync-conflict
+copies (``project (1).json``) and iCloud placeholders (``.model.obj.icloud``),
+and saving over files changed elsewhere is refused unless asked to.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -34,7 +47,7 @@ import re
 import tempfile
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .brand import documents_dir
+from .brand import APP_NAME, documents_dir
 
 MANIFEST = "project.json"
 CHAT = "chat.json"
@@ -51,11 +64,26 @@ class ProjectError(ValueError):
     """A project that cannot be saved or opened. The message is for the designer."""
 
 
+class ProjectChangedError(ProjectError):
+    """Saving would overwrite files that changed on disk (another Mac, a sync) since this Mac read them."""
+
+    def __init__(self, files: List[str]):
+        self.files = list(files)
+        shown = ", ".join(self.files[:5]) + (f" and {len(self.files) - 5} more" if len(self.files) > 5 else "")
+        super().__init__(
+            f"{shown} changed on disk since this project was opened or saved here (perhaps on another Mac). "
+            "Open the project again to see those changes, or save again choosing to overwrite them.")
+
+
 # ---- names and folders -----------------------------------------------------
 
 
 def default_projects_dir(home: str) -> str:
     return os.path.join(documents_dir(home), "Projects")
+
+
+def default_library_dir(home: str) -> str:
+    return os.path.join(documents_dir(home), "Library")
 
 
 def safe_project_name(raw) -> str:
@@ -86,14 +114,15 @@ def _inside_home(path: str, home: str, what: str) -> str:
     return real
 
 
-def resolve_save_dir(folder: str, name: str, home: str) -> Tuple[str, str]:
-    """(folder, name) to save into. No folder: ~/Documents/Fold Theory/Projects/<name>."""
+def resolve_save_dir(folder: str, name: str, home: str, projects_dir: Optional[str] = None) -> Tuple[str, str]:
+    """(folder, name) to save into. No folder: <projects location>/<name>
+    (~/Documents/Fold Theory/Projects unless the designer chose another location)."""
     if folder and folder.strip():
         directory = _inside_home(folder, home, "project folder")
         clean = safe_project_name(name) if name and name.strip() else safe_project_name(os.path.basename(directory))
         return directory, clean
     clean = safe_project_name(name)
-    return os.path.join(default_projects_dir(home), clean), clean
+    return os.path.join(projects_dir or default_projects_dir(home), clean), clean
 
 
 def resolve_open_dir(path: str, home: str) -> str:
@@ -103,6 +132,157 @@ def resolve_open_dir(path: str, home: str) -> str:
     if not os.path.isfile(os.path.join(real, MANIFEST)):
         raise ProjectError(f"{path} is not a Fold Theory project (it has no {MANIFEST})")
     return real
+
+
+# ---- locations (per Mac) ---------------------------------------------------
+
+LOCATIONS_FILE = "locations.json"
+LOCATIONS_SCHEMA = "foldtheory.locations/1"
+LOCATION_KEYS = ("projects", "library")
+_LOCATION_WHAT = {"projects": "projects location", "library": "library location"}
+
+
+def locations_file(home: str, data_dir: Optional[str]) -> str:
+    """Where this Mac keeps the setting: the app's ENGINE_DATA_DIR, else ~/Library/Application Support/Fold Theory."""
+    base = data_dir or os.path.join(home, "Library", "Application Support", APP_NAME)
+    return os.path.join(base, LOCATIONS_FILE)
+
+
+def _location_defaults(home: str) -> Dict[str, str]:
+    return {"projects": default_projects_dir(home), "library": default_library_dir(home)}
+
+
+def check_location(path: str, home: str, key: str) -> str:
+    """The real path of a location the designer chose. The last folder is made if its parent exists."""
+    what = _LOCATION_WHAT[key]
+    real = _inside_home(path, home, what)
+    if os.path.exists(real) and not os.path.isdir(real):
+        raise ProjectError(f"The {what} {real} is a file, not a folder")
+    if os.path.isfile(os.path.join(real, MANIFEST)):
+        raise ProjectError(f"The {what} {real} is a project; choose the folder that holds your projects")
+    if not os.path.isdir(real):
+        root = _sync_root(real, home)
+        if root is not None and not os.path.isdir(root):
+            raise ProjectError(
+                f"The {what} {real} cannot be made because {root} does not exist. "
+                "Check that Google Drive, OneDrive or iCloud Drive is installed and signed in on this Mac.")
+        os.makedirs(real, exist_ok=True)
+    return real
+
+
+def _sync_root(real: str, home: str) -> Optional[str]:
+    """The sync client's own folder that ``real`` lies in (it must not be made by us), or None.
+
+    ~/Library/CloudStorage/<Provider-account>/ (Google Drive, OneDrive, Dropbox on macOS 12.3+)
+    and ~/Library/Mobile Documents/<container>/ (iCloud Drive)."""
+    home_real = os.path.realpath(home)
+    for base in (("Library", "CloudStorage"), ("Library", "Mobile Documents")):
+        prefix = os.path.join(home_real, *base) + os.sep
+        if real.startswith(prefix):
+            first = real[len(prefix):].split(os.sep, 1)[0]
+            return prefix + first
+    return None
+
+
+def read_locations(home: str, data_dir: Optional[str]) -> dict:
+    """{projects, library, defaults, is_default}. A missing or bad setting falls back to the defaults."""
+    defaults = _location_defaults(home)
+    chosen: Dict[str, str] = {}
+    path = locations_file(home, data_dir)
+    try:
+        with open(path, "rb") as fh:
+            raw = json.loads(fh.read(64 * 1024).decode("utf-8", errors="replace"))
+    except (OSError, ValueError):
+        raw = None
+    if isinstance(raw, dict) and raw.get("schema") == LOCATIONS_SCHEMA:
+        for key in LOCATION_KEYS:
+            value = raw.get(key)
+            if isinstance(value, str) and value:
+                try:
+                    chosen[key] = _inside_home(value, home, _LOCATION_WHAT[key])
+                except ProjectError:
+                    pass  # e.g. the home folder moved: use the default
+    out = {key: chosen.get(key, defaults[key]) for key in LOCATION_KEYS}
+    out["defaults"] = defaults
+    out["is_default"] = {key: key not in chosen for key in LOCATION_KEYS}
+    return out
+
+
+def write_locations(home: str, data_dir: Optional[str], **changes) -> dict:
+    """Set some locations (an empty value means the default). All are checked before anything is written."""
+    current = read_locations(home, data_dir)
+    stored = {key: current[key] for key in LOCATION_KEYS if not current["is_default"][key]}
+    for key, value in changes.items():
+        if value is None:
+            continue
+        if key not in LOCATION_KEYS:
+            raise ProjectError(f"Unknown location {key!r}")
+        if not isinstance(value, str):
+            raise ProjectError(f"The {_LOCATION_WHAT[key]} must be text")
+        if not value.strip():
+            stored.pop(key, None)
+            continue
+        stored[key] = check_location(value, home, key)
+    doc = {"schema": LOCATIONS_SCHEMA}
+    doc.update({key: stored[key] for key in LOCATION_KEYS if key in stored})
+    _write_atomic(locations_file(home, data_dir), json.dumps(doc, indent=2) + "\n")
+    return read_locations(home, data_dir)
+
+
+# ---- what is on disk, and what another Mac changed ----------------------------
+
+_CONFLICT_COPY = re.compile(r"^project(?: \(\d+\)| \d+|-.+)\.json$")
+
+
+def _sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def icloud_placeholder(directory: str, rel: str) -> Optional[str]:
+    """The ``.name.icloud`` file iCloud Drive leaves while ``rel`` is not downloaded yet, if there is one."""
+    head, tail = os.path.split(rel)
+    path = os.path.join(directory, head, f".{tail}.icloud")
+    return path if os.path.isfile(path) else None
+
+
+def fingerprint(directory: str, files: Iterable[str]) -> Dict[str, dict]:
+    """What each file holds now: {rel: {size, mtime_ns, sha256}}. Files that are not there are left out."""
+    out: Dict[str, dict] = {}
+    for rel in files:
+        rel = _safe_rel(rel)
+        if rel is None:
+            continue
+        path = os.path.join(directory, rel)
+        if os.path.isfile(path) and not os.path.islink(path):
+            st = os.stat(path)
+            out[rel] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "sha256": _sha256(path)}
+    return out
+
+
+def outside_changes(directory: str, known: Dict[str, dict]) -> dict:
+    """Compare the folder with ``known`` (a ``fingerprint``): {changed, missing, syncing, conflicts}."""
+    changed, missing, syncing = [], [], []
+    for rel in sorted(known):
+        info = known[rel]
+        path = os.path.join(directory, rel)
+        if not os.path.isfile(path):
+            (syncing if icloud_placeholder(directory, rel) else missing).append(rel)
+            continue
+        st = os.stat(path)
+        if st.st_size == info.get("size") and st.st_mtime_ns == info.get("mtime_ns"):
+            continue
+        if st.st_size != info.get("size") or _sha256(path) != info.get("sha256"):
+            changed.append(rel)
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        names = []
+    conflicts = sorted(n for n in names if n != MANIFEST and _CONFLICT_COPY.match(n))
+    return {"changed": changed, "missing": missing, "syncing": syncing, "conflicts": conflicts}
 
 
 def _safe_rel(rel) -> Optional[str]:
@@ -133,6 +313,10 @@ def _write_atomic(path: str, text: str) -> None:
 
 def _read_text(path: str, limit: int, what: str) -> str:
     if not os.path.isfile(path):
+        head, tail = os.path.split(path)
+        if os.path.isfile(os.path.join(head, f".{tail}.icloud")):
+            raise ProjectError(
+                f"{what} is still syncing from iCloud Drive. Wait for it to download, then open the project again.")
         raise ProjectError(f"The project is missing {what}")
     if os.path.getsize(path) > limit:
         raise ProjectError(f"{what} is larger than {limit // (1024 * 1024)} MB")

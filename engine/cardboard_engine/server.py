@@ -38,7 +38,7 @@ from .components.hello import greet  # noqa: E402
 from . import hops_geometry  # noqa: E402
 from .design import SYSTEM_PROMPT, TOOLS, DesignSession  # noqa: E402,F401
 from .workflow import WorkflowError  # noqa: E402
-from .project import ProjectError  # noqa: E402
+from .project import ProjectChangedError, ProjectError  # noqa: E402
 from . import hops_live  # noqa: E402
 from . import rhino_sync  # noqa: E402
 from .components.geometry import GeometryError  # noqa: E402
@@ -226,6 +226,7 @@ def create_app(
         app, hops, category=HOPS_CATEGORY, subcategory=HOPS_SUBCATEGORY, icon=HOPS_ICON
     )
     session = _register_design(app)
+    _register_locations(app, session)
     hops_live.register(hops, session, category=HOPS_CATEGORY, subcategory=HOPS_SUBCATEGORY, icon=HOPS_ICON)
 
     # Outermost, so it also sees the requests ghhops_server answers itself.
@@ -233,6 +234,31 @@ def create_app(
     app.wsgi_app = activity
     app.config["HOPS_ACTIVITY"] = activity
     return app
+
+
+def _register_locations(app: Flask, session: DesignSession) -> None:
+    """Projects location (#49): where projects and the library are saved on this Mac."""
+    session.data_dir = os.environ.get("ENGINE_DATA_DIR") or None
+
+    @app.get("/api/locations")
+    def locations_get():
+        return jsonify(session.locations())
+
+    @app.post("/api/locations")
+    def locations_set():
+        """Body: {projects?, library?}. An empty string goes back to the default location."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="invalid_input", message="Body must be {projects, library}"), 400
+        try:
+            return jsonify(session.set_locations(projects=data.get("projects"), library=data.get("library")))
+        except ProjectError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+
+    @app.get("/api/design/project/status")
+    def project_status():
+        """Whether the open project's files changed on disk (another Mac, a sync) since it was opened or saved."""
+        return jsonify(session.project_status())
 
 
 def _register_design(app: Flask) -> DesignSession:
@@ -298,15 +324,23 @@ def _register_design(app: Flask) -> DesignSession:
 
     @app.post("/api/design/save")
     def design_save():
-        """Save the design as a project folder. Body: {name?, folder?, chat?}."""
+        """Save the design as a project folder. Body: {name?, folder?, chat?, overwrite?}.
+
+        409 changed_on_disk: the open project's files changed since this Mac read them;
+        send overwrite: true to save anyway."""
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return jsonify(error="invalid_input", message="Body must be {name, folder, chat}"), 400
         name, folder = data.get("name") or "", data.get("folder") or ""
         if not isinstance(name, str) or not isinstance(folder, str):
             return jsonify(error="invalid_input", message="name and folder must be text"), 400
+        overwrite = data.get("overwrite", False)
+        if not isinstance(overwrite, bool):
+            return jsonify(error="invalid_input", message="overwrite must be true or false"), 400
         try:
-            out = session.save_project(folder=folder, name=name, chat=data.get("chat"))
+            out = session.save_project(folder=folder, name=name, chat=data.get("chat"), overwrite=overwrite)
+        except ProjectChangedError as exc:
+            return jsonify(error="changed_on_disk", message=str(exc), files=exc.files), 409
         except ProjectError as exc:
             return jsonify(error="invalid_input", message=str(exc)), 422
         return jsonify(out)
