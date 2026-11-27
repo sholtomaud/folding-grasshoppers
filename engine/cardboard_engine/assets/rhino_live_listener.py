@@ -22,9 +22,9 @@ import json
 import threading
 
 try:
-    from urllib.request import urlopen
+    from urllib.request import Request, urlopen
 except ImportError:  # IronPython 2.7 (Rhino 7)
-    from urllib2 import urlopen
+    from urllib2 import Request, urlopen
 
 DEFAULT_PORT = 5001
 DEFAULT_INTERVAL_MS = 500
@@ -50,6 +50,32 @@ def poll_version(port=DEFAULT_PORT, opener=None, timeout=TIMEOUT_S):
                 close()
     except Exception:
         return None
+
+
+def diagnostics_url(port):
+    return "http://127.0.0.1:%d/api/diagnostics" % int(port)
+
+
+def report(port, message, details=None, level="info", opener=None, timeout=TIMEOUT_S):
+    """Tell the app's Diagnostics panel what the listener did. False if the app did not answer."""
+    opener = opener or urlopen
+    body = json.dumps({"source": "grasshopper", "level": level, "message": message,
+                       "details": details or {}}).encode("utf-8")
+    try:
+        req = Request(diagnostics_url(port), data=body, headers={"Content-Type": "application/json"})
+        reply = opener(req, timeout=timeout)
+        close = getattr(reply, "close", None)
+        if close is not None:
+            close()
+        return True
+    except Exception:
+        return False
+
+
+def report_in_background(port, message, details=None):
+    t = threading.Thread(target=report, args=(port, message, details))
+    t.daemon = True
+    t.start()
 
 
 def clamp_interval(ms):
@@ -123,6 +149,9 @@ def run_in_grasshopper(ghenv, on, interval, port):
         _stop(entry)
         sc.sticky.pop(key, None)
         last = entry["watcher"].version if entry else None
+        if entry is not None:
+            report_in_background(port, "LiveDesign listener turned off (On is False)",
+                                 {"on": False, "last_version": last})
         return (last if last is not None else -1), "Live updates are off (On is False)."
 
     if (entry is None or entry["port"] != port or entry["interval"] != interval
@@ -145,6 +174,8 @@ def run_in_grasshopper(ghenv, on, interval, port):
         thread = watcher.start(interval, stop)
         entry = {"stop": stop, "watcher": watcher, "thread": thread, "port": port, "interval": interval}
         sc.sticky[key] = entry
+        report_in_background(port, "LiveDesign listener turned on, checking every %d ms" % interval,
+                             {"on": True, "last_version": watcher.version, "interval_ms": interval})
 
     w = entry["watcher"]
     if w.version is None:

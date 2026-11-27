@@ -51,7 +51,10 @@ def build_stool(session):
     run(session, "create_shape", shape="cylinder", width_mm=350, depth_mm=350, height_mm=450, segments=24)
     run(session, "waffle_slice", x_ribs=3, y_ribs=3, thickness_mm=6)
     run(session, "nest_sheets", sheet_width_mm=1200, sheet_height_mm=800)
-    run(session, "estimate_cost", sheet_price=12.5, machine_rate=60)
+    # Prices are project settings (#28), never estimate_cost inputs.
+    session.settings.set("sheet_price", 12.5, scope="project", set_by="test")
+    session.settings.set("machine_rate", 60, scope="project", set_by="test")
+    run(session, "estimate_cost")
 
 
 def projects(home):
@@ -134,7 +137,8 @@ def test_manifest_describes_the_project(session, home):
     assert m["recipe"]["method"]["tool"] == "waffle_slice"
     assert m["recipe"]["method"]["input"]["thickness_mm"] == 6
     assert m["recipe"]["nest"]["sheet_width_mm"] == 1200
-    assert m["recipe"]["estimate"]["sheet_price"] == 12.5
+    settings = json.loads((projects(home) / "Stool" / "settings.json").read_text())
+    assert settings["values"]["sheet_price"]["value"] == 12.5
     assert m["summary"]["sheet_count"] >= 1
     assert m["summary"]["part_count"] == 6
     assert m["summary"]["total_cost"] > 0

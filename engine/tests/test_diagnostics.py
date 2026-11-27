@@ -153,3 +153,32 @@ def app_with_home(tmp_path, monkeypatch, lifecycle):
     monkeypatch.setenv("ENGINE_DATA_DIR", str(tmp_path / "data"))
     app = create_app(shutdown_token=TOKEN, lifecycle=lifecycle)
     return app, app.config["DESIGN"]
+
+
+def test_listener_reports_on_and_off_to_the_diagnostics_endpoint():
+    from cardboard_engine.assets import rhino_live_listener as L
+
+    sent = []
+
+    class Reply:
+        def read(self):
+            return b"{}"
+
+        def close(self):
+            pass
+
+    def opener(req, timeout=None):
+        sent.append((req.get_full_url(), json.loads(req.data.decode("utf-8")), req.get_method()))
+        return Reply()
+
+    assert L.report(5001, "LiveDesign listener turned off", {"on": False, "last_version": 4}, opener=opener)
+    url, body, method = sent[0]
+    assert url == "http://127.0.0.1:5001/api/diagnostics"
+    assert method == "POST"
+    assert body["source"] == "grasshopper"
+    assert body["details"]["last_version"] == 4
+
+    def broken(req, timeout=None):
+        raise OSError("app closed")
+
+    assert L.report(5001, "x", {}, opener=broken) is False  # never raises inside Grasshopper

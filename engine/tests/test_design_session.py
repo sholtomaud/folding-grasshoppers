@@ -175,7 +175,10 @@ def test_estimate_cost_measures_the_design(session):
     run(session, "create_shape", shape="box", width_mm=100, depth_mm=60, height_mm=40)
     run(session, "unfold", tab_width_mm=0)
     run(session, "nest_sheets", sheet_width_mm=600, sheet_height_mm=400)
-    text = run(session, "estimate_cost", sheet_price=4.5, machine_rate=60)
+    # Prices are settings (#28), never estimate_cost inputs.
+    session.settings.set("sheet_price", 4.5, scope="project", set_by="test")
+    session.settings.set("machine_rate", 60, scope="project", set_by="test")
+    text = run(session, "estimate_cost")
     assert "Total" in text
     est = session.last_estimate
     # The net of a 100 x 60 x 40 box: 6 faces, 7 folds; perimeter is at least the faces' outline.

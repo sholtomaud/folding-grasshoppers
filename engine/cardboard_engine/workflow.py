@@ -52,8 +52,8 @@ STANDARD: dict = {
         {"title": "Nest on sheets", "tools": ["nest_sheets"],
          "instructions": "Nest the parts on the workflow's board size.", "optional": False},
         {"title": "Estimate cost", "tools": ["estimate_cost"],
-         "instructions": "Estimate machine time and cost. If a price is missing, ask for it, then offer to "
-                         "remember it with set_workflow_defaults.", "optional": False},
+         "instructions": "Estimate machine time and cost. Prices come from the settings: if one is missing, "
+                         "ask for it with request_inputs and wait.", "optional": False},
         {"title": "Cut files", "tools": ["export_cut_files"],
          "instructions": "Only when the designer asks for files.", "optional": True},
         {"title": "Save project", "tools": ["save_project"],
@@ -61,10 +61,12 @@ STANDARD: dict = {
     ],
     "defaults": {
         "nest_sheets": {"sheet_width_mm": 1200, "sheet_height_mm": 800, "gap_mm": 5, "margin_mm": 10},
-        "estimate_cost": {"sheet_price": None, "machine_rate": None},
     },
+    "settings": {},
     "questions": [],
 }
+# Inputs that used to be estimate_cost values and are now settings (see settings.py).
+LEGACY_SETTING_INPUTS = {"estimate_cost": ("sheet_price", "machine_rate")}
 
 
 class WorkflowError(ValueError):
@@ -99,18 +101,21 @@ class WorkflowStore:
     """
 
     def __init__(self, home: str, tools: Dict[str, dict], check_args: Callable[[dict, dict], dict],
-                 workflow_tools=()):
+                 workflow_tools=(), check_setting: Optional[Callable[[str, Any], Any]] = None):
         self.home = home
         self.tools = tools
         self.check_args = check_args
         self.workflow_tools = set(workflow_tools)
+        # check_setting(key, value) -> clean value, raising ValueError (settings.py)
+        self.check_setting = check_setting
 
     @property
     def folder(self) -> str:
         return workflows_dir(self.home)
 
     # ---- validation ------------------------------------------------------
-    def validate(self, raw) -> dict:
+    def validate(self, raw, migrate: bool = False) -> dict:
+        """A clean workflow. ``migrate``: move prices saved as tool inputs by older versions into settings."""
         if not isinstance(raw, dict):
             raise WorkflowError("A workflow must be an object")
         try:
@@ -144,7 +149,29 @@ class WorkflowStore:
                 "instructions": _text(s.get("instructions"), f"Step {i} instructions"),
                 "optional": optional,
             })
-        defaults = self._validate_defaults(raw.get("defaults") or {})
+        defaults_raw = raw.get("defaults") or {}
+        settings_raw = raw.get("settings") or {}
+        if not isinstance(settings_raw, dict):
+            raise WorkflowError("settings must be an object: {setting key: value}")
+        settings_raw = dict(settings_raw)
+        if isinstance(defaults_raw, dict):
+            defaults_raw = dict(defaults_raw)
+            for tname, keys in LEGACY_SETTING_INPUTS.items():
+                inputs = defaults_raw.get(tname)
+                if not isinstance(inputs, dict) or not any(k in inputs for k in keys):
+                    continue
+                if not migrate:
+                    raise self._prices_error(tname, [k for k in keys if k in inputs])
+                rest = {k: v for k, v in inputs.items() if k not in keys}
+                for k in keys:
+                    if inputs.get(k) is not None:
+                        settings_raw.setdefault(k, inputs[k])
+                if rest:
+                    defaults_raw[tname] = rest
+                else:
+                    del defaults_raw[tname]
+        defaults = self._validate_defaults(defaults_raw)
+        settings = self._validate_settings(settings_raw)
         questions = raw.get("questions") or []
         if not isinstance(questions, list) or not all(isinstance(q, str) for q in questions):
             raise WorkflowError("questions must be a list of text")
@@ -154,8 +181,30 @@ class WorkflowStore:
             "description": _text(raw.get("description"), "description"),
             "steps": steps,
             "defaults": defaults,
+            "settings": settings,
             "questions": [q.strip()[:500] for q in questions if q.strip()][:MAX_QUESTIONS],
         }
+
+    @staticmethod
+    def _prices_error(tname: str, keys) -> WorkflowError:
+        return WorkflowError(
+            f"{', '.join(keys)} are settings, not {tname} inputs: the engine reads them from the project "
+            "settings, and Claude never types prices. Ask the designer with request_inputs, and they choose "
+            "this project or all projects.")
+
+    def _validate_settings(self, raw: dict) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for key, value in raw.items():
+            if value is None:
+                continue
+            if self.check_setting is None:
+                out[key] = value
+                continue
+            try:
+                out[key] = self.check_setting(key, value)
+            except ValueError as exc:
+                raise WorkflowError(f"settings: {exc}") from None
+        return out
 
     def _validate_defaults(self, raw) -> Dict[str, Dict[str, Any]]:
         if not isinstance(raw, dict):
@@ -207,7 +256,7 @@ class WorkflowStore:
         for f in files[:MAX_WORKFLOWS]:
             raw = self._read_json(os.path.join(self.folder, f))
             try:
-                wf = self.validate(raw)
+                wf = self.validate(raw, migrate=True)
             except WorkflowError:
                 continue
             found.setdefault(wf["name"].lower(), wf)
@@ -274,6 +323,11 @@ class WorkflowStore:
         if wf is None:
             names = ", ".join(w["name"] for w in self.all())
             raise WorkflowError(f"There is no workflow called {workflow!r}. Workflows: {names}")
+        if isinstance(defaults, dict):
+            for tname, keys in LEGACY_SETTING_INPUTS.items():
+                inputs = defaults.get(tname)
+                if isinstance(inputs, dict) and any(k in inputs for k in keys):
+                    raise self._prices_error(tname, [k for k in keys if k in inputs])
         new = self._validate_defaults(defaults)
         merged = copy.deepcopy(wf["defaults"])
         for tname, inputs in new.items():
@@ -359,6 +413,9 @@ class WorkflowStore:
             lines.append("Saved values:")
             for tname, inputs in wf["defaults"].items():
                 lines.append(f"- {tname}: " + ", ".join(f"{k} {_fmt(v)}" for k, v in inputs.items()))
+        if wf.get("settings"):
+            lines.append("Settings this workflow sets (the engine uses them; project values win): "
+                         + ", ".join(f"{k}" for k in wf["settings"]))
         if wf["questions"]:
             lines.append("Ask these at the start of a new design, in one message, unless already answered:")
             lines.extend(f"- {q}" for q in wf["questions"])
@@ -369,5 +426,6 @@ class WorkflowStore:
         lines.append(
             "When the designer describes a way of working they want repeated (for example \"always nest on "
             "2400 x 1200 honeycomb and quote it\"), offer to save it with save_workflow. Remember a value they "
-            "give (a sheet price, a board size) with set_workflow_defaults when they agree.")
+            "give (a board size, a gap) with set_workflow_defaults when they agree. Prices and rates are settings: ask for "
+            "them with request_inputs, never type them into a tool.")
         return "\n".join(lines)
