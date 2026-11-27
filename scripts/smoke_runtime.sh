@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Smoke-test build/python-runtime on this Mac with the runtime's own
-# interpreter (the one CardboardCAD.app ships and launches), in isolated mode.
+# interpreter (the one Fold Theory.app ships and launches), in isolated mode.
 # No system Python, uv or Node is used. `make runtime` builds the runtime in
 # the dev container, where this macOS interpreter cannot run, so the Makefile
 # and build_app.sh run this step afterwards.

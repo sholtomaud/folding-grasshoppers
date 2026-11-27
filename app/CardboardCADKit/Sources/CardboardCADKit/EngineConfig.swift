@@ -57,7 +57,7 @@ public struct EngineConfig: Equatable, Sendable {
 
     /// Resolve paths from the running bundle (never a hard-coded /Applications path).
     public static func resolve(
-        appName: String = "CardboardCAD",
+        appName: String = AppBrand.name,
         bundleURL: URL = Bundle.main.bundleURL,
         pythonHome: String? = Bundle.main.object(forInfoDictionaryKey: EngineConfig.pythonHomeInfoKey) as? String,
         port: Int,

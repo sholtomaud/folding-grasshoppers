@@ -48,7 +48,7 @@ can be previewed and used in other definitions.
   `hops_geometry.py`, plain-JSON twin at `/api/<name>` for the app.
 - Units are mm. Inputs are validated; a bad input raises and Hops shows it
   as a red component error. Never a silent empty result.
-- Fold Theory icon, category `Fold Theory`, subcategory `CardboardCAD`.
+- Fold Theory icon, category `Fold Theory`, subcategory `Fold Theory`.
 - Geometry comes in as `rhino3dm.Mesh` (Hops `Mesh` param). rhino3dm cannot
   mesh or intersect Breps, so the engine slices meshes itself. In
   Grasshopper, put a **Mesh Brep** component in front for Breps.
@@ -88,7 +88,7 @@ negative values, rib spacing not wider than the slot, a mesh no rib cuts.
 | Parts | P | Text | |
 | Format | F | Text | `dxf` (or `svg`) |
 | Name | N | Text | `cardboardcad` |
-| Folder | D | Text | empty = `~/Documents/CardboardCAD` |
+| Folder | D | Text | empty = `~/Documents/Fold Theory` |
 | Write | W | Boolean | False |
 
 Outputs `Paths` (files written) and `Text` (file contents, one per sheet).

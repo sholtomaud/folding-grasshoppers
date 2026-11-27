@@ -4,10 +4,10 @@
 # at several window sizes. Screenshots go to build/window-probe/ and are also
 # printed (small JPEG, base64) between markers so they can be read from the log.
 #
-#   scripts/ci/window_probe.sh build/app/CardboardCAD.app
+#   scripts/ci/window_probe.sh "build/app/Fold Theory.app"
 set -uo pipefail
 APP="${1:?path to .app}"
-BIN="$APP/Contents/MacOS/CardboardCAD"
+BIN="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$ROOT/build/window-probe"
 rm -rf "$OUT"; mkdir -p "$OUT"

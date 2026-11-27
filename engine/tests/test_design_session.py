@@ -105,7 +105,7 @@ def test_create_shape_then_waffle_then_nest_then_export(session, tmp_path):
     assert session.nested is not None
 
     text = run(session, "export_cut_files", format="dxf", name="My Lamp")
-    folder = tmp_path / "Documents" / "CardboardCAD"
+    folder = tmp_path / "Documents" / "Fold Theory"
     files = sorted(os.listdir(folder))
     assert files and all(f.startswith("My-Lamp-sheet") and f.endswith(".dxf") for f in files)
     assert str(folder) in text

@@ -18,7 +18,7 @@ SHEET     8 grey     #999999 (sheet outline)
 ========  =========  ==========================
 
 Files are written only under the user's home folder (default
-``~/Documents/CardboardCAD``), with a sanitised name and a forced extension:
+``~/Documents/Fold Theory``), with a sanitised name and a forced extension:
 any local process can call the engine, so the path must not be free-form.
 """
 
@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Sequence, Tuple
 from xml.sax.saxutils import escape, quoteattr
 
+from ..brand import documents_dir
 from .parts import Part, PartsDoc, Sheet
 
 Point2 = Tuple[float, float]
@@ -213,10 +214,10 @@ def safe_file_stem(name: str) -> str:
 
 
 def resolve_export_dir(folder: str, home: str) -> str:
-    """The folder to write into: ``folder`` (inside ``home``) or ~/Documents/CardboardCAD."""
+    """The folder to write into: ``folder`` (inside ``home``) or ~/Documents/Fold Theory."""
     home_real = os.path.realpath(home)
     if not folder or not folder.strip():
-        return os.path.join(home, "Documents", "CardboardCAD")
+        return documents_dir(home)
     f = folder.strip()
     if f == "~" or f.startswith("~/"):
         f = os.path.join(home, f[2:])

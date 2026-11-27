@@ -35,7 +35,7 @@ public struct ProjectOpened: Codable, Equatable, Sendable {
 
 /// Saves and opens project folders. The engine writes the files; the app sends the chat along.
 public protocol DesignProjectStore: AnyObject {
-    /// An empty `folder` means ~/Documents/CardboardCAD/Projects/<name>.
+    /// An empty `folder` means ~/Documents/Fold Theory/Projects/<name>.
     func saveProject(name: String, folder: String, chat: JSONValue?) async throws -> ProjectSaved
     func openProject(folder: String) async throws -> ProjectOpened
 }
@@ -160,10 +160,10 @@ public final class ProjectController {
     public var canSaveAgain: Bool { current != nil && store != nil && !isWorking }
 
     public static func defaultProjectsFolder(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        home.appendingPathComponent("Documents/CardboardCAD/Projects", isDirectory: true)
+        AppBrand.documentsFolder(home: home).appendingPathComponent("Projects", isDirectory: true)
     }
 
-    /// Save As: `folder` empty means ~/Documents/CardboardCAD/Projects/<name>.
+    /// Save As: `folder` empty means ~/Documents/Fold Theory/Projects/<name>.
     @discardableResult
     public func save(name: String, folder: String = "") async -> Bool {
         guard let store else {

@@ -1,7 +1,7 @@
 """Hello-world demo against a running engine, speaking the same protocol as Hops.
 
     # 1. start an engine (any of these)
-    open CardboardCAD.app                                    # the app starts it on :5001
+    open "/Applications/Fold Theory.app"                                    # the app starts it on :5001
     cd engine && uv run python -m cardboard_engine.server     # dev, no app needed
 
     # 2. run the demo (stdlib only)

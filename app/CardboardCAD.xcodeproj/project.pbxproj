@@ -30,7 +30,7 @@
 		BB5944C6515D6D2B678426AB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		86B3BC083DF59791BE56CFAE /* CardboardCAD.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CardboardCAD.entitlements; sourceTree = "<group>"; };
 		B1F0EC91477E7DD9C138A3AC /* CardboardCADKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = CardboardCADKit; sourceTree = "<group>"; };
-		F5BF48AA40CAD7891EB709FC /* CardboardCAD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CardboardCAD.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F5BF48AA40CAD7891EB709FC /* Fold Theory.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Fold Theory.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,7 +57,7 @@
 		86024CAD1E83101D97359D73 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F5BF48AA40CAD7891EB709FC /* CardboardCAD.app */,
+				F5BF48AA40CAD7891EB709FC /* Fold Theory.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -107,7 +107,7 @@
 				2BAFBE90D711F96380E9193E /* CardboardCADKit */,
 			);
 			productName = CardboardCAD;
-			productReference = F5BF48AA40CAD7891EB709FC /* CardboardCAD.app */;
+			productReference = F5BF48AA40CAD7891EB709FC /* Fold Theory.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -244,7 +244,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.cardboardcad;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Fold Theory";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -272,7 +272,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.cardboardcad;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Fold Theory";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

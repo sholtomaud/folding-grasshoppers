@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-PRODUCT = "CardboardCAD by Fold Theory"
+from ..brand import APP_NAME
+
+PRODUCT = APP_NAME
 
 
 def greet(name: str | None = None) -> str:
