@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Bindable var assistant: DesignAssistant
     let claudeKey: ClaudeKey
     let workflows: WorkflowController
+    let projects: ProjectController
     @State private var portText = ""
     @State private var copied: String?
     @State private var keyText = ""
@@ -56,6 +57,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             WorkflowSettingsSection(workflows: workflows)
+            ProjectLocationsSection(projects: projects)
             Section("Engine") {
                 HStack {
                     TextField("Port", text: $portText)
@@ -116,5 +118,114 @@ struct SettingsView: View {
         guard let p = parsedPort else { return }
         UserDefaults.standard.set(p, forKey: AppInfo.portDefaultsKey)
         Task { await engine.updatePort(p) }
+    }
+}
+
+// MARK: - Projects location (#49)
+
+/// Where projects and the library are saved. Point it at a folder Google Drive,
+/// OneDrive or iCloud Drive syncs and every cut file, quote and PDF reaches the cloud.
+struct ProjectLocationsSection: View {
+    let projects: ProjectController
+
+    var body: some View {
+        Section {
+            row("Projects", path: projects.locations?.projects ?? projects.projectsFolder.path,
+                isDefault: projects.locations?.isDefault.projects ?? true,
+                choose: { Task { await choose(projectsFolder: true) } },
+                reset: { Task { await projects.setLocations(projects: "") } })
+            row("Library", path: projects.locations?.library ?? "",
+                isDefault: projects.locations?.isDefault.library ?? true,
+                choose: { Task { await choose(projectsFolder: false) } },
+                reset: { Task { await projects.setLocations(library: "") } })
+            if let error = projects.locationError {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Locations")
+        } footer: {
+            Text("To keep projects in Google Drive, OneDrive or iCloud Drive, choose a folder inside the one it syncs, "
+                 + "for example ~/Library/CloudStorage/GoogleDrive-…/My Drive/Fold Theory/Projects. "
+                 + "This setting is kept on this Mac only.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .task { await projects.refreshLocations() }
+    }
+
+    private func row(_ title: String, path: String, isDefault: Bool,
+                     choose: @escaping () -> Void, reset: @escaping () -> Void) -> some View {
+        LabeledContent(title) {
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(path.isEmpty ? "—" : path)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                HStack {
+                    Button("Choose…", action: choose)
+                    Button("Use Default", action: reset).disabled(isDefault)
+                    Button("Show in Finder") {
+                        let url = URL(fileURLWithPath: path, isDirectory: true)
+                        if FileManager.default.fileExists(atPath: path) { NSWorkspace.shared.open(url) }
+                    }
+                    .disabled(path.isEmpty)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func choose(projectsFolder: Bool) async {
+        let panel = NSOpenPanel()
+        panel.title = projectsFolder ? "Projects Location" : "Library Location"
+        panel.message = "Choose the folder to save into. A folder inside Google Drive, OneDrive or iCloud Drive is synced."
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        let current = projectsFolder ? projects.locations?.projects : projects.locations?.library
+        if let current, FileManager.default.fileExists(atPath: current) {
+            panel.directoryURL = URL(fileURLWithPath: current, isDirectory: true)
+        }
+        guard await ModalUI.run(panel) == .OK, let url = panel.url else { return }
+        if projectsFolder {
+            await projects.setLocations(projects: url.path)
+        } else {
+            await projects.setLocations(library: url.path)
+        }
+    }
+}
+
+/// Warn when the open project's files changed on disk (another Mac, a sync): checked each
+/// time the app comes to the front, and before Save writes over them.
+@MainActor
+struct ProjectChangeAlert: ViewModifier {
+    let projects: ProjectController
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                Task { await projects.checkForOutsideChanges() }
+            }
+            .alert("Project changed on disk", isPresented: shown) {
+                Button("Open Again") { Task { await projects.reopen() } }
+                Button("Save Anyway") { Task { await projects.saveAgain(overwrite: true) } }
+                Button("Cancel", role: .cancel) { projects.dismissOutsideChanges() }
+            } message: {
+                Text((projects.outsideChanges?.summary ?? "")
+                     + "\n\nOpen Again loads the files as they are now. Save Anyway replaces them with this design.")
+            }
+    }
+
+    private var shown: Binding<Bool> {
+        Binding(get: { projects.outsideChanges != nil }, set: { if !$0 { projects.dismissOutsideChanges() } })
+    }
+}
+
+extension View {
+    func projectChangeAlert(_ projects: ProjectController) -> some View {
+        modifier(ProjectChangeAlert(projects: projects))
     }
 }
