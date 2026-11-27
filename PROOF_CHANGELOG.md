@@ -112,22 +112,22 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Previous Attestation:** `9c9da5e111daab769af25ef7e505bff0926dbcf4c7dffe7d9b2fd071bb7b6c33`
 - **Attestation SHA-256:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`
 
-## 2026-11-26T23:38:31Z — `45d9be2` (PASS)
+## 2026-11-26T23:42:10Z — `8343003` (PASS)
 
-- **Commit:** `45d9be2`
-- **Timestamp:** `2026-11-26T23:38:31Z`
-- **Proof Lock Root SHA-256:** `2ab4652e72ea831f37bb4a00fce6531b49eb670282529132cf74459357ee7efe`
+- **Commit:** `8343003`
+- **Timestamp:** `2026-11-26T23:42:10Z`
+- **Proof Lock Root SHA-256:** `ebba7fc11dcf5d0770c9218e657dbbfa03f888c6fd8291d1015beaaee57c444d`
 - **Verdict:** `PASS`
-- **Summary:** CI window probe: checks the chat message box is visible in the real app window
+- **Summary:** Workflows: 25 engine tests, 12 Swift tests; floors pytest 347, swift 118
 - **Previous Attestation:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`
-- **Attestation SHA-256:** `2474565d432fb47be877210824778a764db89e5c1392f28a3dca91a594b1a98c`
+- **Attestation SHA-256:** `f5484fc3d08605a81ac4e67bbf06a4620d5ef15fe28eaa166a711089385c320c`
 
-## 2026-11-27T00:24:30Z — `a3e8243` (PASS)
+## 2026-11-27T00:28:27Z — `8aabc72` (PASS)
 
-- **Commit:** `a3e8243`
-- **Timestamp:** `2026-11-27T00:24:30Z`
-- **Proof Lock Root SHA-256:** `6dcaf2be8904daa46a81b7cbad51e7f5e0712e37763951cce20a59d7725c26c6`
+- **Commit:** `8aabc72`
+- **Timestamp:** `2026-11-27T00:28:27Z`
+- **Proof Lock Root SHA-256:** `ec5790d0cc6075b77ac198e3ca23086ff900709a89753d6b947405b9290eb940`
 - **Verdict:** `PASS`
-- **Summary:** Window probe also on macOS 26; realistic chat; report script
-- **Previous Attestation:** `2474565d432fb47be877210824778a764db89e5c1392f28a3dca91a594b1a98c`
-- **Attestation SHA-256:** `9c0688c4509b812628faf3f12dbe03bd6e17e3919d38f4fe24b0fb63609174f7`
+- **Summary:** Window probe (macOS 15 and 26), listener alert as a sheet, explicit Cmd+Q; merged with main
+- **Previous Attestation:** `f5484fc3d08605a81ac4e67bbf06a4620d5ef15fe28eaa166a711089385c320c`
+- **Attestation SHA-256:** `831c4c9f3f264ec0dd626c222b19c80ef6e559795fc62517b905438276a0b6e9`
