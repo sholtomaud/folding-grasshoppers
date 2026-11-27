@@ -48,6 +48,7 @@ ACTIONS: Dict[str, str] = {
     "export_cut_files": "Write the cut files",
     "save_project": "Save the project",
     "open_diagnostics": "Show the Diagnostics panel",
+    "check_brief": "Check the design against the brief",
 }
 
 _COMMON = {"type", "id"}
@@ -115,7 +116,14 @@ def static_catalog(setting_keys=()) -> Dict[str, dict]:
         "sheets": _collection("Sheets", ("index", "parts", "utilisation")),
         "diagnostics": _collection("Diagnostics", ("time", "source", "level", "message")),
         "preview.model": _scalar("Picture of the model"),
+        "brief.items": _collection("Items wanted", ("name", "quantity", "notes")),
+        "brief.checks": _collection("Brief checks", ("key", "label", "status", "message")),
     }
+    from .brief import FIELDS as BRIEF_FIELDS
+
+    for key, f in BRIEF_FIELDS.items():
+        if f["type"] != "items":
+            cat[f"brief.{key}"] = _scalar(f["label"], editable=True)
     for key in set(BUILTIN_DEFINITIONS) | set(setting_keys):
         cat[f"settings.{key}"] = _scalar(f"Setting {key}", editable=True)
     return cat
