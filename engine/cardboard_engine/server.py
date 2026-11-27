@@ -48,6 +48,7 @@ from .components.geometry import GeometryError  # noqa: E402
 from .components.parts import PartsError  # noqa: E402
 from .hops_activity import HopsActivity  # noqa: E402
 from .project import ProjectChangedError  # noqa: E402
+from .brief import BriefError  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
 BIND_HOST = "127.0.0.1"  # never 0.0.0.0
@@ -257,6 +258,22 @@ def _register_locations(app: Flask, session: DesignSession) -> None:
         try:
             return jsonify(session.set_locations(projects=data.get("projects"), library=data.get("library")))
         except ProjectError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+
+    @app.get("/api/brief")
+    def brief_get():
+        """The brief's values, its fields and the checks against the current design."""
+        return jsonify(session.brief_listing())
+
+    @app.post("/api/brief")
+    def brief_set():
+        """Body: {values: {field: value}}; null clears a field. The Brief view edits the brief here."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="invalid_input", message="Body must be {values}"), 400
+        try:
+            return jsonify(session.set_brief(data.get("values")))
+        except BriefError as exc:
             return jsonify(error="invalid_input", message=str(exc)), 422
 
     @app.get("/api/design/project/status")

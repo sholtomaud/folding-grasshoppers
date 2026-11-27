@@ -455,11 +455,13 @@ public final class ProjectViewsController {
     @ObservationIgnored public var onAppAction: ((String) -> Void)?
     @ObservationIgnored private var client: ProjectDataClient?
 
-    public static let designTools: Set<String> = ["estimate_cost", "nest_sheets", "export_cut_files"]
+    public static let designTools: Set<String> = ["estimate_cost", "nest_sheets", "export_cut_files", "check_brief"]
 
     public init() {}
 
     public var isConnected: Bool { client != nil }
+
+    var attachedClient: ProjectDataClient? { client }
 
     public func attach(client: ProjectDataClient?) {
         self.client = client

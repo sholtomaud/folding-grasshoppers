@@ -317,6 +317,29 @@ removed before anything is written. The log is
 `~/Library/Application Support/Fold Theory/diagnostics/diagnostics.jsonl`
 (1 MB, then it moves to `diagnostics.jsonl.1`).
 
+### The brief and its checks
+
+Tell the assistant what the client asked for ("the stand is 6 × 3 m, 2.4 m
+high at most, budget 8000, it ships on one 1200 × 1000 pallet") and it fills in
+the **brief**. The **Brief** tab shows it and lets you change any field. Type
+a value and press Return; empty a field to clear it.
+
+After every change the engine checks the design against the brief and shows
+each check as pass, warn or fail, with its own numbers:
+
+| Check | Against |
+|---|---|
+| Height | the whole scene's height and the maximum height, e.g. *2450 of 2400 mm* |
+| Footprint | the scene's width and depth and the stand (turning it 90 degrees is allowed) |
+| Budget | the engine's quote total and the budget |
+| Pallet | the stack of nested sheets on the pallet, e.g. *12 sheets x 6 mm = 72 mm stack*, and the stack limit |
+| Sheet size | the nested sheet size and the brief's sheet size |
+
+Only the fields that are set are checked. When a step makes a check fail, the
+assistant is told and must fix it, or ask you to change the brief, before it
+calls a concept done. Saving writes `brief.json` and a readable `brief.md`
+(with the latest checks) into the project folder.
+
 ### Several objects in one design (a scene)
 
 A stand is a counter, some stools and a back wall. Ask for them together, for

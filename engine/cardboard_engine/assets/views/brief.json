@@ -1,0 +1,58 @@
+{
+  "schema": "cardboardcad.view/1",
+  "id": "brief",
+  "title": "Brief",
+  "description": "What the client asked for, and the engine's checks of the design against it.",
+  "blocks": [
+    {
+      "type": "section",
+      "title": "Checks",
+      "blocks": [
+        {"type": "table", "bind": "brief.checks", "columns": ["label", "status", "message"]},
+        {"type": "text", "style": "caption", "text": "The engine checks the design after every change. Claude deals with a failing check before it calls a concept done."},
+        {"type": "button", "label": "Check again", "action": "check_brief"}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Stand",
+      "blocks": [
+        {"type": "field", "bind": "brief.footprint_width_mm", "editable": true},
+        {"type": "field", "bind": "brief.footprint_depth_mm", "editable": true},
+        {"type": "field", "bind": "brief.max_height_mm", "editable": true},
+        {"type": "field", "bind": "brief.venue_limits", "editable": true}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Items",
+      "blocks": [
+        {"type": "table", "bind": "brief.items", "columns": ["name", "quantity", "notes"]},
+        {"type": "field", "bind": "brief.seats", "editable": true},
+        {"type": "field", "bind": "brief.load_per_seat_kg", "editable": true},
+        {"type": "field", "bind": "brief.shelf_load_kg", "editable": true}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Board and shipping",
+      "blocks": [
+        {"type": "field", "bind": "brief.board_grade", "editable": true},
+        {"type": "field", "bind": "brief.sheet_width_mm", "editable": true},
+        {"type": "field", "bind": "brief.sheet_height_mm", "editable": true},
+        {"type": "field", "bind": "brief.pallet_length_mm", "editable": true},
+        {"type": "field", "bind": "brief.pallet_width_mm", "editable": true},
+        {"type": "field", "bind": "brief.pallet_max_height_mm", "editable": true},
+        {"type": "field", "bind": "brief.assembly_time_h", "editable": true}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Budget and branding",
+      "blocks": [
+        {"type": "field", "bind": "brief.budget", "editable": true},
+        {"type": "field", "bind": "brief.branding", "editable": true}
+      ]
+    }
+  ]
+}

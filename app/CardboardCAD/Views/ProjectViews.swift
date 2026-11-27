@@ -185,7 +185,7 @@ struct TabsBlock: View {
     }
 }
 
-/// One value. A field bound to settings.<key> with editable true can be changed in place.
+/// One value. A field bound to settings.<key> or brief.<key> with editable true can be changed in place.
 struct FieldBlock: View {
     let block: ViewBlock
     let views: ProjectViewsController
@@ -194,7 +194,7 @@ struct FieldBlock: View {
 
     var body: some View {
         let value = views.value(block.bind)
-        let isSetting = block.bind?.hasPrefix("settings.") == true
+        let isSetting = ViewBinding.isEditable(block.bind)
         HStack(alignment: .firstTextBaseline) {
             Text(block.label ?? value?["label"]?.stringValue ?? block.bind ?? "")
                 .foregroundStyle(.secondary)
@@ -215,7 +215,11 @@ struct FieldBlock: View {
 
     private func commit(_ value: JSONValue?) {
         guard let key = value?["key"]?.stringValue else { return }
-        Task { await views.setSetting(key: key, text: draft, setBy: NSFullUserName()) }
+        if ViewBinding.isBrief(block.bind) {
+            Task { await views.setBrief(key: key, text: draft) }
+        } else {
+            Task { await views.setSetting(key: key, text: draft, setBy: NSFullUserName()) }
+        }
     }
 }
 

@@ -36,6 +36,7 @@ from .diagnostics import LEVELS as DIAG_LEVELS, SOURCES as DIAG_SOURCES, Diagnos
 from .formulas import FormulaError, FormulaStore, build_quote, needed_fields
 from . import rhino_sync
 from . import scene as sc
+from . import brief as bf
 from .rhino_sync import Override
 from .project import ProjectError
 from .settings import BUILTIN_DEFINITIONS, SettingsError, SettingsStore, definition_from, field_for_form
@@ -45,7 +46,8 @@ from .workflow import WorkflowError, WorkflowStore
 VALIDATION_ERRORS = (SettingsError, FormulaError, ViewError, WorkflowError)
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
-    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, *VALIDATION_ERRORS,
+    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, bf.BriefError,
+    *VALIDATION_ERRORS,
 )
 # Prices and rates are settings, never tool inputs (Claude never types the numbers).
 SETTING_ONLY_INPUTS = {"estimate_cost": ("sheet_price", "machine_rate", "labour_rate", "margin_pct", "gst_pct")}
@@ -58,8 +60,10 @@ WORKFLOW_TOOLS = {"list_workflows", "save_workflow", "use_workflow", "set_workfl
 SETUP_TOOLS = {"request_inputs", "get_settings", "add_formula", "list_formulas", "list_views", "save_view",
                "read_diagnostics"}
 # Tools that do not change the design: a saved project stays saved.
-READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_objects", "select_object"}
-                   | WORKFLOW_TOOLS | SETUP_TOOLS)
+READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_objects", "select_object",
+                    "check_brief"} | WORKFLOW_TOOLS | SETUP_TOOLS)
+# The brief (brief.py): not workflow steps, and failing checks are not reported back on them.
+BRIEF_TOOLS = {"set_brief", "check_brief"}
 # Scene (#43): tools that take an optional object name, and the scene tools themselves.
 OBJECT_TOOLS = ("create_shape", "load_model_file", "scale_model", "model_info", "waffle_slice", "contour_stack",
                 "unfold", "clear_rhino_override")
@@ -79,6 +83,7 @@ You turn what the designer asks for into calls to the tools you have. The tools 
    - unfold: folds the model's flat faces into nets with glue tabs. Only for faceted (low-poly) models; it makes hollow shells.
    A new method replaces the previous parts.
 3. Sheets: nest_sheets lays the parts onto as few sheets of board as it can.
+   The brief (set_brief) holds what the client asked for: stand footprint and maximum height, venue limits, the items wanted, loads and seats, board and sheet size, pallet, assembly time, budget and branding. Fill it in from the conversation as soon as the designer gives these. The engine checks the design against it after every step (check_brief lists the checks); a tool result that says "Brief check failed" must be dealt with (change the design, or ask the designer to change the brief) before you call a concept done.
    A design can be a scene of several named objects (a counter, four stools, a back wall). Pass object="counter" to create_shape, load_model_file, scale_model, model_info or a method to work on that object (a new name adds it); add_object, copy_object (for identical stools), move_object, remove_object, select_object and list_objects manage them. Each object has its own model, position and method, and its parts get its prefix (C-X1, S1-X1). nest_sheets, estimate_cost, export_cut_files and save_project always cover the whole scene.
 4. Then estimate_cost (machine time and money) and export_cut_files (DXF or SVG cut files, one per sheet).
 The active workflow (below) says which of these steps to run, in what order, and with which saved values.
@@ -444,6 +449,19 @@ TOOLS += [
     ),
     _tool("list_objects", "List the scene's objects: name, prefix, position, method and part count.", {}),
 ]
+TOOLS += [
+    _tool(
+        "set_brief",
+        "Fill in or change the design brief: what the client asked for. Only the fields given change; null "
+        "clears one. Fields: " + ", ".join(f"{k} ({f['label']}{', ' + f['unit'] if f['unit'] else ''})"
+                                            for k, f in bf.FIELDS.items())
+        + ". items is a list of {name, quantity, notes}. The engine checks the design against the brief.",
+        {"values": {"type": "object", "description": "{field: value}"}},
+        required=["values"],
+    ),
+    _tool("check_brief", "Check the design against the brief: height, footprint, budget, pallet and sheet size, "
+                         "each pass, warn or fail with the engine's numbers.", {}),
+]
 for _t in TOOLS:
     if _t["name"] in OBJECT_TOOLS:
         _t["input_schema"]["properties"]["object"] = dict(_OBJ)
@@ -563,6 +581,7 @@ class DesignSession:
         # is in the attributes above ("state": None); the others keep theirs in their entry.
         self.scene_objects: List[dict] = []
         self.active: Optional[str] = None
+        self.brief: Dict[str, Any] = {}  # brief.py: what the client asked for
         self.scene_doc: Optional[PartsDoc] = None  # the scene's parts once nested
         self._clear_all()
         self.steps: List[dict] = []
@@ -599,6 +618,7 @@ class DesignSession:
             self._clear_all()
             self.overrides, self.notes, self.notices = {}, [], []
             self.scene_objects, self.active = [], None
+            self.brief = {}
             self.steps = []
             self.project = None
             self.settings.clear_project()
@@ -625,13 +645,17 @@ class DesignSession:
                 if name in OBJECT_TOOLS and isinstance(args, dict) and args.get("object") is not None:
                     args = dict(args)
                     self._use_object(args.pop("object"), create=name in MODEL_TOOLS)
-                if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS:
+                if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS and name not in BRIEF_TOOLS:
                     args, used, ask = self.workflows.fill(name, args)
                 if name in OBJECT_TOOLS and isinstance(args, dict):
                     args = {k: v for k, v in args.items() if k != "object"}
                 checked = _check_args(tool, args)
                 text = getattr(self, "_t_" + name)(**checked)
-                if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS:
+                if self.brief and name not in READ_ONLY_TOOLS and name not in BRIEF_TOOLS:
+                    failed = bf.failures_text(self.brief_checks())
+                    if failed:
+                        text += "\n" + failed
+                if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS and name not in BRIEF_TOOLS:
                     extra = " ".join(x for x in (self.workflows.notes(name, used, ask),
                                                  self.workflows.next_step(name)) if x)
                     if extra:
@@ -924,6 +948,13 @@ class DesignSession:
                 return [{"index": i + 1, "parts": n, "utilisation": util[i] if i < len(util) else None}
                         for i, n in enumerate(len(s.parts) for s in self._sheet_doc().layout())] \
                     if self._sheet_doc() else []
+            if binding == "brief.checks":
+                return self.brief_checks()
+            if binding == "brief.items":
+                return list(self.brief.get("items") or [])
+            if binding.startswith("brief."):
+                return bf.binding_value(self.brief, binding.split(".", 1)[1],
+                                        self.brief_facts().get("currency", ""))
             if binding == "diagnostics":
                 return [{k: e.get(k) for k in ("time", "source", "level", "message")}
                         for e in self.diagnostics.read(limit=50)]
@@ -1167,6 +1198,56 @@ class DesignSession:
     def _t_select_object(self, name):
         self._activate(self._entry(name)["name"])
         return "Active object: " + self._describe_object(self._entry(self.active))
+
+    # ---- brief (brief.py) --------------------------------------------------
+    def brief_facts(self) -> Dict[str, Any]:
+        """What the brief is checked against, all worked out by the engine."""
+        facts: Dict[str, Any] = {}
+        meshes = [m for _, m in self._placed_meshes()]
+        if meshes:
+            boxes = [m.bbox() for m in meshes]
+            lo = [min(b[0][i] for b in boxes) for i in range(3)]
+            hi = [max(b[1][i] for b in boxes) for i in range(3)]
+            facts["size_mm"] = [round(hi[i] - lo[i], 3) for i in range(3)]
+        q = self.last_quote or {}
+        facts["quote_total"] = q.get("total")
+        facts["currency"] = q.get("currency") or self.settings.resolve("currency")["value"] or "AUD"
+        if self.nested:
+            facts["sheet_count"] = self.nested["sheet_count"]
+            facts["sheet_size"] = [self.nested["sheet_width"], self.nested["sheet_height"]]
+        states = [self._object_state(e) for e in self.scene_objects] or [
+            {"parts": self.parts, "board_thickness": self.board_thickness}]
+        thick = [st["board_thickness"] for st in states if st["parts"] is not None and st["board_thickness"]]
+        if thick:
+            facts["thickness_mm"] = max(thick)
+        return facts
+
+    def brief_checks(self) -> List[dict]:
+        with self._lock:
+            return bf.check_brief(self.brief, self.brief_facts()) if self.brief else []
+
+    def set_brief(self, values) -> dict:
+        """Change brief fields (None clears one). Raises BriefError and changes nothing on a bad value."""
+        with self._lock:
+            self.brief = bf.merge(self.brief, bf.clean_values(values))
+            self._bump()
+            return self.brief_listing()
+
+    def brief_listing(self) -> dict:
+        return {"values": dict(self.brief), "checks": self.brief_checks(),
+                "fields": [dict(f) for f in bf.FIELDS.values()]}
+
+    def _t_set_brief(self, values):
+        self.brief = bf.merge(self.brief, bf.clean_values(values))
+        set_keys = ", ".join(k for k in values if values[k] is not None) or "none"
+        cleared = ", ".join(k for k in values if values[k] is None)
+        text = f"Brief updated (set: {set_keys}" + (f"; cleared: {cleared}" if cleared else "") + ")."
+        return text + "\n" + bf.checks_text(self.brief_checks())
+
+    def _t_check_brief(self):
+        if not self.brief:
+            return "There is no brief yet. Fill it in with set_brief."
+        return bf.checks_text(self.brief_checks())
 
     def _t_list_objects(self):
         if not self.scene_objects:
@@ -1464,6 +1545,10 @@ class DesignSession:
             files["settings.json"] = self.settings.project_file_text()
         if self.formulas.project_formulas:
             files["formulas.json"] = self.formulas.project_file_text()
+        if self.brief:
+            files[bf.BRIEF_FILE] = bf.file_text(self.brief)
+            files[bf.BRIEF_MD] = bf.markdown(name, self.brief, self.brief_checks(),
+                                             self.brief_facts().get("currency", ""))
         # The model, not the ribs: interlocking ribs cannot be drawn back to front.
         # The app adds preview/preview.png, a snapshot of its 3D preview.
         files["preview/model.svg"] = proj.model_svg([t for _, m in self._placed_meshes() for t in m.triangles()])
@@ -1537,6 +1622,12 @@ class DesignSession:
         scratch = DesignSession(home=self.home)
         scratch.settings.load_project(directory)
         scratch.formulas.load_project(directory)
+        brief_path = os.path.join(directory, bf.BRIEF_FILE)
+        if os.path.isfile(brief_path):
+            try:
+                scratch.brief = bf.read_file(proj._read_text(brief_path, proj.MAX_MANIFEST_BYTES, bf.BRIEF_FILE))
+            except bf.BriefError as exc:
+                raise ProjectError(str(exc)) from None
         recipe = m.get("recipe") or {}
         if not isinstance(recipe, dict):
             raise ProjectError(f"{proj.MANIFEST}: recipe must be an object")
@@ -1577,7 +1668,7 @@ class DesignSession:
         with self._lock:
             for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
                          "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
-                         "generated", "scene_objects", "active", "scene_doc"):
+                         "generated", "scene_objects", "active", "scene_doc", "brief"):
                 setattr(self, attr, getattr(scratch, attr))
             self.notes, self.notices = [], []
             self.settings.project_data = scratch.settings.project_data
@@ -1959,6 +2050,7 @@ class DesignSession:
             "scene": {"objects": objects},
             "objects": self._objects_info(),
             "active_object": self.active,
+            "brief": {"values": dict(self.brief), "checks": self.brief_checks()},
         }
 
     def _mesh_object(self, oid: str, kind: str, label: str, mesh: Mesh) -> dict:
