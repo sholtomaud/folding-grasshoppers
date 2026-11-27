@@ -3,11 +3,11 @@
   "_comment": "Monotonic test-count floors. Sealed in proof-lock.json; lowering a floor needs the allow-harness-change label. Raise them when you add tests.",
   "suites": {
     "pytest": {
-      "minPassed": 415,
+      "minPassed": 506,
       "maxSkipped": 0
     },
     "swift": {
-      "minPassed": 135,
+      "minPassed": 153,
       "maxSkipped": 0
     }
   }

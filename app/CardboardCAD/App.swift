@@ -83,6 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The workflow the assistant follows and the Apply Defaults switch (kept by the engine).
     let workflows = WorkflowController()
 
+    /// The Project tab and the other JSON views, and the Diagnostics panel.
+    let projectViews = ProjectViewsController()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let assistant = assistant
         let workflows = workflows
@@ -154,7 +157,8 @@ struct CardboardCADApp: App {
     var body: some Scene {
         WindowGroup(AppInfo.name) {
             ContentView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey,
-                        projects: delegate.projects, workflows: delegate.workflows)
+                        projects: delegate.projects, workflows: delegate.workflows,
+                        projectViews: delegate.projectViews)
                 .frame(minWidth: 900, minHeight: 480)
                 .projectChangeAlert(delegate.projects)
         }

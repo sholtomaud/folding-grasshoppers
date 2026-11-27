@@ -38,6 +38,9 @@ from .components.hello import greet  # noqa: E402
 from . import hops_geometry  # noqa: E402
 from .design import SYSTEM_PROMPT, TOOLS, DesignSession  # noqa: E402,F401
 from .workflow import WorkflowError  # noqa: E402
+from .diagnostics import DiagnosticsLog  # noqa: E402
+from .settings import SettingsError  # noqa: E402
+from .views import ViewError  # noqa: E402
 from .project import ProjectError  # noqa: E402
 from . import hops_live  # noqa: E402
 from . import rhino_sync  # noqa: E402
@@ -264,7 +267,9 @@ def _register_locations(app: Flask, session: DesignSession) -> None:
 
 def _register_design(app: Flask) -> DesignSession:
     """Design Assistant routes: the app's chat runs tools here; /preview draws the result."""
-    session = DesignSession(home=os.environ.get("HOME") or os.path.expanduser("~"))
+    data_dir = os.environ.get("ENGINE_DATA_DIR")
+    diagnostics = DiagnosticsLog(os.path.join(data_dir, "diagnostics") if data_dir else None)
+    session = DesignSession(home=os.environ.get("HOME") or os.path.expanduser("~"), diagnostics=diagnostics)
     app.config["DESIGN"] = session
     preview_path = os.path.join(os.path.dirname(__file__), "assets", "preview.html")
     listener_path = os.path.join(os.path.dirname(__file__), "assets", "rhino_live_listener.py")
@@ -285,8 +290,112 @@ def _register_design(app: Flask) -> DesignSession:
         if not isinstance(args, dict):
             return jsonify(error="invalid_input", message="input must be an object"), 400
         result = session.run_tool(data["name"], args)
-        return jsonify(content=result.text, is_error=result.is_error, version=session.version,
-                       setup_changed=result.setup_changed)
+        out = dict(content=result.text, is_error=result.is_error, version=session.version,
+                   setup_changed=result.setup_changed)
+        if result.form is not None:
+            out["form"] = result.form
+        return jsonify(out)
+
+    # ---- settings, forms and the quote -----------------------------------
+    @app.get("/api/settings")
+    def settings_list():
+        """Every setting with its value and the layer it comes from."""
+        return jsonify(session.settings.listing())
+
+    @app.post("/api/settings")
+    def settings_set():
+        """Body: {key, value, scope: project|all, set_by?}. The Project view edits settings here."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("key"), str):
+            return jsonify(error="invalid_input", message="Body must be {key, value, scope}"), 400
+        set_by = data.get("set_by") if isinstance(data.get("set_by"), str) else ""
+        try:
+            session.set_setting(data["key"], data.get("value"), scope=data.get("scope") or "project", set_by=set_by)
+        except SettingsError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(session.settings.listing())
+
+    @app.post("/api/settings/form")
+    def settings_form():
+        """The designer's answer to a request_inputs form. Body: {form_id, values, scope, set_by?}."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("form_id"), str):
+            return jsonify(error="invalid_input", message="Body must be {form_id, values, scope}"), 400
+        set_by = data.get("set_by") if isinstance(data.get("set_by"), str) else ""
+        out = session.submit_form(data["form_id"], data.get("values"), scope=data.get("scope") or "project",
+                                  set_by=set_by)
+        return jsonify(out), (200 if out["ok"] else 422)
+
+    @app.get("/api/quote")
+    def quote():
+        """The last quote the engine worked out (lines, total, the settings and formulas it used)."""
+        return jsonify(session.last_quote or {"lines": [], "total": None})
+
+    @app.get("/api/design/numbers")
+    def design_numbers():
+        """Numbers the engine has shown, as text: the app checks Claude's replies against them."""
+        return jsonify(numbers=session.numbers())
+
+    # ---- views -----------------------------------------------------------
+    @app.get("/api/views")
+    def views_list():
+        return jsonify(views=session.views.listing())
+
+    @app.get("/api/views/<view_id>")
+    def views_get(view_id):
+        try:
+            return jsonify(session.views.render(view_id))
+        except ViewError as exc:
+            return jsonify(error="not_found", message=str(exc)), 404
+
+    @app.post("/api/views")
+    def views_save():
+        """Body: {view, scope: all|project}. A view that fails the schema check is rejected (422)."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="invalid_input", message="Body must be {view, scope}"), 400
+        try:
+            out = session.views.save(data.get("view"), scope=data.get("scope") or "all",
+                                     set_by=data.get("set_by") if isinstance(data.get("set_by"), str) else "")
+        except ViewError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(out)
+
+    @app.post("/api/views/<view_id>/undo")
+    def views_undo(view_id):
+        data = request.get_json(silent=True) or {}
+        try:
+            return jsonify(session.views.undo(view_id, scope=data.get("scope") or "all"))
+        except ViewError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+
+    # ---- diagnostics -----------------------------------------------------
+    @app.get("/api/diagnostics")
+    def diagnostics_read():
+        """?source=&level=&since=<id>&limit=. Newest last."""
+        args = request.args
+        try:
+            since = int(args["since"]) if args.get("since") else None
+            limit = int(args.get("limit") or 200)
+            entries = session.diagnostics.read(source=args.get("source") or None, level=args.get("level") or None,
+                                               since_id=since, limit=limit)
+        except ValueError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 400
+        return jsonify(entries=entries)
+
+    @app.post("/api/diagnostics")
+    def diagnostics_write():
+        """Body: {source, level?, message, details?, design_version?}: Grasshopper, Rhino and the app report here."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="invalid_input", message="Body must be {source, level, message}"), 400
+        try:
+            entry = session.diagnostics.write(data.get("source"), data.get("level") or "info", data.get("message"),
+                                              design_version=data.get("design_version", session.version),
+                                              details=data.get("details"))
+        except ValueError as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 400
+        return jsonify(entry)
 
     @app.get("/api/workflows")
     def workflows_list():

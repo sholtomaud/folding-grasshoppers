@@ -1,0 +1,54 @@
+{
+  "schema": "cardboardcad.view/1",
+  "id": "project",
+  "title": "Project",
+  "description": "Fold Theory's default Project tab: the job, its status, the quote and every setting with where it came from.",
+  "blocks": [
+    {
+      "type": "section",
+      "title": "Job",
+      "blocks": [
+        {"type": "field", "bind": "settings.client_name", "label": "Client", "editable": true},
+        {"type": "field", "bind": "settings.job_name", "label": "Job", "editable": true},
+        {"type": "field", "bind": "project.name", "label": "Project"},
+        {"type": "field", "bind": "project.status", "label": "Saved"}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Status",
+      "blocks": [
+        {"type": "field", "bind": "workflow.name", "label": "Workflow"},
+        {"type": "field", "bind": "workflow.status", "label": "Next step"},
+        {"type": "checklist", "bind": "workflow.steps"}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Quote",
+      "blocks": [
+        {"type": "table", "bind": "quote.lines", "columns": ["label", "value", "unit"]},
+        {"type": "total", "bind": "quote.total", "label": "Total incl. GST"},
+        {"type": "text", "style": "caption", "text": "Every number here is worked out by the engine from the settings below and the formulas. Change a setting and the quote is worked out again."},
+        {"type": "button", "label": "Work out again", "action": "estimate_cost"}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Settings",
+      "blocks": [
+        {"type": "settings", "bind": "settings", "editable": true}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Design",
+      "blocks": [
+        {"type": "field", "bind": "design.method", "label": "Method"},
+        {"type": "field", "bind": "design.size", "label": "Size"},
+        {"type": "field", "bind": "design.parts", "label": "Parts"},
+        {"type": "field", "bind": "design.sheets", "label": "Sheets"}
+      ]
+    }
+  ]
+}
