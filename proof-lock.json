@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "14d70aba537ec208ec1be85d00a564aa43738116c99bb8bce1fe5ad9b7f15d95",
+  "rootSha256": "dce00fa15110da9d35e573c2b4c8d6273d89aabea73d85b0077a29fddec24841",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -189,6 +189,11 @@
       "sha256": "492c47fda31962051ade730ad0cef767bab3d998afcdf98559897fb48c41c7f0"
     },
     {
+      "path": "engine/tests/test_live_listener_grasshopper.py",
+      "zone": "tests",
+      "sha256": "b981bbd93516445baaca480db0c1ed6d1ffc313f5c355d6d46503de4fc98274c"
+    },
+    {
       "path": "engine/tests/test_live_sync.py",
       "zone": "tests",
       "sha256": "4e8b7c42d7701e270117a275b80b8ae733b55f57ac159f52a922ff19ce134f37"
@@ -266,7 +271,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "ed3c7a6e3fe51c24d25a94f738580fe06d45b7e93fadcfbcd6dc3b076997f9eb"
+      "sha256": "1386a74c57d381cca6e45f6fbd06bd2ae2ca63c81949f84e617def948da8fa77"
     },
     {
       "path": "uplift.config.json",
