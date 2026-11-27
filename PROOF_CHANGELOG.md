@@ -141,3 +141,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Chat | preview split without HSplitView; window probe with short and long chats
 - **Previous Attestation:** `831c4c9f3f264ec0dd626c222b19c80ef6e559795fc62517b905438276a0b6e9`
 - **Attestation SHA-256:** `17f5eb7b5c3689bccde22764a1102a4076829b3b9627b6c9343dc3d6239c6068`
+
+## 2026-11-27T00:40:15Z — `f6875ef` (PASS)
+
+- **Commit:** `f6875ef`
+- **Timestamp:** `2026-11-27T00:40:15Z`
+- **Proof Lock Root SHA-256:** `14d70aba537ec208ec1be85d00a564aa43738116c99bb8bce1fe5ad9b7f15d95`
+- **Verdict:** `PASS`
+- **Summary:** EngineQuitTests: stopImmediately (red); swift floor 121
+- **Previous Attestation:** `17f5eb7b5c3689bccde22764a1102a4076829b3b9627b6c9343dc3d6239c6068`
+- **Attestation SHA-256:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
