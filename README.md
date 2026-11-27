@@ -317,6 +317,22 @@ removed before anything is written. The log is
 `~/Library/Application Support/Fold Theory/diagnostics/diagnostics.jsonl`
 (1 MB, then it moves to `diagnostics.jsonl.1`).
 
+### Several objects in one design (a scene)
+
+A stand is a counter, some stools and a back wall. Ask for them together, for
+example "a counter 1800 × 600 × 1100 as a waffle and 4 cylinder stools 450
+tall", and the assistant builds a **scene**: each object has its own name,
+model, position and method. Its parts carry the object's prefix, so labels
+stay unique on the sheets: the counter's ribs are `C-X1`, `C-Y1`, …, and the
+first stool's are `S1-X1`, …. Nesting, the estimate, cut files and Save
+always cover the whole scene. Removing an object removes only its parts, and
+the nest and estimate are worked out again. A design with one model works as
+before, with no prefix.
+
+The Rhino links (live sync and two-way) still show only the active object's
+model and parts for now. Moving whole objects in Rhino will come with the
+multi-object Rhino layers.
+
 ### Save and open projects
 
 A **project** is a folder that holds everything about one design. Save one
