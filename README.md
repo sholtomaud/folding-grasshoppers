@@ -340,6 +340,27 @@ assistant is told and must fix it, or ask you to change the brief, before it
 calls a concept done. Saving writes `brief.json` and a readable `brief.md`
 (with the latest checks) into the project folder.
 
+### Will it hold? (an indicative structural check)
+
+Ask "will the stool hold 100 kg?" and the assistant runs `check_structure` on
+a waffle object. It is **indicative only**, not an engineering sign-off:
+
+- **Capacity**: the board's edge crush strength (ECT, from the supplier's
+  data sheet) times the rib edge standing on the floor, divided by a safety
+  factor (3 for seats, 2 for counters and shelves). The result reads *about
+  9.1 x the 100 kg design load*; under 1 fails.
+- **Slenderness**: a warning when a rib panel between the cross ribs that
+  brace it is wider than 50 times the board thickness, since it would buckle
+  before the board crushes.
+- **Span**: for counters and shelves, a warning when the top spans more than
+  50 times the board thickness between ribs.
+
+The board's ECT, the safety factors and both limits are settings (group
+*Board*). The ECT has no default: the assistant asks you for the supplier's
+figure. The load comes from the brief (load per seat, or per shelf or
+counter) unless you give one. The first build of a new seat design should
+still be load-tested.
+
 ### Several objects in one design (a scene)
 
 A stand is a counter, some stools and a back wall. Ask for them together, for

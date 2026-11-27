@@ -37,6 +37,7 @@ from .formulas import FormulaError, FormulaStore, build_quote, needed_fields
 from . import rhino_sync
 from . import scene as sc
 from . import brief as bf
+from . import structure as st
 from .rhino_sync import Override
 from .project import ProjectError
 from .settings import BUILTIN_DEFINITIONS, SettingsError, SettingsStore, definition_from, field_for_form
@@ -46,11 +47,13 @@ from .workflow import WorkflowError, WorkflowStore
 VALIDATION_ERRORS = (SettingsError, FormulaError, ViewError, WorkflowError)
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
-    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, bf.BriefError,
+    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, bf.BriefError, st.StructureError,
     *VALIDATION_ERRORS,
 )
 # Prices and rates are settings, never tool inputs (Claude never types the numbers).
-SETTING_ONLY_INPUTS = {"estimate_cost": ("sheet_price", "machine_rate", "labour_rate", "margin_pct", "gst_pct")}
+SETTING_ONLY_INPUTS = {"estimate_cost": ("sheet_price", "machine_rate", "labour_rate", "margin_pct", "gst_pct"),
+                       "check_structure": ("board_ect", "seat_safety_factor", "load_safety_factor", "safety_factor",
+                                           "max_panel_ratio", "max_span_ratio")}
 ESTIMATE_SETTINGS = ("cut_speed", "score_speed", "pierce_time", "travel_overhead", "sheet_price", "machine_rate")
 MAX_FORMS = 20
 MAX_FORM_FIELDS = 12
@@ -61,12 +64,12 @@ SETUP_TOOLS = {"request_inputs", "get_settings", "add_formula", "list_formulas",
                "read_diagnostics"}
 # Tools that do not change the design: a saved project stays saved.
 READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_objects", "select_object",
-                    "check_brief"} | WORKFLOW_TOOLS | SETUP_TOOLS)
+                    "check_brief", "check_structure"} | WORKFLOW_TOOLS | SETUP_TOOLS)
 # The brief (brief.py): not workflow steps, and failing checks are not reported back on them.
-BRIEF_TOOLS = {"set_brief", "check_brief"}
+BRIEF_TOOLS = {"set_brief", "check_brief", "check_structure"}
 # Scene (#43): tools that take an optional object name, and the scene tools themselves.
 OBJECT_TOOLS = ("create_shape", "load_model_file", "scale_model", "model_info", "waffle_slice", "contour_stack",
-                "unfold", "clear_rhino_override")
+                "unfold", "clear_rhino_override", "check_structure")
 MODEL_TOOLS = {"create_shape", "load_model_file", "scale_model"}
 METHOD_TOOLS = {"waffle_slice", "contour_stack", "unfold"}
 SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
@@ -84,6 +87,7 @@ You turn what the designer asks for into calls to the tools you have. The tools 
    A new method replaces the previous parts.
 3. Sheets: nest_sheets lays the parts onto as few sheets of board as it can.
    The brief (set_brief) holds what the client asked for: stand footprint and maximum height, venue limits, the items wanted, loads and seats, board and sheet size, pallet, assembly time, budget and branding. Fill it in from the conversation as soon as the designer gives these. The engine checks the design against it after every step (check_brief lists the checks); a tool result that says "Brief check failed" must be dealt with (change the design, or ask the designer to change the brief) before you call a concept done.
+   For seats, counters and shelves made as waffles, check_structure gives an indicative strength check from the board data in settings: "about N x the design load", with warnings for wide unbraced rib panels and long top spans. Use it to choose rib count and spacing, repeat its numbers exactly, and say it is indicative only: the first build of a new seat design should be load-tested. If the board's ECT is not set, ask the designer for the supplier's figure; never guess it.
    A design can be a scene of several named objects (a counter, four stools, a back wall). Pass object="counter" to create_shape, load_model_file, scale_model, model_info or a method to work on that object (a new name adds it); add_object, copy_object (for identical stools), move_object, remove_object, select_object and list_objects manage them. Each object has its own model, position and method, and its parts get its prefix (C-X1, S1-X1). nest_sheets, estimate_cost, export_cut_files and save_project always cover the whole scene.
 4. Then estimate_cost (machine time and money) and export_cut_files (DXF or SVG cut files, one per sheet).
 The active workflow (below) says which of these steps to run, in what order, and with which saved values.
@@ -461,6 +465,18 @@ TOOLS += [
     ),
     _tool("check_brief", "Check the design against the brief: height, footprint, budget, pallet and sheet size, "
                          "each pass, warn or fail with the engine's numbers.", {}),
+    _tool(
+        "check_structure",
+        "Indicative structural check of a waffle object (not an engineering sign-off): the vertical capacity of "
+        "its ribs from the board's edge crush strength (ECT setting, from the supplier) and the rib edge on the "
+        "floor, divided by a safety factor (settings: 3 for seats), as 'about N x the design load'; with warnings "
+        "for wide unbraced rib panels and for counter or shelf tops that span too far. Use it to choose rib "
+        "count and spacing for a load. The load defaults to the brief (load_per_seat_kg or shelf_load_kg).",
+        {"use": {"type": "string", "enum": list(st.USES), "description": "What the object is for"},
+         "load_kg": {"type": "number", "minimum": 0.001, "description": "Design load in kg (default from the "
+                                                                        "brief)"}},
+        required=["use"],
+    ),
 ]
 for _t in TOOLS:
     if _t["name"] in OBJECT_TOOLS:
@@ -582,6 +598,7 @@ class DesignSession:
         self.scene_objects: List[dict] = []
         self.active: Optional[str] = None
         self.brief: Dict[str, Any] = {}  # brief.py: what the client asked for
+        self.last_structure: Optional[dict] = None  # structure.py: the latest check_structure result
         self.scene_doc: Optional[PartsDoc] = None  # the scene's parts once nested
         self._clear_all()
         self.steps: List[dict] = []
@@ -619,6 +636,7 @@ class DesignSession:
             self.overrides, self.notes, self.notices = {}, [], []
             self.scene_objects, self.active = [], None
             self.brief = {}
+            self.last_structure = None
             self.steps = []
             self.project = None
             self.settings.clear_project()
@@ -1248,6 +1266,32 @@ class DesignSession:
         if not self.brief:
             return "There is no brief yet. Fill it in with set_brief."
         return bf.checks_text(self.brief_checks())
+
+    def _t_check_structure(self, use, load_kg=None):
+        if self.model is None:
+            raise ToolInputError("There is no model yet. Create one with create_shape or load one with load_model_file.")
+        if self.method != "waffle" or not self.parts3d:
+            raise ToolInputError("Only waffle designs can be checked for strength yet; slice the model with "
+                                 "waffle_slice first.")
+        if load_kg is None:
+            field = "load_per_seat_kg" if use == "seat" else "shelf_load_kg"
+            load_kg = self.brief.get(field)
+            if load_kg is None:
+                raise ToolInputError(f"Give load_kg, or set {field} in the brief with set_brief.")
+        ect = self.settings.resolve("board_ect")["value"]
+        if ect is None:
+            raise ToolInputError("The board's edge crush strength (setting board_ect, kN/m) is not set. Ask the "
+                                 "designer for it from the board supplier's data sheet with request_inputs, and "
+                                 "wait for the answer. Never guess it.")
+        sf_key = "seat_safety_factor" if use == "seat" else "load_safety_factor"
+        floor_z = self.model.bbox()[0][2]
+        r = st.check_waffle(self.parts3d, floor_z, self.board_thickness, use=use, load_kg=load_kg, ect_kn_m=ect,
+                            safety_factor=self.settings.resolve(sf_key)["value"],
+                            max_panel_ratio=self.settings.resolve("max_panel_ratio")["value"],
+                            max_span_ratio=self.settings.resolve("max_span_ratio")["value"])
+        name = self.active or ""
+        self.last_structure = dict(r, object=name or None)
+        return st.text(r, name)
 
     def _t_list_objects(self):
         if not self.scene_objects:
