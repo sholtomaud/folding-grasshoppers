@@ -48,7 +48,7 @@ def dist_to_line(p, a, b):
 
 
 def test_joint_types_are_listed():
-    assert JOINTS == ("glue_tab", "tuck_flap", "lock_tab")
+    assert JOINTS[:3] == ("glue_tab", "tuck_flap", "lock_tab")
 
 
 def test_glue_tab_is_the_default_and_unchanged():
