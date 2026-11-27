@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="300" viewBox="0 0 760 300" font-family="Helvetica, Arial, sans-serif">
+  <title>Grasshopper canvas: Timer driving LiveDesign without the script (diagram, not a screenshot)</title>
+  <rect width="760" height="300" fill="#d9d8d3"/>
+  <text x="20" y="30" font-size="18" font-weight="bold" fill="#333">Timer alternative (diagram, not a screenshot)</text>
+  <path d="M190 150 C 300 150, 320 150, 420 150" fill="none" stroke="#555" stroke-width="3" stroke-dasharray="8 6"/>
+  <rect x="60" y="120" width="130" height="60" rx="8" fill="#e9e9e9" stroke="#444" stroke-width="2"/>
+  <text x="125" y="146" font-size="17" text-anchor="middle">Timer</text>
+  <text x="125" y="168" font-size="13" text-anchor="middle" fill="#555">Interval: 1 s</text>
+  <circle cx="190" cy="150" r="6" fill="#fff" stroke="#444" stroke-width="2"/>
+  <rect x="420" y="80" width="160" height="150" rx="8" fill="#f0a54a" stroke="#7a4a0c" stroke-width="2"/>
+  <text x="500" y="150" font-size="16" text-anchor="middle">LiveDesign</text>
+  <text x="500" y="172" font-size="12" text-anchor="middle">(Hops, /live_design)</text>
+  <text x="500" y="70" font-size="13" text-anchor="middle" fill="#333">Right-click: untick "Cache In Memory"</text>
+  <text x="305" y="138" font-size="13" text-anchor="middle" fill="#333">drag onto the component</text>
+  <text x="20" y="280" font-size="14" fill="#333">The Timer's dashed wire goes onto the Hops component itself, not onto an input.</text>
+</svg>
