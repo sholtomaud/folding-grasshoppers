@@ -33,7 +33,7 @@ from .components.unfold import UnfoldError, UnfoldInput, unfold
 from .components.waffle import WaffleError, WaffleInput, waffle_slice
 from . import project as proj
 from .diagnostics import LEVELS as DIAG_LEVELS, SOURCES as DIAG_SOURCES, DiagnosticsLog, format_entries
-from .formulas import FormulaError, FormulaStore, build_quote, needed_fields
+from .formulas import FormulaError, FormulaStore, build_quote, needed_fields, quote_csv
 from . import rhino_sync
 from . import scene as sc
 from . import brief as bf
@@ -715,7 +715,8 @@ class DesignSession:
     def field_units(self) -> Dict[str, str]:
         """Every name a formula can use (settings and measurements) and its unit."""
         units = {"sheets": "sheet", "parts": "count", "cut_length": "mm", "score_length": "mm",
-                 "pierces": "count", "sheet_width": "mm", "sheet_height": "mm", "parts.cut_length": "mm"}
+                 "pierces": "count", "sheet_width": "mm", "sheet_height": "mm", "parts.cut_length": "mm",
+                 "print_area": "m2"}
         for key, d in self.settings.definitions().items():
             if d.type in ("number", "integer", "currency", "percent"):
                 units[key] = "%" if d.type == "percent" else d.unit
@@ -727,7 +728,7 @@ class DesignSession:
         pierces = sum(len(p.cut) + len(p.score) + len(p.etch) for p in doc.parts)
         sheets = self.nested["sheet_count"] if self.nested else 1
         out = {"sheets": sheets, "parts": len(doc.parts), "cut_length": sum(per_part), "score_length": score,
-               "pierces": pierces, "parts.cut_length": per_part}
+               "pierces": pierces, "parts.cut_length": per_part, "print_area": 0.0}  # print areas: Phase 3
         if self.nested:
             out["sheet_width"] = self.nested["sheet_width"]
             out["sheet_height"] = self.nested["sheet_height"]
@@ -763,16 +764,45 @@ class DesignSession:
                     continue
                 fields[name] = {"value": r["value"], "unit": units[name]}
                 used_settings[name] = {k: r[k] for k in ("value", "layer", "set_by", "set_at")}
+        currency = self.settings.resolve("currency")["value"] or "AUD"
+        missing, unused = self._needed_missing(formulas, fields, missing, units, currency)
         if missing:
             raise self._missing_settings_error(missing)
-        currency = self.settings.resolve("currency")["value"] or "AUD"
+        for name in unused:
+            fields[name] = {"value": 0, "unit": units[name]}
         q = build_quote(formulas, fields, currency)
         q["settings"] = used_settings
+        q["unused_settings"] = unused
         q["subtotal"] = next((l["value"] for l in q["lines"] if l["key"] == "subtotal"), None)
         import datetime as _dt
         q["made_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         q["design_version"] = self.version
         return q
+
+    @staticmethod
+    def _needed_missing(formulas, fields, missing, units, currency):
+        """(needed, unused) of the missing settings. A rate is only needed when it changes a line:
+        with no design hours, the design rate does not matter and is not asked for."""
+        if not missing:
+            return [], []
+
+        def run(values):
+            trial = dict(fields, **{k: {"value": v, "unit": units[k]} for k, v in values.items()})
+            return [l["value"] for l in build_quote(formulas, trial, currency)["lines"]]
+
+        zero = {k: 0 for k in missing}
+        try:
+            base = run(zero)
+        except FormulaError:
+            return list(missing), []
+        needed = []
+        for k in missing:
+            try:
+                if run(dict(zero, **{k: 1})) != base:
+                    needed.append(k)
+            except FormulaError:
+                needed.append(k)
+        return needed, [k for k in missing if k not in needed]
 
     def _settings_changed(self) -> None:
         """A setting changed: work the estimate and quote out again, so nothing shown is stale."""
@@ -1585,6 +1615,7 @@ class DesignSession:
             files["estimate/estimate.csv"] = proj.estimate_csv(self.last_estimate)
         if self.last_quote is not None:
             files["estimate/quote.json"] = json.dumps(self.last_quote, indent=2) + "\n"
+            files["estimate/quote.csv"] = quote_csv(self.last_quote)
         if self.settings.project_data["values"] or self.settings.project_data["definitions"]:
             files["settings.json"] = self.settings.project_file_text()
         if self.formulas.project_formulas:
