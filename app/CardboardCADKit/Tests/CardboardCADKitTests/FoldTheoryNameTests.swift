@@ -25,6 +25,7 @@ final class FoldTheoryNameTests: XCTestCase {
         XCTAssertEqual(c.interpreterURL.path, "/Applications/Fold Theory.app/Contents/Frameworks/python/bin/python3.12")
     }
 
+    @MainActor
     func testDocumentsFoldersUseTheNewName() {
         XCTAssertEqual(AppBrand.documentsFolder(home: home).path, "/Users/tester/Documents/Fold Theory")
         XCTAssertEqual(ProjectController.defaultProjectsFolder(home: home).path,
