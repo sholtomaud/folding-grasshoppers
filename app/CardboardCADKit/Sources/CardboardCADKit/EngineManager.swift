@@ -19,6 +19,8 @@ public final class EngineManager {
     public static let shutdownGrace: Double = 3
     public static let terminateGrace: Double = 2
     public static let killGrace: Double = 1
+    /// stopImmediately(): how long to wait after SIGTERM before SIGKILL.
+    public static let immediateGrace: Double = 0.5
     public static let exitCodePortInUse: Int32 = 98
 
     // MARK: observable state
@@ -122,6 +124,29 @@ public final class EngineManager {
             }
         }
         invalidateCurrentLaunch()
+        setState(.stopped)
+    }
+
+    /// Stop now, without HTTP or async waits: SIGTERM, a short wait, then
+    /// SIGKILL. For quitting when there is no time for `stop()` (logout,
+    /// shutdown, or a graceful stop that ran past the quit cap). Never restarts.
+    public func stopImmediately() {
+        restartTask?.cancel()
+        restartTask = nil
+        guard let p = process, p.isRunning else {
+            invalidateCurrentLaunch()
+            if state != .stopped { setState(.stopped) }
+            return
+        }
+        note("quitting: stopping engine (pid \(p.processIdentifier)) now")
+        invalidateCurrentLaunch()
+        p.terminate()
+        let deadline = Date().addingTimeInterval(Self.immediateGrace)
+        while p.isRunning && Date() < deadline { usleep(20_000) }
+        if p.isRunning {
+            note("engine still running after SIGTERM; sending SIGKILL")
+            p.kill()
+        }
         setState(.stopped)
     }
 
