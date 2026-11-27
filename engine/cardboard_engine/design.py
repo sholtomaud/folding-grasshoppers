@@ -17,7 +17,7 @@ import os
 import re
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import brand
 from .components.contour import ContourError, ContourInput, contour_stack
@@ -35,6 +35,7 @@ from . import project as proj
 from .diagnostics import LEVELS as DIAG_LEVELS, SOURCES as DIAG_SOURCES, DiagnosticsLog, format_entries
 from .formulas import FormulaError, FormulaStore, build_quote, needed_fields
 from . import rhino_sync
+from . import scene as sc
 from .rhino_sync import Override
 from .project import ProjectError
 from .settings import BUILTIN_DEFINITIONS, SettingsError, SettingsStore, definition_from, field_for_form
@@ -44,7 +45,7 @@ from .workflow import WorkflowError, WorkflowStore
 VALIDATION_ERRORS = (SettingsError, FormulaError, ViewError, WorkflowError)
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
-    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, *VALIDATION_ERRORS,
+    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, *VALIDATION_ERRORS,
 )
 # Prices and rates are settings, never tool inputs (Claude never types the numbers).
 SETTING_ONLY_INPUTS = {"estimate_cost": ("sheet_price", "machine_rate", "labour_rate", "margin_pct", "gst_pct")}
@@ -57,7 +58,11 @@ WORKFLOW_TOOLS = {"list_workflows", "save_workflow", "use_workflow", "set_workfl
 SETUP_TOOLS = {"request_inputs", "get_settings", "add_formula", "list_formulas", "list_views", "save_view",
                "read_diagnostics"}
 # Tools that do not change the design: a saved project stays saved.
-READ_ONLY_TOOLS = {"model_info", "export_cut_files", "save_project"} | WORKFLOW_TOOLS | SETUP_TOOLS
+READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_objects", "select_object"}
+                   | WORKFLOW_TOOLS | SETUP_TOOLS)
+# Scene (#43): tools that take an optional object name, and the scene tools themselves.
+OBJECT_TOOLS = ("create_shape", "load_model_file", "scale_model", "model_info", "waffle_slice", "contour_stack",
+                "unfold", "clear_rhino_override")
 MODEL_TOOLS = {"create_shape", "load_model_file", "scale_model"}
 METHOD_TOOLS = {"waffle_slice", "contour_stack", "unfold"}
 SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
@@ -74,6 +79,7 @@ You turn what the designer asks for into calls to the tools you have. The tools 
    - unfold: folds the model's flat faces into nets with glue tabs. Only for faceted (low-poly) models; it makes hollow shells.
    A new method replaces the previous parts.
 3. Sheets: nest_sheets lays the parts onto as few sheets of board as it can.
+   A design can be a scene of several named objects (a counter, four stools, a back wall). Pass object="counter" to create_shape, load_model_file, scale_model, model_info or a method to work on that object (a new name adds it); add_object, copy_object (for identical stools), move_object, remove_object, select_object and list_objects manage them. Each object has its own model, position and method, and its parts get its prefix (C-X1, S1-X1). nest_sheets, estimate_cost, export_cut_files and save_project always cover the whole scene.
 4. Then estimate_cost (machine time and money) and export_cut_files (DXF or SVG cut files, one per sheet).
 The active workflow (below) says which of these steps to run, in what order, and with which saved values.
 5. save_project saves everything (model, parts, cut files, estimate, a preview picture) as a project folder the designer can reopen. To present several concepts to a client, save each one under its own name, for example "Acme Expo - Concept A", then "Acme Expo - Concept B".
@@ -392,6 +398,55 @@ TOOLS.append(_tool(
     {"part": {"type": "string", "description": "The part id, e.g. \"X3\""}},
     required=["part"],
 ))
+_OBJ = {"type": "string", "description": "Scene object to act on, e.g. \"counter\" or \"stool 1\". "
+        "Omit for the active object. With create_shape or load_model_file a new name adds the object."}
+_POS = {"x_mm": _num("Position along X in mm", 0), "y_mm": _num("Position along Y in mm", 0),
+        "z_mm": _num("Position along Z in mm", 0)}
+TOOLS += [
+    _tool(
+        "add_object",
+        "Add a named object to the scene (a counter, a stool, a back wall) and make it the active one. It starts "
+        "with no model: then create_shape or load_model_file. If the design already has a model, that becomes the "
+        "first object. Part labels get the object's prefix, e.g. C-X1.",
+        {"name": {"type": "string", "description": "Object name, e.g. \"counter\""},
+         "prefix": {"type": "string", "default": "", "description": "Label prefix, 1-6 letters/digits (default "
+                                                                   "from the name: counter -> C, stool 1 -> S1)"},
+         **_POS},
+        required=["name"],
+    ),
+    _tool(
+        "copy_object",
+        "Copy an object with its model and method (for example stool 1 to stool 2) and place the copy. The copy "
+        "gets its own prefix, so its parts are cut separately.",
+        {"name": {"type": "string", "description": "The object to copy"},
+         "new_name": {"type": "string", "description": "Name of the copy"},
+         "prefix": {"type": "string", "default": "", "description": "Label prefix of the copy (default from its name)"},
+         **{k: dict(v, default=None) for k, v in _POS.items()}},
+        required=["name", "new_name"],
+    ),
+    _tool(
+        "move_object",
+        "Place an object in the scene (its position, in mm). Moving does not change its parts.",
+        {"name": {"type": "string", "description": "The object"}, **_POS},
+        required=["name"],
+    ),
+    _tool(
+        "remove_object",
+        "Remove an object and its parts from the scene. Nesting and the estimate are worked out again without it.",
+        {"name": {"type": "string", "description": "The object"}},
+        required=["name"],
+    ),
+    _tool(
+        "select_object",
+        "Make an object the active one, so tools without an object name act on it.",
+        {"name": {"type": "string", "description": "The object"}},
+        required=["name"],
+    ),
+    _tool("list_objects", "List the scene's objects: name, prefix, position, method and part count.", {}),
+]
+for _t in TOOLS:
+    if _t["name"] in OBJECT_TOOLS:
+        _t["input_schema"]["properties"]["object"] = dict(_OBJ)
 _TOOLS_BY_NAME = {t["name"]: t for t in TOOLS}
 
 
@@ -504,6 +559,11 @@ class DesignSession:
         self.overrides: Dict[str, Override] = {}
         self.notes: List[str] = []    # Rhino edits not yet told to the Design Assistant
         self.notices: List[str] = []  # recent things the app should show (conflicts, stale edits)
+        # Scene (scene.py): every object's name, prefix, position and method. The active object's state
+        # is in the attributes above ("state": None); the others keep theirs in their entry.
+        self.scene_objects: List[dict] = []
+        self.active: Optional[str] = None
+        self.scene_doc: Optional[PartsDoc] = None  # the scene's parts once nested
         self._clear_all()
         self.steps: List[dict] = []
         # Where this Mac keeps per-Mac settings (projects location): the app's ENGINE_DATA_DIR.
@@ -527,6 +587,7 @@ class DesignSession:
         self.nested: Optional[dict] = None
         self.last_estimate: Optional[dict] = None
         self.last_quote = None
+        self.scene_doc = None
         self.recipe = {}
 
     def _bump(self) -> None:
@@ -537,6 +598,7 @@ class DesignSession:
         with self._lock:
             self._clear_all()
             self.overrides, self.notes, self.notices = {}, [], []
+            self.scene_objects, self.active = [], None
             self.steps = []
             self.project = None
             self.settings.clear_project()
@@ -560,8 +622,13 @@ class DesignSession:
                         f"{', '.join(priced)} cannot be given to {name}: prices and rates are settings, and "
                         "the engine reads them from the project settings. If one is missing, ask the designer "
                         "with request_inputs and wait for their answer.")
+                if name in OBJECT_TOOLS and isinstance(args, dict) and args.get("object") is not None:
+                    args = dict(args)
+                    self._use_object(args.pop("object"), create=name in MODEL_TOOLS)
                 if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS:
                     args, used, ask = self.workflows.fill(name, args)
+                if name in OBJECT_TOOLS and isinstance(args, dict):
+                    args = {k: v for k, v in args.items() if k != "object"}
                 checked = _check_args(tool, args)
                 text = getattr(self, "_t_" + name)(**checked)
                 if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS:
@@ -668,7 +735,7 @@ class DesignSession:
     def _settings_changed(self) -> None:
         """A setting changed: work the estimate and quote out again, so nothing shown is stale."""
         with self._lock:
-            if self.last_estimate is not None and self.parts is not None:
+            if self.last_estimate is not None and self._sheet_doc() is not None:
                 try:
                     self._t_estimate_cost(**(self.recipe.get("estimate") or {}))
                 except (ToolInputError, *INPUT_ERRORS):
@@ -833,7 +900,8 @@ class DesignSession:
                 if what == "method":
                     return self.method_summary or "No parts yet"
                 if what == "parts":
-                    return len(self.parts.parts) if self.parts is not None else 0
+                    doc = self._sheet_doc()
+                    return len(doc.parts) if doc is not None else 0
                 if what == "sheets":
                     return self.nested["sheet_count"] if self.nested else None
                 return self.version
@@ -849,11 +917,13 @@ class DesignSession:
                     return nxt or "All required steps done"
                 return steps
             if binding == "parts":
-                return [{"id": p.id, "label": p.label or p.id} for p in (self.parts.parts if self.parts else [])]
+                doc = self._sheet_doc()
+                return [{"id": p.id, "label": p.label or p.id} for p in (doc.parts if doc else [])]
             if binding == "sheets":
                 util = (self.nested or {}).get("utilisation") or []
                 return [{"index": i + 1, "parts": n, "utilisation": util[i] if i < len(util) else None}
-                        for i, n in enumerate(len(s.parts) for s in self.parts.layout())] if self.parts else []
+                        for i, n in enumerate(len(s.parts) for s in self._sheet_doc().layout())] \
+                    if self._sheet_doc() else []
             if binding == "diagnostics":
                 return [{k: e.get(k) for k in ("time", "source", "level", "message")}
                         for e in self.diagnostics.read(limit=50)]
@@ -935,9 +1005,199 @@ class DesignSession:
         return self.model
 
     def _need_parts(self) -> PartsDoc:
-        if self.parts is None:
+        """The parts to nest, cost and cut: the whole scene's, or the one model's."""
+        doc = self._sheet_doc()
+        if doc is None:
+            if self.scene_objects:
+                raise ToolInputError("No object in the scene has parts yet. Run waffle_slice, contour_stack or "
+                                     "unfold on an object first.")
             raise ToolInputError("There are no parts yet. Run waffle_slice, contour_stack or unfold first.")
-        return self.parts
+        return doc
+
+    # ---- scene (scene.py) -------------------------------------------------
+    def _sheet_doc(self) -> Optional[PartsDoc]:
+        """The parts on the sheets: the nested scene, the scene's parts put together, or the one model's parts."""
+        if not self.scene_objects:
+            return self.parts
+        if self.scene_doc is not None:
+            return self.scene_doc
+        return sc.combine((e["prefix"], self._object_state(e)["parts"]) for e in self.scene_objects)
+
+    def _entry(self, name, required: bool = True) -> Optional[dict]:
+        key = sc.clean_name(name).lower()
+        for e in self.scene_objects:
+            if e["name"].lower() == key:
+                return e
+        if required:
+            have = ", ".join(e["name"] for e in self.scene_objects) or "none yet"
+            raise sc.SceneError(f"Unknown object {name!r}. Objects: {have}")
+        return None
+
+    def _object_state(self, e: dict) -> dict:
+        if e["name"] == self.active:
+            return {a: getattr(self, a) for a in sc.OBJECT_ATTRS}
+        return e["state"]
+
+    def _object_method(self, e: dict):
+        return self.recipe.get("method") if e["name"] == self.active else e.get("method")
+
+    def _activate(self, name: str) -> None:
+        """Make ``name`` the active object: its state moves into the session's attributes."""
+        if name == self.active:
+            return
+        if self.active is not None:
+            cur = self._entry(self.active)
+            cur["state"] = self._object_state(cur)
+            cur["method"] = self.recipe.get("method")
+        target = self._entry(name)
+        for a, v in (target["state"] or sc.blank_state()).items():
+            setattr(self, a, v)
+        target["state"] = None
+        self.recipe = {"method": target.get("method"),
+                       **{k: v for k, v in self.recipe.items() if k in ("nest", "estimate")}}
+        self.active = target["name"]
+
+    def _scene_changed(self) -> Optional[dict]:
+        """The scene's parts changed: the nest and estimate no longer hold. Returns the steps to run again."""
+        again = {k: self.recipe.pop(k) for k in ("nest", "estimate") if k in self.recipe}
+        self.scene_doc, self.nested, self.last_estimate, self.last_quote = None, None, None, None
+        return again
+
+    def _rerun_scene(self, again: dict) -> str:
+        for key, tname in (("nest", "nest_sheets"), ("estimate", "estimate_cost")):
+            if key not in again or self._sheet_doc() is None:
+                continue
+            try:
+                checked = _check_args(_TOOLS_BY_NAME[tname], again[key])
+                getattr(self, "_t_" + tname)(**checked)
+                self._record(tname, checked)
+            except (ToolInputError, *INPUT_ERRORS) as exc:
+                return f" The {tname} step could not run again: {exc}"
+        ran = [t for k, t in (("nest", "nest_sheets"), ("estimate", "estimate_cost")) if k in again]
+        return (" Ran " + " and ".join(ran) + " again for the whole scene.") if ran and self._sheet_doc() else ""
+
+    def _new_entry(self, name: str, prefix: str = "", position=(0.0, 0.0, 0.0), state=None, method=None) -> dict:
+        name = sc.clean_name(name)
+        if self._entry(name, required=False) is not None:
+            raise sc.SceneError(f"There is already an object called {name!r}")
+        if len(self.scene_objects) >= sc.MAX_OBJECTS:
+            raise sc.SceneError(f"A scene can hold at most {sc.MAX_OBJECTS} objects")
+        taken = [e["prefix"] for e in self.scene_objects]
+        prefix = sc.check_prefix(prefix, taken) if (prefix or "").strip() else sc.make_prefix(name, taken)
+        e = {"name": name, "prefix": prefix, "position": [float(c) for c in position],
+             "state": state if state is not None else sc.blank_state(), "method": method}
+        return e
+
+    def _start_scene(self) -> Optional[str]:
+        """The first object: the design so far, if there is one. Returns its name."""
+        if self.scene_objects or self.model is None:
+            return None
+        e = self._new_entry(self.model_name or "object 1")
+        e["state"], e["method"] = None, self.recipe.get("method")
+        self.scene_objects.append(e)
+        self.active = e["name"]
+        self._scene_changed()
+        return e["name"]
+
+    def _add_object(self, name, prefix="", position=(0.0, 0.0, 0.0)) -> dict:
+        self._start_scene()
+        e = self._new_entry(name, prefix, position)
+        self.scene_objects.append(e)
+        self._activate(e["name"])
+        return e
+
+    def _use_object(self, name, create: bool) -> None:
+        """Tools given object=...: act on that object (a model tool adds it when it is new)."""
+        e = self._entry(name, required=not create) if self.scene_objects else None
+        if e is None:
+            if not create:
+                raise sc.SceneError(f"Unknown object {name!r}. Objects: none yet (add one with add_object)")
+            e = self._add_object(name)
+        self._activate(e["name"])
+
+    def _describe_object(self, e: dict) -> str:
+        st = self._object_state(e)
+        x, y, z = e["position"]
+        where = f" at ({_mm(x)}, {_mm(y)}, {_mm(z)}) mm" if (x or y or z) else ""
+        what = st["model_name"] or "no model yet"
+        parts = f", {len(st['parts'].parts)} parts ({st['method_summary']})" if st["parts"] is not None else ""
+        return f"{e['name']} ({e['prefix']}): {what}{where}{parts}" + (" [active]" if e["name"] == self.active else "")
+
+    def _t_add_object(self, name, prefix="", x_mm=0.0, y_mm=0.0, z_mm=0.0):
+        first = self._start_scene()
+        e = self._add_object(name, prefix, (x_mm, y_mm, z_mm))
+        text = f"Added {e['name']} (labels {e['prefix']}-...). It has no model yet: use create_shape or load_model_file."
+        if first:
+            text = f"The design so far is now the object {first}. " + text
+        return text
+
+    def _t_copy_object(self, name, new_name, prefix="", x_mm=None, y_mm=None, z_mm=None):
+        self._start_scene()
+        src = self._entry(name)
+        pos = [c if c is not None else src["position"][i] for i, c in enumerate((x_mm, y_mm, z_mm))]
+        e = self._new_entry(new_name, prefix, pos, state=sc.copy_state(self._object_state(src)),
+                            method=self._object_method(src))
+        self.scene_objects.append(e)
+        again = self._scene_changed()
+        return f"Copied {src['name']} to {e['name']} (labels {e['prefix']}-...)." + self._rerun_scene(again)
+
+    def _t_move_object(self, name, x_mm=0.0, y_mm=0.0, z_mm=0.0):
+        self._start_scene()
+        e = self._entry(name)
+        e["position"] = sc.check_position(x_mm, y_mm, z_mm)
+        return f"Moved {e['name']} to ({_mm(x_mm)}, {_mm(y_mm)}, {_mm(z_mm)}) mm. Its parts are unchanged."
+
+    def _t_remove_object(self, name):
+        e = self._entry(name)
+        idx = self.scene_objects.index(e)
+        was_active = e["name"] == self.active
+        self.scene_objects.remove(e)
+        if was_active:
+            self.active = None
+            for a, v in sc.blank_state().items():
+                setattr(self, a, v)
+            if self.scene_objects:
+                self._activate(self.scene_objects[max(0, idx - 1)]["name"])
+            else:
+                self.recipe = {k: v for k, v in self.recipe.items() if k != "method"}
+        again = self._scene_changed()
+        text = f"Removed {e['name']} and its parts."
+        return text + self._rerun_scene(again)
+
+    def _t_select_object(self, name):
+        self._activate(self._entry(name)["name"])
+        return "Active object: " + self._describe_object(self._entry(self.active))
+
+    def _t_list_objects(self):
+        if not self.scene_objects:
+            return "The design is one model, not a scene. add_object starts a scene."
+        return "\n".join(self._describe_object(e) for e in self.scene_objects)
+
+    def _placed_meshes(self) -> List[Tuple[dict, Mesh]]:
+        """Each object's model where it stands in the scene (or the one model)."""
+        if not self.scene_objects:
+            return [({}, self.model)] if self.model is not None else []
+        out = []
+        for e in self.scene_objects:
+            m = self._object_state(e)["model"]
+            if m is not None:
+                out.append((e, sc.moved(m, e["position"])))
+        return out
+
+    def _objects_info(self) -> List[dict]:
+        out = []
+        for e in self.scene_objects:
+            st = self._object_state(e)
+            size = None
+            if st["model"] is not None:
+                (lx, ly, lz), (hx, hy, hz) = st["model"].bbox()
+                size = [round(hx - lx, 2), round(hy - ly, 2), round(hz - lz, 2)]
+            out.append({"name": e["name"], "prefix": e["prefix"], "position": list(e["position"]),
+                        "model": st["model_name"], "size_mm": size, "method": st["method"],
+                        "method_summary": st["method_summary"],
+                        "part_count": len(st["parts"].parts) if st["parts"] is not None else 0,
+                        "active": e["name"] == self.active})
+        return out
 
     def _describe_model(self) -> str:
         m = self.model
@@ -990,12 +1250,20 @@ class DesignSession:
         return text
 
     def _t_model_info(self):
+        scene_lines = []
+        if self.scene_objects:
+            scene_lines = [f"Scene of {len(self.scene_objects)} object(s), active: {self.active}:"] + [
+                "- " + self._describe_object(e) for e in self.scene_objects]
+            if self.nested is not None:
+                n = self.nested
+                scene_lines.append(f"The scene is nested on {n['sheet_count']} sheet(s) of {_mm(n['sheet_width'])} x "
+                                   f"{_mm(n['sheet_height'])} mm")
         if self.model is None:
-            return "No model yet."
-        lines = [self._describe_model()]
+            return "\n".join(scene_lines + ["No model yet" + (f" in {self.active}." if self.active else ".")])
+        lines = scene_lines + [self._describe_model()]
         if self.parts is not None:
             lines.append(f"Parts: {self.method_summary}")
-        if self.nested is not None:
+        if self.nested is not None and not self.scene_objects:
             n = self.nested
             lines.append(f"Nested on {n['sheet_count']} sheet(s) of {_mm(n['sheet_width'])} x {_mm(n['sheet_height'])} mm")
         if self.overrides:
@@ -1081,7 +1349,10 @@ class DesignSession:
         inp = NestInput(sheet_width=sheet_width_mm, sheet_height=sheet_height_mm, gap=gap_mm, margin=margin_mm,
                         rotations=tuple(float(r) for r in rotations) or (0.0,))
         r = nest(PartsDoc(parts=[p for p in doc.parts]), inp)
-        self.parts = r.doc
+        if self.scene_objects:
+            self.scene_doc = r.doc
+        else:
+            self.parts = r.doc
         self.last_estimate = None
         self.nested = {"sheet_count": r.sheet_count, "utilisation": list(r.utilisation),
                        "sheet_width": sheet_width_mm, "sheet_height": sheet_height_mm}
@@ -1142,7 +1413,7 @@ class DesignSession:
         Saving into the open project's folder after its files changed on disk (another Mac,
         a sync) raises ProjectChangedError, unless ``overwrite``."""
         with self._lock:
-            if self.model is None:
+            if not self._placed_meshes():
                 raise ProjectError("There is nothing to save yet: make or load a model first")
             if not isinstance(name, str) or not isinstance(folder, str):
                 raise ProjectError("name and folder must be text")
@@ -1169,11 +1440,19 @@ class DesignSession:
     def _project_files(self, name: str) -> Dict[str, str]:
         from .components.export import safe_file_stem, to_dxf
 
-        files = {proj.MODEL_FILE: to_obj(self.model, self.model_name or "")}
-        if self.parts is not None:
-            files["parts/parts.json"] = self.parts.to_json() + "\n"
+        if self.scene_objects:
+            files = {}
+            for e in self.scene_objects:
+                st = self._object_state(e)
+                if st["model"] is not None:
+                    files[f"model/{e['prefix']}.obj"] = to_obj(st["model"], st["model_name"] or "")
+        else:
+            files = {proj.MODEL_FILE: to_obj(self.model, self.model_name or "")}
+        doc = self._sheet_doc()
+        if doc is not None:
+            files["parts/parts.json"] = doc.to_json() + "\n"
             stem = re.sub(r"-{2,}", "-", safe_file_stem(name))
-            for sheet in self.parts.layout():
+            for sheet in doc.layout():
                 files[f"cut-files/{stem}-sheet{sheet.index + 1}.dxf"] = to_dxf(sheet)
                 files[f"cut-files/{stem}-sheet{sheet.index + 1}.svg"] = to_svg(sheet)
         if self.last_estimate is not None:
@@ -1187,19 +1466,24 @@ class DesignSession:
             files["formulas.json"] = self.formulas.project_file_text()
         # The model, not the ribs: interlocking ribs cannot be drawn back to front.
         # The app adds preview/preview.png, a snapshot of its 3D preview.
-        files["preview/model.svg"] = proj.model_svg(self.model.triangles())
+        files["preview/model.svg"] = proj.model_svg([t for _, m in self._placed_meshes() for t in m.triangles()])
         return files
 
     def _summary(self) -> dict:
-        (lx, ly, lz), (hx, hy, hz) = self.model.bbox()
+        meshes = [m for _, m in self._placed_meshes()]
+        boxes = [m.bbox() for m in meshes]
+        lx, ly, lz = (min(b[0][i] for b in boxes) for i in range(3))
+        hx, hy, hz = (max(b[1][i] for b in boxes) for i in range(3))
         est = self.last_estimate or {}
+        doc = self._sheet_doc()
         return {
             "size_mm": [round(hx - lx, 2), round(hy - ly, 2), round(hz - lz, 2)],
-            "faces": len(self.model.faces),
-            "method": self.method,
-            "method_summary": self.method_summary,
-            "part_count": len(self.parts.parts) if self.parts is not None else 0,
-            "sheet_count": self.nested["sheet_count"] if self.nested else (1 if self.parts is not None else 0),
+            "faces": sum(len(m.faces) for m in meshes),
+            "method": "scene" if self.scene_objects else self.method,
+            "method_summary": (f"scene of {len(self.scene_objects)} objects" if self.scene_objects
+                               else self.method_summary),
+            "part_count": len(doc.parts) if doc is not None else 0,
+            "sheet_count": self.nested["sheet_count"] if self.nested else (1 if doc is not None else 0),
             "sheet_size": [self.nested["sheet_width"], self.nested["sheet_height"]] if self.nested else None,
             "time_min": est.get("time_min"),
             "total_cost": est.get("total_cost"),
@@ -1218,14 +1502,30 @@ class DesignSession:
             "engine_version": __version__,
             "saved_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "units": "mm",
-            "model": {"file": proj.MODEL_FILE, "name": self.model_name},
-            "recipe": self.recipe,
+            "model": ({"file": proj.MODEL_FILE, "name": self.model_name} if not self.scene_objects
+                      else self._scene_manifest()["objects"][0]["model"]),
+            "recipe": (self.recipe if not self.scene_objects
+                       else {k: v for k, v in self.recipe.items() if k in ("nest", "estimate")}),
+            **({"scene": self._scene_manifest()} if self.scene_objects else {}),
             "workflow": {"name": self.workflows.active()["name"],
                          "apply_defaults": self.workflows.settings()["apply_defaults"]},
             "summary": self._summary(),
-            "rhino_overrides": [o.to_dict() for o in self.overrides.values()],
+            "rhino_overrides": ([o.to_dict() for o in self.overrides.values()] if not self.scene_objects else []),
             "files": files,
         }
+
+    def _scene_manifest(self) -> dict:
+        objs = []
+        for e in self.scene_objects:
+            st = self._object_state(e)
+            objs.append({
+                "name": e["name"], "prefix": e["prefix"], "position": list(e["position"]),
+                "model": ({"file": f"model/{e['prefix']}.obj", "name": st["model_name"]}
+                          if st["model"] is not None else None),
+                "method": self._object_method(e),
+                "rhino_overrides": [o.to_dict() for o in st["overrides"].values()],
+            })
+        return {"active": self.active, "objects": objs}
 
     def open_project(self, path: str) -> dict:
         """Load a project folder and rebuild its design. On error the current design is kept."""
@@ -1234,35 +1534,25 @@ class DesignSession:
         directory = proj.resolve_open_dir(path, self.home)
         m = proj.read_manifest(directory)
         name = m.get("name") if isinstance(m.get("name"), str) and m.get("name") else os.path.basename(directory)
-        model_info = m.get("model") if isinstance(m.get("model"), dict) else {}
-        rel = proj._safe_rel(model_info.get("file", proj.MODEL_FILE))
-        if rel is None:
-            raise ProjectError(f"{proj.MANIFEST} names a model file outside the project")
-        try:
-            mesh = parse_obj(proj._read_text(os.path.join(directory, rel), proj.MAX_MODEL_BYTES, rel))
-        except MeshFileError as exc:
-            raise ProjectError(f"{rel}: {exc}") from None
-        model_name = model_info.get("name") if isinstance(model_info.get("name"), str) else "model"
         scratch = DesignSession(home=self.home)
         scratch.settings.load_project(directory)
         scratch.formulas.load_project(directory)
-        scratch._set_model(mesh, model_name)
-        raw_overrides = m.get("rhino_overrides") or []
-        if not isinstance(raw_overrides, list):
-            raise ProjectError(f"{proj.MANIFEST}: rhino_overrides must be a list")
-        try:
-            scratch.overrides = {o.part: o for o in map(Override.from_dict, raw_overrides)}
-        except PartsError as exc:
-            raise ProjectError(f"{proj.MANIFEST}: {exc}") from None
         recipe = m.get("recipe") or {}
         if not isinstance(recipe, dict):
             raise ProjectError(f"{proj.MANIFEST}: recipe must be an object")
-        method = recipe.get("method")
+        scene_info = m.get("scene")
         steps = []
+        if scene_info is not None:
+            rel = self._open_scene(scratch, directory, scene_info)
+            method = {} if scene_info.get("objects") else None
+        else:
+            model_info = m.get("model") if isinstance(m.get("model"), dict) else {}
+            rel = self._open_model(scratch, directory, model_info, m.get("rhino_overrides"))
+            method = recipe.get("method")
+            if method is not None:
+                self._check_method(method)
+                steps.append((method["tool"], method.get("input", {})))
         if method is not None:
-            if not isinstance(method, dict) or method.get("tool") not in METHOD_TOOLS:
-                raise ProjectError(f"{proj.MANIFEST}: the recipe method must be one of {', '.join(sorted(METHOD_TOOLS))}")
-            steps.append((method["tool"], method.get("input", {})))
             for key, tname in (("nest", "nest_sheets"), ("estimate", "estimate_cost")):
                 if recipe.get(key) is not None:
                     args = recipe[key]
@@ -1287,7 +1577,7 @@ class DesignSession:
         with self._lock:
             for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
                          "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
-                         "generated"):
+                         "generated", "scene_objects", "active", "scene_doc"):
                 setattr(self, attr, getattr(scratch, attr))
             self.notes, self.notices = [], []
             self.settings.project_data = scratch.settings.project_data
@@ -1322,6 +1612,69 @@ class DesignSession:
         found = proj.outside_changes(directory, known)
         found["outside_changes"] = bool(found["changed"] or found["missing"] or found["conflicts"])
         return {"project": name, "folder": directory, **found}
+
+    @staticmethod
+    def _check_method(method) -> None:
+        if not isinstance(method, dict) or method.get("tool") not in METHOD_TOOLS:
+            raise ProjectError(f"{proj.MANIFEST}: the recipe method must be one of {', '.join(sorted(METHOD_TOOLS))}")
+
+    @staticmethod
+    def _open_model(scratch: "DesignSession", directory: str, model_info: dict, raw_overrides,
+                    name: Optional[str] = None) -> str:
+        """Load one model file (and its Rhino hand edits) into the scratch session. Returns its path."""
+        rel = proj._safe_rel(model_info.get("file", proj.MODEL_FILE))
+        if rel is None:
+            raise ProjectError(f"{proj.MANIFEST} names a model file outside the project")
+        try:
+            mesh = parse_obj(proj._read_text(os.path.join(directory, rel), proj.MAX_MODEL_BYTES, rel))
+        except MeshFileError as exc:
+            raise ProjectError(f"{rel}: {exc}") from None
+        model_name = model_info.get("name") if isinstance(model_info.get("name"), str) else (name or "model")
+        scratch._set_model(mesh, model_name)
+        raw_overrides = raw_overrides or []
+        if not isinstance(raw_overrides, list):
+            raise ProjectError(f"{proj.MANIFEST}: rhino_overrides must be a list")
+        try:
+            scratch.overrides = {o.part: o for o in map(Override.from_dict, raw_overrides)}
+        except PartsError as exc:
+            raise ProjectError(f"{proj.MANIFEST}: {exc}") from None
+        return rel
+
+    def _open_scene(self, scratch: "DesignSession", directory: str, info) -> str:
+        """Rebuild each scene object (model, hand edits, method) in the scratch session."""
+        objs = info.get("objects") if isinstance(info, dict) else None
+        if not isinstance(objs, list) or not all(isinstance(o, dict) for o in objs):
+            raise ProjectError(f"{proj.MANIFEST}: scene.objects must be a list of objects")
+        first_rel = proj.MODEL_FILE
+        for o in objs:
+            pos = o.get("position") or [0, 0, 0]
+            if (not isinstance(pos, list) or len(pos) != 3
+                    or not all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in pos)):
+                raise ProjectError(f"{proj.MANIFEST}: the position of {o.get('name')!r} must be [x, y, z]")
+            try:
+                e = scratch._new_entry(o.get("name"), o.get("prefix") or "", pos)
+            except sc.SceneError as exc:
+                raise ProjectError(f"{proj.MANIFEST}: {exc}") from None
+            scratch.scene_objects.append(e)
+            scratch._activate(e["name"])
+            if isinstance(o.get("model"), dict):
+                rel = self._open_model(scratch, directory, o["model"], o.get("rhino_overrides"), e["name"])
+                if first_rel == proj.MODEL_FILE:
+                    first_rel = rel
+            method = o.get("method")
+            if method is not None:
+                self._check_method(method)
+                try:
+                    checked = _check_args(_TOOLS_BY_NAME[method["tool"]], method.get("input", {}))
+                    getattr(scratch, "_t_" + method["tool"])(**checked)
+                    scratch._record(method["tool"], checked)
+                except (ToolInputError, *INPUT_ERRORS) as exc:
+                    raise ProjectError(f"{proj.MANIFEST}: the {method['tool']} step of {e['name']} could not run "
+                                       f"again: {exc}") from None
+        active = info.get("active")
+        if isinstance(active, str) and scratch._entry(active, required=False) is not None:
+            scratch._activate(scratch._entry(active)["name"])
+        return first_rel
 
     def push_model(self, mesh: Mesh, name: str) -> int:
         """A model sent from Rhino (Hops SendToFoldTheory) replaces the current one."""
@@ -1491,8 +1844,9 @@ class DesignSession:
                        for pid, loops in self.parts3d.items()]
             sheets = []
             x = 0.0
-            if self.parts is not None:
-                for sheet in self.parts.layout():
+            doc = self._sheet_doc()
+            if doc is not None:
+                for sheet in doc.layout():
                     if sheet.size is not None:
                         w, h = sheet.size
                     else:
@@ -1519,7 +1873,7 @@ class DesignSession:
                 "thickness_mm": self.board_thickness,
                 "parts3d": parts3d,
                 "sheets": sheets,
-                "parts": self.parts.to_json() if self.parts is not None else None,
+                "parts": doc.to_json() if doc is not None else None,
             }
 
     def _live_summary(self) -> str:
@@ -1551,6 +1905,20 @@ class DesignSession:
         model = None
         objects: List[dict] = []
         sheets: List[dict] = []
+        if self.scene_objects:
+            for e in self.scene_objects:
+                st = self._object_state(e)
+                if st["model"] is None:
+                    continue
+                kind = "assembly" if st["method"] == "unfold" else "model"
+                objects.append(self._mesh_object(f"{e['prefix']}:model", kind, e["name"],
+                                                 sc.moved(st["model"], e["position"])))
+                for pid, loops in st["parts3d"].items():
+                    try:
+                        tris = extrude(sc.moved_loops(loops, e["position"]), st["board_thickness"])
+                    except ValueError:
+                        continue
+                    objects.append(_triangles_object(f"{e['prefix']}-{pid}", tris))
         if self.model is not None:
             (lx, ly, lz), (hx, hy, hz) = self.model.bbox()
             model = {
@@ -1559,17 +1927,19 @@ class DesignSession:
                 "size_mm": [round(hx - lx, 2), round(hy - ly, 2), round(hz - lz, 2)],
                 "bbox": [[lx, ly, lz], [hx, hy, hz]],
             }
-            kind = "assembly" if self.method == "unfold" else "model"
-            objects.append(self._mesh_object("model", kind, self.model_name, self.model))
-            for pid, loops in self.parts3d.items():
-                try:
-                    tris = extrude(loops, self.board_thickness)
-                except ValueError:
-                    continue
-                objects.append(_triangles_object(pid, tris))
-        if self.parts is not None:
+            if not self.scene_objects:
+                kind = "assembly" if self.method == "unfold" else "model"
+                objects.append(self._mesh_object("model", kind, self.model_name, self.model))
+                for pid, loops in self.parts3d.items():
+                    try:
+                        tris = extrude(loops, self.board_thickness)
+                    except ValueError:
+                        continue
+                    objects.append(_triangles_object(pid, tris))
+        doc = self._sheet_doc()
+        if doc is not None:
             util = self.nested["utilisation"] if self.nested else None
-            for sheet in self.parts.layout():
+            for sheet in doc.layout():
                 sheets.append({
                     "index": sheet.index,
                     "parts": len(sheet.parts),
@@ -1581,12 +1951,14 @@ class DesignSession:
             "model": model,
             "method": self.method,
             "method_summary": self.method_summary,
-            "nested": self.nested is not None if self.parts is not None else False,
+            "nested": self.nested is not None if doc is not None else False,
             "sheet_size": [self.nested["sheet_width"], self.nested["sheet_height"]] if self.nested else None,
             "sheets": sheets,
             "estimate": self.last_estimate,
             "steps": list(self.steps),
             "scene": {"objects": objects},
+            "objects": self._objects_info(),
+            "active_object": self.active,
         }
 
     def _mesh_object(self, oid: str, kind: str, label: str, mesh: Mesh) -> dict:
