@@ -1,12 +1,12 @@
 # Rhino live sync
 
-Show the design that is open in CardboardCAD inside Rhino, and keep it up to
+Show the design that is open in Fold Theory inside Rhino, and keep it up to
 date while you (or the Design Assistant) change it. You can also send a mesh
-from Rhino to CardboardCAD.
+from Rhino to Fold Theory.
 
 You need: Rhino 8 for Mac (Rhino 7 works too), with Hops installed (type
 `PackageManager` in Rhino's command line, search **Hops**, **Install**,
-restart Rhino), and CardboardCAD running with the **green** engine dot.
+restart Rhino), and Fold Theory running with the **green** engine dot.
 
 To edit the design in plain Rhino and have the edits flow back into the app
 (no Grasshopper needed), see [RHINO_TWO_WAY.md](RHINO_TWO_WAY.md).
@@ -17,9 +17,9 @@ Hops only asks the engine for an answer when one of its inputs changes. So
 the live link has two Grasshopper pieces:
 
 ```
- CardboardCAD app                         Grasshopper
+ Fold Theory app                         Grasshopper
  ───────────────                          ───────────
- design changes ──► version 12            [CardboardCAD Live listener]  (Python script component)
+ design changes ──► version 12            [Fold Theory Live listener]  (Python script component)
                     /api/design/version ◄── asks every 0.5 s, in the background
                                               │ Version = 12 (only re-runs when it changes)
                                               ▼
@@ -27,7 +27,7 @@ the live link has two Grasshopper pieces:
                 ──────────────────────────► Model, Parts 3D, Cut, Score, Sheets, Labels, Parts, Summary
 ```
 
-1. **CardboardCAD Live listener**: a short Python script for a Grasshopper
+1. **Fold Theory Live listener**: a short Python script for a Grasshopper
    script component. It asks the app for its *design version*, a number that
    goes up every time the design changes. It does this on a background
    thread, and only re-runs the Grasshopper definition when the number
@@ -37,7 +37,7 @@ the live link has two Grasshopper pieces:
 
 And the other way:
 
-3. **SendToCardboardCAD** (Hops, `http://127.0.0.1:5001/send_to_cardboardcad`):
+3. **SendToFoldTheory** (Hops, `http://127.0.0.1:5001/send_to_cardboardcad`):
    a mesh from Rhino becomes the app's model, ready for the Design Assistant
    to slice, nest and cost ("make this a waffle from 6 mm board").
 
@@ -45,7 +45,7 @@ Everything stays on your own Mac (`127.0.0.1`). Nothing goes over the network.
 
 ## Set it up (once per Grasshopper file)
 
-Before you start: CardboardCAD is open, the dot in its bottom-left corner is
+Before you start: Fold Theory is open, the dot in its bottom-left corner is
 **green**, and the Design Assistant has made something (for example "make a
 cylinder stool 450 mm tall as a waffle"), so there is a design to see.
 
@@ -69,7 +69,7 @@ are the step numbers below.
 
 ### Step 1: add the listener (Python script component)
 
-1. In CardboardCAD choose **Design > Copy Rhino Live Listener Script**.
+1. In Fold Theory choose **Design > Copy Rhino Live Listener Script**.
 2. In Grasshopper, double-click the canvas, type `Python 3 Script`, press
    Return. (Rhino 7: type `GhPython`.)
 3. Double-click the new component to open its editor, press ⌘A then ⌘V to
@@ -88,15 +88,15 @@ are the step numbers below.
    press Return. Grasshopper makes a small number box holding 500. Wire it to
    **Interval**. (500 means "check twice a second".)
 7. **Port:** the same way, type `5001`, press Return, and wire it to **Port**.
-   (Use the port shown in CardboardCAD **Settings** if you changed it.)
+   (Use the port shown in Fold Theory **Settings** if you changed it.)
 
 ### Step 3: see what the listener is doing
 
 8. Double-click the canvas, type `Panel`, press Return. A yellow note
    appears. Wire the listener's **Status** output into the panel's left side.
    Within a second it should read
-   `Live: CardboardCAD design version 7 (checking every 500 ms).`
-   (any number). If it says `Waiting for CardboardCAD on port 5001`, the app
+   `Live: Fold Theory design version 7 (checking every 500 ms).`
+   (any number). If it says `Waiting for Fold Theory on port 5001`, the app
    is not running or the port is wrong.
 
 ### Step 4: add LiveDesign (the Hops component that brings the design in)
@@ -124,7 +124,7 @@ are the step numbers below.
 
 ### Step 6: check that it is live
 
-15. In CardboardCAD, ask the assistant for a change, for example "use 6 ribs
+15. In Fold Theory, ask the assistant for a change, for example "use 6 ribs
     each way". In Grasshopper the Status panel's version number goes up, and
     the preview in Rhino changes within about half a second.
 
@@ -156,8 +156,8 @@ nothing changed, so it uses more computer time, but it has fewer steps:
 
 There is no ready-made `.gh` file yet: Grasshopper files can only be made
 reliably inside Grasshopper. Once you have wired steps 1 to 11, save the
-file as `CardboardCAD Live.gh` and it can be added to this repository
-(`rhino/CardboardCAD Live.gh`) for everyone to open instead of wiring.
+file as `Fold Theory Live.gh` and it can be added to this repository
+(`rhino/Fold Theory Live.gh`) for everyone to open instead of wiring.
 
 ### LiveDesign's outputs
 
@@ -173,7 +173,7 @@ file as `CardboardCAD Live.gh` and it can be added to this repository
 | **P** | the parts document: connect it to the `/nest` or `/export` Hops components |
 | **S** | a text summary: size, method, sheets, cost |
 
-### Send a Rhino model to CardboardCAD (optional)
+### Send a Rhino model to Fold Theory (optional)
 
 1. Another Hops component with path `http://127.0.0.1:5001/send_to_cardboardcad`.
 2. Connect a closed mesh to **M** (for a Brep or a Rhino object, use
@@ -184,16 +184,17 @@ file as `CardboardCAD Live.gh` and it can be added to this repository
    The app's preview shows the mesh, and the assistant can work on it.
 
 Sending replaces the app's model and clears its parts. Do **not** connect
-LiveDesign's **M** into SendToCardboardCAD's **M**: that would send the
+LiveDesign's **M** into SendToFoldTheory's **M**: that would send the
 design back to itself.
 
 ## Troubleshooting
 
 | What you see | What to do |
 |---|---|
-| Status: `Waiting for CardboardCAD on port 5001` | Start CardboardCAD. Wait for the green dot. If you changed the port in Settings, connect a Panel with that number to **Port**. |
+| Status: `Waiting for Fold Theory on port 5001` | Start Fold Theory. Wait for the green dot. If you changed the port in Settings, connect a Panel with that number to **Port**. |
 | LiveDesign is orange with "Unable to connect" | Same as above; and check the Hops path is `http://127.0.0.1:5001/live_design` (not `localhost`). |
 | Grasshopper does not update | Is **On** True (or unconnected)? Does Status show a version number that changes when you change the design? If the number changes but LiveDesign does not, check the wire from **Version** to **V**. |
+| Status says `Live: … version N` but LiveDesign's outputs say "No data was collected" | You have the first listener script, which could cancel Hops while it waited. Copy the script again (**Design > Copy Rhino Live Listener Script**, from a Fold Theory (or CardboardCAD) build after 27 Nov 2026), paste it over the old one, and press F5. Also right-click LiveDesign and untick **Asynchronous** if it is ticked. |
 | The listener stopped after editing the script | Recompute: Grasshopper menu **Solution > Recompute** (F5). |
 | `M` is empty, Summary says "No design" | The app has no model yet. Make one in the Design Assistant, or open a project (**File > Open Project…**). |
 

@@ -3,7 +3,7 @@
 # and whether the engine starts from the signed bundle. Informational: the
 # authoritative answer needs a Developer ID signature and a notarization pass.
 #
-#   scripts/ci/layout_probe.sh build/app/CardboardCAD.app >> "$GITHUB_STEP_SUMMARY"
+#   scripts/ci/layout_probe.sh "build/app/Fold Theory.app" >> "$GITHUB_STEP_SUMMARY"
 set -uo pipefail
 SRC="${1:?path to built .app}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -21,7 +21,7 @@ for layout in frameworks helpers resources; do
     resources)  REL="Contents/Resources/python" ;;
   esac
   rm -rf "$WORK"; mkdir -p "$WORK"
-  APP="$WORK/CardboardCAD.app"
+  APP="$WORK/$(basename "$SRC")"
   ditto "$SRC" "$APP"
   if [ "$REL" != "$CUR" ]; then
     mkdir -p "$APP/$(dirname "$REL")"

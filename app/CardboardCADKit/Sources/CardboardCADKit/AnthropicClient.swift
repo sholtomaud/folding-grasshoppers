@@ -61,7 +61,7 @@ public enum AnthropicError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "No Claude API key yet. Add one in CardboardCAD > Settings > Design Assistant."
+            return "No Claude API key yet. Add one in Fold Theory > Settings > Design Assistant."
         case .http(401, let message):
             return "Claude rejected the API key (\(message)). Check it in Settings > Design Assistant."
         case .http(429, let message):

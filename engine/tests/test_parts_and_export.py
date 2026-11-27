@@ -149,7 +149,7 @@ def test_safe_file_stem(name, stem):
 
 
 def test_export_dir_defaults_to_documents(tmp_path):
-    assert resolve_export_dir("", home=str(tmp_path)) == os.path.join(str(tmp_path), "Documents", "CardboardCAD")
+    assert resolve_export_dir("", home=str(tmp_path)) == os.path.join(str(tmp_path), "Documents", "Fold Theory")
 
 
 def test_export_dir_must_be_inside_home(tmp_path):

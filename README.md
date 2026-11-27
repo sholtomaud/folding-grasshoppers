@@ -1,6 +1,8 @@
-# CardboardCAD
+# Fold Theory
 
-CardboardCAD is a Mac app built for [Fold Theory](https://foldtheory.com).
+Fold Theory is the Mac app of the [Fold Theory](https://foldtheory.com)
+studio. It used to be called CardboardCAD (see
+[Coming from CardboardCAD](#coming-from-cardboardcad)).
 Inside it is a small calculation engine written in Python. Grasshopper (the
 visual programming tool in Rhino 8) talks to that engine through its **Hops**
 component, so the app and your Grasshopper definitions use the same
@@ -9,7 +11,7 @@ calculations.
 - Nothing else needs installing: the app carries its own copy of Python.
 - The engine only listens on your own Mac, at `http://127.0.0.1:5001`.
   Nothing is reachable from the network.
-- In Grasshopper, the components appear under **Fold Theory > CardboardCAD**
+- In Grasshopper, the components appear under **Fold Theory > Cardboard**
   with the Fold Theory icon.
 
 > **Status (milestone 1):** there is **no downloadable release yet**. Until
@@ -24,7 +26,7 @@ Contents:
 3. [Design with the Design Assistant](#3-design-with-the-design-assistant)
 4. [Connect Grasshopper (Hops)](#4-connect-grasshopper-hops)
 5. [Hello world demo](#5-hello-world-demo)
-6. [Where CardboardCAD keeps its files](#6-where-cardboardcad-keeps-its-files)
+6. [Where Fold Theory keeps its files](#6-where-fold-theory-keeps-its-files)
 7. [Build the app yourself](#7-build-the-app-yourself)
 8. [Make a signed release (DMG)](#8-make-a-signed-release-dmg)
 9. [Troubleshooting](#9-troubleshooting)
@@ -45,7 +47,7 @@ There is no download yet: the releases page
 (https://github.com/sholtomaud/folding-grasshoppers/releases) is empty until
 the first signed release is published. Follow
 [section 7](#7-build-the-app-yourself) (about 10 minutes). It produces
-`~/src/folding-grasshoppers/build/app/CardboardCAD.app`, which you copy to
+`~/src/folding-grasshoppers/build/app/Fold Theory.app`, which you copy to
 `/Applications`.
 
 ### Later: download a release (not available yet)
@@ -54,21 +56,21 @@ Skip this until the releases page lists a release.
 
 1. Go to the releases page:
    **https://github.com/sholtomaud/folding-grasshoppers/releases**
-2. Under the newest release, open **Assets** and click `CardboardCAD.dmg`.
+2. Under the newest release, open **Assets** and click `Fold Theory.dmg`.
    Your browser saves it to your Downloads folder:
-   `/Users/<you>/Downloads/CardboardCAD.dmg`.
-3. Double-click `CardboardCAD.dmg` in Finder. A window opens showing
-   **CardboardCAD** and an **Applications** folder.
-4. Drag **CardboardCAD** onto **Applications**. The app is now at
-   `/Applications/CardboardCAD.app`.
+   `/Users/<you>/Downloads/Fold Theory.dmg`.
+3. Double-click `Fold Theory.dmg` in Finder. A window opens showing
+   **Fold Theory** and an **Applications** folder.
+4. Drag **Fold Theory** onto **Applications**. The app is now at
+   `/Applications/Fold Theory.app`.
 5. Eject the disk image: in the Finder sidebar, click the eject button next to
-   **CardboardCAD 0.1.0**. You can then delete
-   `~/Downloads/CardboardCAD.dmg`.
+   **Fold Theory 0.1.0**. You can then delete
+   `~/Downloads/Fold Theory.dmg`.
 
 ## 2. First launch
 
-1. Open Finder > **Applications** and double-click **CardboardCAD**.
-2. A release download shows the usual macOS prompt: *"CardboardCAD" is an app
+1. Open Finder > **Applications** and double-click **Fold Theory**.
+2. A release download shows the usual macOS prompt: *"Fold Theory" is an app
    downloaded from the Internet. Are you sure you want to open it?* Click
    **Open**. You only see this once.
    (Your own unsigned build is blocked instead: see
@@ -86,7 +88,7 @@ Skip this until the releases page lists a release.
 
 On the right, the status bar shows when Grasshopper last called the engine.
 Hops never stays connected: it sends a request each time a component loads or
-solves, so this is the way to check that Grasshopper can reach CardboardCAD.
+solves, so this is the way to check that Grasshopper can reach Fold Theory.
 
 | Grasshopper dot (bottom right) | Meaning |
 |---|---|
@@ -95,11 +97,11 @@ solves, so this is the way to check that Grasshopper can reach CardboardCAD.
 | grey, "last call 10 min ago" | Hops reached it before, but not recently |
 | red, "failed (HTTP 500)" | the last call reached the engine but the component reported an error |
 
-Quitting CardboardCAD (**CardboardCAD > Quit**, or ⌘Q) also stops the engine.
+Quitting Fold Theory (**Fold Theory > Quit**, or ⌘Q) also stops the engine.
 
 ### Settings
 
-Open them with **CardboardCAD > Settings…** (⌘,).
+Open them with **Fold Theory > Settings…** (⌘,).
 
 - **Port**: `5001` unless you change it. Type a number between 1024 and 65535
   and click **Apply**. The engine restarts on the new port, and every Hops URL
@@ -135,14 +137,14 @@ Anthropic bills that key for each message (typically a few cents).
 
 1. In your web browser, go to **https://console.anthropic.com/settings/keys**
    and sign in (or create an account and add billing under **Plans & Billing**).
-2. Click **Create Key**, name it `CardboardCAD`, and click **Add**.
+2. Click **Create Key**, name it `Fold Theory`, and click **Add**.
 3. Click **Copy**. The key starts with `sk-ant-`. Keep this browser tab open
    until step 2 is done: the console only shows the key once.
 
-### Step 2: put the key into CardboardCAD (once)
+### Step 2: put the key into Fold Theory (once)
 
-1. Open CardboardCAD (Finder > **Applications** > **CardboardCAD**).
-2. Open **CardboardCAD > Settings…** (⌘,).
+1. Open Fold Theory (Finder > **Applications** > **Fold Theory**).
+2. Open **Fold Theory > Settings…** (⌘,).
 3. In the **Design Assistant (Claude)** section, click in the field that says
    *Paste your Claude API key*, press ⌘V, then click **Save**.
 4. The row now shows `sk-ant-…` followed by the last four characters and
@@ -156,7 +158,7 @@ Anthropic bills that key for each message (typically a few cents).
    care: Medium is a good default.
 6. Close the Settings window.
 
-macOS may ask *"CardboardCAD wants to use your confidential information
+macOS may ask *"Fold Theory wants to use your confidential information
 stored in "com.example.cardboardcad.claude" in your keychain."* the first time
 after each new build. Type your Mac login password and click **Always Allow**.
 This happens because your own builds are signed ad hoc, so macOS treats each
@@ -188,7 +190,7 @@ What the assistant can do:
 | unfold / net / papercraft | folding nets with glue tabs (needs a faceted model, for example a cone with 8 sides) |
 | nest on sheets of W × H mm | lays the parts on as few sheets as possible |
 | cost / time | measures cut length, score length and pierces, and works out machine time and cost |
-| export DXF or SVG | writes one file per sheet into `~/Documents/CardboardCAD/` (or a folder you name inside your home folder) |
+| export DXF or SVG | writes one file per sheet into `~/Documents/Fold Theory/` (or a folder you name inside your home folder) |
 
 - **New Design** (the pencil-and-square button at the top of the chat, or
   **Design > New Design**, ⇧⌘N) clears the chat and the design.
@@ -235,7 +237,7 @@ It saves the workflow and switches to it. Pick a workflow in the toolbar,
 in **Design > Workflow**, or in Settings, or ask "use the Honeycomb
 workflow". To change one saved value, say for example "remember 12.50 a
 sheet". Each workflow is a plain JSON file in
-`~/Documents/CardboardCAD/Workflows/` (**Design > Workflow > Show Workflows
+`~/Documents/Fold Theory/Workflows/` (**Design > Workflow > Show Workflows
 Folder**), so you can copy it to another Mac or edit it by hand; then choose
 **Reload Workflows**. Delete a file there to remove that workflow; delete
 `Standard.json` to get the built-in Standard back. Saved projects record
@@ -248,7 +250,7 @@ for each job, and one per concept when you want to show a client several
 options (for example `Acme Expo - Concept A`, `Acme Expo - Concept B`).
 
 - **File > Save Project** (⌘S) the first time asks for a name, then saves
-  into `~/Documents/CardboardCAD/Projects/<name>/`. You can pick another
+  into `~/Documents/Fold Theory/Projects/<name>/`. You can pick another
   folder in the dialog, as long as it is inside your home folder and empty.
   After that, ⌘S saves into the same folder again.
 - **File > Save Project As…** (⇧⌘S) saves a copy under a new name: the
@@ -262,7 +264,7 @@ options (for example `Acme Expo - Concept A`, `Acme Expo - Concept B`).
 
 What is in a project folder (example for a project called `Stool`):
 
-| Path inside `~/Documents/CardboardCAD/Projects/Stool/` | What |
+| Path inside `~/Documents/Fold Theory/Projects/Stool/` | What |
 |---|---|
 | `project.json` | name, date, the steps that rebuild the design, and a summary (size, parts, sheets, cost) |
 | `chat.json` | the conversation with the Design Assistant |
@@ -294,7 +296,7 @@ git fetch origin
 git checkout main
 git pull
 make app sign-adhoc install
-open /Applications/CardboardCAD.app
+open /Applications/Fold Theory.app
 ```
 
 `make app` rebuilds the bundled Python with the new engine code and then the
@@ -309,8 +311,8 @@ You need Rhino 8 for Mac. Hops ships with Rhino 8. If it is missing, type
 `PackageManager` in the Rhino command line, search for **Hops**, click
 **Install**, and restart Rhino.
 
-1. Start CardboardCAD and wait for the **green** dot.
-2. In CardboardCAD, open **Settings** (⌘,). Under **Grasshopper Hops**, click
+1. Start Fold Theory and wait for the **green** dot.
+2. In Fold Theory, open **Settings** (⌘,). Under **Grasshopper Hops**, click
    **Copy Hops URL** next to the component you want. For example, the hello
    world one is `http://127.0.0.1:5001/hello`.
 3. In Rhino, type `Grasshopper` and press Return to open the Grasshopper window.
@@ -352,7 +354,7 @@ the component turns red and says why. It never returns zeros silently.
    thickness, mm). **Cut** previews the flat ribs; **R3** shows them in place.
 2. Hops with `/export`. Connect the waffle's **P** output to its **P** input,
    and a **Boolean Toggle** to **W**. Set it to True to write
-   `~/Documents/CardboardCAD/cardboardcad-sheet1.dxf` (layers CUT, LABEL).
+   `~/Documents/Fold Theory/cardboardcad-sheet1.dxf` (layers CUT, LABEL).
    Type `svg` into **F** for SVG instead.
 
 The other geometry components chain the same way, through their **P**
@@ -369,7 +371,7 @@ See [docs/GEOMETRY.md](docs/GEOMETRY.md) for every input and output.
 
 ### See the app's design live in Rhino
 
-Grasshopper can show the design that is open in CardboardCAD and update
+Grasshopper can show the design that is open in Fold Theory and update
 whenever it changes (including while the Design Assistant works), and can
 send a Rhino mesh to the app. It takes a small listener script (copy it with
 **Design > Copy Rhino Live Listener Script**) plus the `/live_design` Hops
@@ -391,12 +393,12 @@ has not been tried in Rhino yet.
 ## 5. Hello world demo
 
 This checks the whole chain, Mac app > engine > Grasshopper, in three ways.
-Start CardboardCAD and wait for the green dot first.
+Start Fold Theory and wait for the green dot first.
 
 **A. In the app.** Open **Design > Manual Tools** (⇧⌘T), type a name in the
 **Hello world** box and click **Say Hello**. You see:
 
-> Hello, Ada, from CardboardCAD by Fold Theory
+> Hello, Ada, from Fold Theory
 
 **B. In Grasshopper.**
 
@@ -419,7 +421,7 @@ Expected output:
 
 ```text
 {"status":"healthy"}
-{"message":"Hello, Terminal, from CardboardCAD by Fold Theory"}
+{"message":"Hello, Terminal, from Fold Theory"}
 ```
 
 If you have the source code checked out and the app built (section 7), this
@@ -436,35 +438,58 @@ build/python-runtime/bin/python3.12 -I scripts/demo_hello.py --name Grasshopper
 health: {'status': 'healthy'}
 
 Hops component at http://127.0.0.1:5001/hello
-  Fold Theory > CardboardCAD > Hello (icon: yes)
+  Fold Theory > Cardboard > Hello (icon: yes)
   in : Name (Name, Text)
   out: Message (Msg, Text)
 
-Hops solve  -> Hello, Grasshopper, from CardboardCAD by Fold Theory
-App route   -> Hello, Grasshopper, from CardboardCAD by Fold Theory
+Hops solve  -> Hello, Grasshopper, from Fold Theory
+App route   -> Hello, Grasshopper, from Fold Theory
 ```
 
-## 6. Where CardboardCAD keeps its files
+## 6. Where Fold Theory keeps its files
 
 `~` means your home folder, `/Users/<you>`. In Finder, press ⇧⌘G and paste a
 path to jump there.
 
 | What | Path |
 |---|---|
-| The app | `/Applications/CardboardCAD.app` |
-| Engine log (newest) | `~/Library/Logs/CardboardCAD/engine.log` |
-| Older logs (kept: 2, 5 MB each) | `~/Library/Logs/CardboardCAD/engine.log.1`, `engine.log.2` |
-| Engine data | `~/Library/Application Support/CardboardCAD/` |
-| Engine cache | `~/Library/Caches/CardboardCAD/` |
+| The app | `/Applications/Fold Theory.app` |
+| Engine log (newest) | `~/Library/Logs/Fold Theory/engine.log` |
+| Older logs (kept: 2, 5 MB each) | `~/Library/Logs/Fold Theory/engine.log.1`, `engine.log.2` |
+| Engine data | `~/Library/Application Support/Fold Theory/` |
+| Engine cache | `~/Library/Caches/Fold Theory/` |
 | Saved port setting | `~/Library/Preferences/com.example.cardboardcad.plist` (read it with `defaults read com.example.cardboardcad enginePort`) |
 | Claude API key | login Keychain, item `com.example.cardboardcad.claude` (Keychain Access.app) |
 | Assistant model and effort | same preferences file (`defaults read com.example.cardboardcad assistantModel`) |
-| Exported cut files | `~/Documents/CardboardCAD/` unless you name another folder |
-| Saved projects | `~/Documents/CardboardCAD/Projects/<project name>/` (see section 3, *Save and open projects*) |
-| Workflows | `~/Documents/CardboardCAD/Workflows/<workflow name>.json`, and `.settings.json` there for the active workflow and Apply defaults (see section 3, *Workflows*) |
-| Python inside the app | `/Applications/CardboardCAD.app/Contents/Resources/python/` |
+| Exported cut files | `~/Documents/Fold Theory/` unless you name another folder |
+| Saved projects | `~/Documents/Fold Theory/Projects/<project name>/` (see section 3, *Save and open projects*) |
+| Workflows | `~/Documents/Fold Theory/Workflows/<workflow name>.json`, and `.settings.json` there for the active workflow and Apply defaults (see section 3, *Workflows*) |
+| Python inside the app | `/Applications/Fold Theory.app/Contents/Resources/python/` |
 
-To uninstall, quit the app, drag `/Applications/CardboardCAD.app` to the
+### Coming from CardboardCAD
+
+The app was called CardboardCAD. The first time Fold Theory starts it moves
+your old folders to their new names, so nothing is lost:
+
+| Old path | New path |
+|---|---|
+| `~/Documents/CardboardCAD/` | `~/Documents/Fold Theory/` (projects, workflows, exports). The old path stays as a link to the new folder, so file paths saved in Rhino files and Grasshopper inputs still work |
+| `~/Library/Logs/CardboardCAD/` | `~/Library/Logs/Fold Theory/` |
+| `~/Library/Application Support/CardboardCAD/` | `~/Library/Application Support/Fold Theory/` |
+| `~/Library/Caches/CardboardCAD/` | `~/Library/Caches/Fold Theory/` |
+
+If both an old and a new folder already exist, both are kept and the old one
+is left alone; move files across in Finder if you need them. Your port,
+model and effort settings and the Claude API key in the Keychain carry over
+unchanged (the bundle identifier `com.example.cardboardcad` did not change).
+`make install` also deletes the old `/Applications/CardboardCAD.app`.
+
+In Grasshopper, the components now appear under **Fold Theory > Cardboard**.
+Existing definitions keep working: the Hops URLs did not change (for example
+`http://127.0.0.1:5001/send_to_cardboardcad`), only the names shown, such as
+**SendToFoldTheory**.
+
+To uninstall, quit the app, drag `/Applications/Fold Theory.app` to the
 Trash, delete the four `~/Library/...` paths above, and delete the Keychain
 item `com.example.cardboardcad.claude` in Keychain Access.
 
@@ -547,9 +572,9 @@ cd ~/src/folding-grasshoppers
 make app
 ```
 
-It ends with `==> Built build/app/CardboardCAD.app (...)`. The app is now at:
+It ends with `==> Built build/app/Fold Theory.app (...)`. The app is now at:
 
-`~/src/folding-grasshoppers/build/app/CardboardCAD.app`
+`~/src/folding-grasshoppers/build/app/Fold Theory.app`
 
 The Xcode log is at `~/src/folding-grasshoppers/build/xcodebuild-archive.log`.
 
@@ -564,7 +589,7 @@ make sign-adhoc install open
 ```
 
 If macOS still says it cannot verify the app, open **System Settings >
-Privacy & Security**, scroll to the message about CardboardCAD and click
+Privacy & Security**, scroll to the message about Fold Theory and click
 **Open Anyway**. An ad-hoc signed app only works on the Mac that built it. To
 give it to someone else, make a signed release (section 8).
 
@@ -572,7 +597,7 @@ Run `make help` to list every command.
 
 ## 8. Make a signed release (DMG)
 
-This creates the `CardboardCAD.dmg` that goes on the releases page. You need:
+This creates the `Fold Theory.dmg` that goes on the releases page. You need:
 
 - the build tools from [section 7, step 1](#step-1-install-the-tools-once)
 - a paid Apple Developer account, and its **Team ID** (10 characters, shown at
@@ -604,11 +629,11 @@ This rebuilds Python (in the container) and the app, signs everything, sends the
 DMG to Apple for notarization (usually 2 to 15 minutes each), staples the
 approval, and runs the final checks. The result is:
 
-`~/src/folding-grasshoppers/build/CardboardCAD.dmg`
+`~/src/folding-grasshoppers/build/Fold Theory.dmg`
 
 To publish it, go to
 https://github.com/sholtomaud/folding-grasshoppers/releases/new, choose a tag
-such as `v0.1.0`, drag `build/CardboardCAD.dmg` into the **Attach binaries**
+such as `v0.1.0`, drag `build/Fold Theory.dmg` into the **Attach binaries**
 box, and click **Publish release**.
 
 The bundle ID is `com.example.cardboardcad` until a real one is chosen. Change
@@ -622,10 +647,10 @@ in `~/src/folding-grasshoppers/scripts/README.md`.
 | Symptom | What to do |
 |---|---|
 | Red dot: "Port 5001 is in use" | Another program is using port 5001. In Terminal, `lsof -nP -iTCP:5001 -sTCP:LISTEN` shows which. Quit it, or choose another port in **Settings**, click **Apply**, and copy the Hops URLs again. |
-| Red dot: "Engine crashed 4 times within 60 s" | Click **View Logs** and send `~/Library/Logs/CardboardCAD/engine.log` to the developers. **Engine > Restart Engine** tries again. |
+| Red dot: "Engine crashed 4 times within 60 s" | Click **View Logs** and send `~/Library/Logs/Fold Theory/engine.log` to the developers. **Engine > Restart Engine** tries again. |
 | Red dot: "Engine did not become ready within 20 s" | Restart the engine once. If it happens again, send the log. |
 | Hops component stays grey or empty | Check the dot is green and the port in the URL matches **Settings**. Paste the URL into Safari: it should show text starting with `{"Uri":`. |
-| "CardboardCAD can't be opened" | You opened an unsigned build. See [section 7, step 5](#step-5-sign-it-for-this-mac-and-install-it). |
+| "Fold Theory can't be opened" | You opened an unsigned build. See [section 7, step 5](#step-5-sign-it-for-this-mac-and-install-it). |
 | Chat says "No Claude API key yet" | Do [section 3, step 2](#step-2-put-the-key-into-cardboardcad-once). |
 | Chat says "Claude rejected the API key" | The key is wrong or was deleted. Make a new one at console.anthropic.com and save it in **Settings**. |
 | Chat says "Claude is rate limiting this key" or mentions credit | Wait a minute, or check billing at console.anthropic.com > **Plans & Billing**. |

@@ -250,11 +250,11 @@ class PartsDoc:
     @classmethod
     def from_json(cls, text: str) -> "PartsDoc":
         if not isinstance(text, str) or not text.strip():
-            raise PartsError("Parts input is empty; connect the P output of a CardboardCAD component")
+            raise PartsError("Parts input is empty; connect the P output of a Fold Theory component")
         try:
             d = json.loads(text)
         except ValueError:
-            raise PartsError("Parts input is not CardboardCAD parts JSON") from None
+            raise PartsError("Parts input is not Fold Theory parts JSON") from None
         if not isinstance(d, dict) or d.get("schema") != SCHEMA:
             raise PartsError(f"Parts input is not a {SCHEMA} document")
         if d.get("units", "mm") != "mm":

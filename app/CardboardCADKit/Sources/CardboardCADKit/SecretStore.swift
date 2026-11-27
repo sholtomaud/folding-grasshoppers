@@ -58,7 +58,7 @@ public final class KeychainSecretStore: SecretStore {
         guard update == errSecItemNotFound else { throw SecretStoreError.keychain(update) }
         var add = query
         add[kSecValueData as String] = data
-        add[kSecAttrLabel as String] = "CardboardCAD Claude API key"
+        add[kSecAttrLabel as String] = "Fold Theory Claude API key"
         add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw SecretStoreError.keychain(status) }

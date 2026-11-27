@@ -6,7 +6,7 @@ gap, prices). The Standard workflow is built in, so nesting and costing
 happen after every design without being asked. With "apply defaults" on,
 missing inputs are filled from the workflow; with it off, Claude has to ask
 the designer first. Claude can save new workflows from a conversation.
-Workflows are plain JSON files in ~/Documents/CardboardCAD/Workflows/.
+Workflows are plain JSON files in ~/Documents/Fold Theory/Workflows/.
 """
 
 import json
@@ -167,7 +167,7 @@ def test_save_workflow_writes_a_json_file_and_makes_it_active(session, tmp_path)
     text = save_board_workflow(session)
     assert "Big board" in text
     path = os.path.join(workflows_dir(str(tmp_path)), "Big board.json")
-    assert workflows_dir(str(tmp_path)) == os.path.join(str(tmp_path), "Documents", "CardboardCAD", "Workflows")
+    assert workflows_dir(str(tmp_path)) == os.path.join(str(tmp_path), "Documents", "Fold Theory", "Workflows")
     with open(path, encoding="utf-8") as fh:
         saved = json.load(fh)
     assert saved["schema"] == WORKFLOW_SCHEMA
@@ -275,7 +275,7 @@ def test_workflow_routes_list_and_change_settings(client):
     body = client.get("/api/workflows").get_json()
     assert body["active"] == STANDARD_NAME
     assert body["apply_defaults"] is True
-    assert body["folder"].endswith(os.path.join("Documents", "CardboardCAD", "Workflows"))
+    assert body["folder"].endswith(os.path.join("Documents", "Fold Theory", "Workflows"))
     r = client.post("/api/workflows/settings", json={"apply_defaults": False})
     assert r.status_code == 200
     assert r.get_json()["apply_defaults"] is False

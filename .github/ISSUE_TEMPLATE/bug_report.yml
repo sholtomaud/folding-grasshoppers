@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in CardboardCAD, the engine or Hops does not work
+description: Something in Fold Theory, the engine or Hops does not work
 labels: [bug]
 body:
   - type: textarea
@@ -14,7 +14,7 @@ body:
     attributes:
       label: Where
       options:
-        - CardboardCAD app
+        - Fold Theory app
         - Grasshopper / Hops component
         - Engine (HTTP API)
         - Build, signing or release scripts
@@ -29,5 +29,5 @@ body:
     id: logs
     attributes:
       label: Engine log
-      description: Last lines of ~/Library/Logs/CardboardCAD/engine.log (Engine > Show Logs).
+      description: Last lines of ~/Library/Logs/Fold Theory/engine.log (Engine > Show Logs).
       render: text

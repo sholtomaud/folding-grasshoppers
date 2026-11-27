@@ -152,12 +152,22 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Previous Attestation:** `17f5eb7b5c3689bccde22764a1102a4076829b3b9627b6c9343dc3d6239c6068`
 - **Attestation SHA-256:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
 
-## 2026-11-27T03:35:40Z — `61258f6` (PASS)
+## 2026-11-27T03:20:39Z — `61258f6` (PASS)
 
 - **Commit:** `61258f6`
-- **Timestamp:** `2026-11-27T03:35:40Z`
-- **Proof Lock Root SHA-256:** `57bfc221117c79fb931f5b892b43a87cc7aa6beeec94a4bb1f265c90e6a3cc20`
+- **Timestamp:** `2026-11-27T03:20:39Z`
+- **Proof Lock Root SHA-256:** `dce00fa15110da9d35e573c2b4c8d6273d89aabea73d85b0077a29fddec24841`
 - **Verdict:** `PASS`
-- **Summary:** Two-way Rhino link (#37-#40): new engine tests for the Rhino scene, model edits, part overrides, conflicts and notes, plus Swift tests for Rhino notes; raise test floors to 402 pytest / 125 swift
+- **Summary:** Rhino listener: schedule solutions instead of forcing them; 4 new tests, pytest floor 351
 - **Previous Attestation:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
-- **Attestation SHA-256:** `e07ddbd4f07aed31440710bc4954e3c78f53757453a54f4ac1e9524795d213bb`
+- **Attestation SHA-256:** `895f1926f2c8a7ffcc802bb980100fcaac732cbe232bcc0023fcb18353bd8b38`
+
+## 2026-11-27T03:38:13Z — `0a62990` (PASS)
+
+- **Commit:** `0a62990`
+- **Timestamp:** `2026-11-27T03:38:13Z`
+- **Proof Lock Root SHA-256:** `bd0d963ec1c15096a3e46a8d18be9e4ab6685b99118f364b3787d36cd4610ebd`
+- **Verdict:** `PASS`
+- **Summary:** Merge main (Fold Theory rename, listener fix) into the two-way Rhino PR; test floors 415 pytest / 135 swift
+- **Previous Attestation:** `895f1926f2c8a7ffcc802bb980100fcaac732cbe232bcc0023fcb18353bd8b38`
+- **Attestation SHA-256:** `54af328d9740bfae3af008cdc0c8881a0d28e249cc07b7ce8511c71d767cb105`

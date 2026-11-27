@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sign CardboardCAD.app inside-out with Hardened Runtime. Never uses --deep to sign.
+# Sign Fold Theory.app inside-out with Hardened Runtime. Never uses --deep to sign.
 #
 #   SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" scripts/sign.sh [path/to/App.app]
 #   SIGN_IDENTITY=- scripts/sign.sh      # ad-hoc, for local/CI layout checks only
@@ -10,7 +10,7 @@ APP="${1:-$APP_BUNDLE}"
 [ -d "$APP" ] || die "app not found: $APP"
 resolve_identity
 
-APP_ENTITLEMENTS="$ROOT/app/$APP_NAME/$APP_NAME.entitlements"
+APP_ENTITLEMENTS="$ROOT/app/$XCODE_NAME/$XCODE_NAME.entitlements"
 PY_ENTITLEMENTS="$ROOT/scripts/python.entitlements"
 PY_HOME="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CardboardPythonHome' "$APP/Contents/Info.plist" 2>/dev/null || python_home_rel)"
 INTERPRETER="$PY_HOME/bin/python3.12"

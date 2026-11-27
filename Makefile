@@ -1,4 +1,4 @@
-# CardboardCAD developer entry points.
+# Fold Theory developer entry points.
 #
 # Python, uv and Node never run on the Mac itself: those targets run in the
 # dev container (Containerfile) through Apple's `container` CLI, with this
@@ -11,7 +11,10 @@
 IMAGE ?= cardboardcad-dev
 export CARDBOARD_IMAGE := $(IMAGE)
 TOOLS := scripts/tools.sh
-APP   := build/app/CardboardCAD.app
+APP   := build/app/Fold Theory.app
+INSTALLED := /Applications/Fold Theory.app
+# The app was called CardboardCAD; install removes that copy so only one is left.
+LEGACY_INSTALLED := /Applications/CardboardCAD.app
 
 .DEFAULT_GOAL := help
 .PHONY: help image shell test lock runtime smoke swift-test verify verify-fast \
@@ -56,15 +59,16 @@ app: runtime ## Build the unsigned app into build/app [Mac]
 	scripts/build_app.sh
 
 sign-adhoc: ## Ad-hoc sign build/app so it opens on this Mac [Mac]
-	SIGN_IDENTITY=- scripts/sign.sh $(APP)
+	SIGN_IDENTITY=- scripts/sign.sh "$(APP)"
 
-install: ## Copy build/app/CardboardCAD.app to /Applications [Mac]
-	rm -rf /Applications/CardboardCAD.app
-	ditto $(APP) /Applications/CardboardCAD.app
-	@echo "Installed /Applications/CardboardCAD.app"
+install: ## Copy build/app/Fold Theory.app to /Applications [Mac]
+	rm -rf "$(INSTALLED)"
+	ditto "$(APP)" "$(INSTALLED)"
+	@if [ -d "$(LEGACY_INSTALLED)" ]; then rm -rf "$(LEGACY_INSTALLED)" && echo "Removed the old $(LEGACY_INSTALLED)"; fi
+	@echo "Installed $(INSTALLED)"
 
 open: ## Open the installed app
-	open /Applications/CardboardCAD.app
+	open "$(INSTALLED)"
 
 release: ## Signed + notarized DMG; needs TEAM_ID and NOTARY_PROFILE [Mac + container]
 	scripts/release.sh

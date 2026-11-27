@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum AppInfo {
-    static let name = "CardboardCAD"
+    static let name = AppBrand.name
     static let portDefaultsKey = "enginePort"
 
     /// Debug builds may run `build/python-runtime` via CARDBOARD_DEV_RUNTIME.
@@ -41,13 +41,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Hard cap on how long quitting may wait for the engine (SPEC 8.2).
     static let terminationCap: Double = 6
 
-    let engine = EngineManager(
-        config: EngineConfig.resolve(
-            appName: AppInfo.name,
-            port: AppInfo.storedPort,
-            allowDevRuntime: AppInfo.allowDevRuntime
+    /// Folders made under the old name (CardboardCAD) move to Fold Theory once,
+    /// before the engine is set up, so logs, projects and workflows carry over.
+    nonisolated static let legacyMigration: [String] = {
+        let report = LegacyDataMigration.run()
+        report.forEach { NSLog("%@", $0) }
+        return report
+    }()
+
+    let engine: EngineManager = {
+        _ = AppDelegate.legacyMigration
+        return EngineManager(
+            config: EngineConfig.resolve(
+                appName: AppInfo.name,
+                port: AppInfo.storedPort,
+                allowDevRuntime: AppInfo.allowDevRuntime
+            )
         )
-    )
+    }()
 
     /// The window probe (CI only) uses a throwaway in-memory key, never the Keychain.
     let claudeKey = ClaudeKey(store: WindowProbe.isEnabled
@@ -317,7 +328,7 @@ enum RhinoLiveSync {
     /// Put the Grasshopper listener script on the clipboard, to paste into a Python script component.
     static func copyListenerScript(engine: EngineManager) async {
         guard case .running(let port) = engine.state else {
-            alert("The engine is not running", "Start CardboardCAD's engine first (Engine > Restart Engine).")
+            alert("The engine is not running", "Start Fold Theory's engine first (Engine > Restart Engine).")
             return
         }
         do {
@@ -345,7 +356,7 @@ enum RhinoLiveSync {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(String(decoding: data, as: UTF8.self), forType: .string)
             alert("Rhino script copied",
-                  "In Rhino 8, type ScriptEditor and press Return. Choose File > New > Python 3, select all, paste, and press the green Run button. The design appears on the Fold Theory layers, and your edits come back here. Run it again to stop. Design > Rhino Two-Way Help has the full steps.")
+                  "In Rhino 8, type ScriptEditor and press Return. Click New (the page with a +) and choose Python 3, then select all and paste, and press the green Run button. The design appears on the Fold Theory layers, and your edits come back here. Run it again to stop. Design > Rhino Two-Way Help has the full steps.")
         } catch {
             alert("Could not get the Rhino script", error.localizedDescription)
         }

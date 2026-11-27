@@ -4,10 +4,18 @@ Rules for AI coding agents and people. `CLAUDE.md` points here.
 
 ## What this is
 
-CardboardCAD is a SwiftUI macOS app that ships its own Python runtime and
+Fold Theory is a SwiftUI macOS app that ships its own Python runtime and
 starts a local Flask + `ghhops_server` engine on `127.0.0.1`. Grasshopper's
 Hops component and the app both talk to it. See `SPEC.md` for the milestone
 spec and `scripts/README.md` for build, signing and notarization.
+
+The app was called CardboardCAD. Only names people see changed: the Xcode
+project, scheme and target, the `CardboardCADKit` package, the
+`cardboard_engine` module, `CARDBOARD_*` variables, the bundle identifier and
+Hops URLs (`/send_to_cardboardcad`) keep the old name on purpose, so builds,
+saved settings, the Keychain item and Grasshopper definitions carry over.
+Use `AppBrand.name` (Swift) and `cardboard_engine.brand` (Python) for the
+product name and `~/Documents/Fold Theory`.
 
 | Path | What |
 |---|---|

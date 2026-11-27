@@ -448,12 +448,14 @@ def test_override_is_saved_in_the_project_and_reopened(client, app, tmp_path):
     x3, edited, _ = _moved_slot_x3(client)
     client.post("/api/rhino/part", json=part_edit(x3, cut=edited))
     want = next(p for p in session(app).parts.parts if p.id == "X3").cut
-    tool(client, "save_project", name="Stool")
-    manifest = json.loads((tmp_path / "Documents" / "CardboardCAD" / "Projects" / "Stool" / "project.json").read_text())
+    saved = client.post("/api/design/save", json={"name": "Stool"}).get_json()
+    folder = saved["folder"]
+    with open(os.path.join(folder, "project.json")) as fh:
+        manifest = json.load(fh)
     assert [o["part"] for o in manifest["rhino_overrides"]] == ["X3"]
     client.post("/api/design/reset")
     assert scene(client)["overrides"] == []
-    r = client.post("/api/design/open", json={"folder": str(tmp_path / "Documents" / "CardboardCAD" / "Projects" / "Stool")})
+    r = client.post("/api/design/open", json={"folder": folder})
     assert r.status_code == 200, r.data
     got = next(p for p in session(app).parts.parts if p.id == "X3").cut
     assert [[pytest.approx(c, abs=1e-5) for c in pt] for pt in want[0]] == [list(pt) for pt in got[0]]

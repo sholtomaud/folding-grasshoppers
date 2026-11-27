@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Notarize and staple a signed .app or .dmg.
 #
-#   NOTARY_PROFILE=cardboardcad-notary scripts/notarize.sh [build/app/CardboardCAD.app | build/CardboardCAD.dmg]
+#   NOTARY_PROFILE=cardboardcad-notary scripts/notarize.sh ["build/app/Fold Theory.app" | "build/Fold Theory.dmg"]
 #
 # Credentials come from a notarytool keychain profile, or in CI from an App
 # Store Connect API key via NOTARY_KEY_PATH / NOTARY_KEY_ID / NOTARY_ISSUER.
