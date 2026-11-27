@@ -1,0 +1,34 @@
+{
+  "schema": "cardboardcad.view/1",
+  "id": "quote",
+  "title": "Quote",
+  "description": "The engine's quote, the versions issued to the client, and the invoices made from them.",
+  "blocks": [
+    {
+      "type": "section",
+      "title": "Current quote",
+      "blocks": [
+        {"type": "table", "bind": "quote.lines", "columns": ["label", "value", "unit"]},
+        {"type": "total", "bind": "quote.total", "label": "Total"},
+        {"type": "button", "label": "Work it out again", "action": "estimate_cost"},
+        {"type": "button", "label": "Issue quote", "action": "issue_quote"},
+        {"type": "text", "style": "caption", "text": "Issuing freezes the quote as the next version (Q-0007 v1, v2...) with its PDF. A frozen version never changes."}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Issued versions",
+      "blocks": [
+        {"type": "table", "bind": "quotes.versions", "columns": ["number", "version", "issued_on", "valid_until", "total", "currency", "pdf"]}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Invoices",
+      "blocks": [
+        {"type": "table", "bind": "quotes.invoices", "columns": ["number", "description", "reference", "due_on", "amount", "currency", "pdf"]},
+        {"type": "text", "style": "caption", "text": "Ask Claude for a deposit, progress or final invoice on a quote version. Each is saved with a PDF and a CSV row for the accounting package."}
+      ]
+    }
+  ]
+}

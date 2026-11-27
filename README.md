@@ -311,7 +311,15 @@ changes: it is saved as `quotes/Q-0007/v2.json` exactly as issued. Then
 `INV-0041.csv`, one row for the accounting package. Earlier invoices are
 taken off the final one, so the invoices add up to the quote to the cent.
 Quote and invoice numbers are the settings *Next quote number* and *Next
-invoice number*: set them once to carry on from your own numbering. Ask the assistant for a new line, for example "add install crew
+invoice number*: set them once to carry on from your own numbering.
+
+Each issued version and invoice is also saved as a PDF (`quotes/Q-0007/v2.pdf`,
+`invoices/INV-0041.pdf`) made only from its own numbers: company and ABN,
+client, dates, every line, GST, terms and the amount due. The engine writes
+the PDF itself, the same bytes every time, so a frozen version's PDF never
+changes either. The **Quote** tab shows the current quote lines, the issued
+versions and the invoices, with an **Issue quote** button. (A company logo on
+the PDF comes once we have Fold Theory's logo file.) Ask the assistant for a new line, for example "add install crew
 hours: one hour per 40 parts, rounded up", and it adds
 `install_hours = ceil(parts / 40)` with an example (95 parts gives 3), which
 the engine checks before saving. Units are checked: adding minutes to an
@@ -435,7 +443,8 @@ What is in a project folder (example for a project called `Stool`):
 | `estimate/quote.json` | the quote: every line, the total, and the settings and formula versions it was made from |
 | `estimate/quote.csv` | the quote lines and total, to the cent; opens in any spreadsheet |
 | `quotes/Q-0007/v1.json`, `v2.json`, … | each issued quote version, frozen exactly as issued |
-| `invoices/INV-0041.json`, `INV-0041.csv` | each invoice, and its row for the accounting package |
+| `quotes/Q-0007/v1.pdf`, … | the PDF of each issued quote version |
+| `invoices/INV-0041.json`, `INV-0041.csv`, `INV-0041.pdf` | each invoice, its row for the accounting package, and its PDF |
 | `settings.json` | this project's settings (only once you set one for this project) |
 | `formulas.json` | formulas added for this project only, if any |
 | `views/<id>.json` | tabs saved for this project only, if any |

@@ -298,12 +298,17 @@ def _safe_rel(rel) -> Optional[str]:
 # ---- reading and writing ---------------------------------------------------
 
 
-def _write_atomic(path: str, text: str) -> None:
+def _write_atomic(path: str, text) -> None:
+    """Write text (UTF-8) or bytes (a PDF) to ``path`` by way of a temporary file."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=".cardboardcad-", dir=os.path.dirname(path))
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(text)
+        if isinstance(text, bytes):
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(text)
+        else:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
         os.replace(tmp, path)
     except BaseException:
         if os.path.exists(tmp):

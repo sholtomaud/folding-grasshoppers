@@ -1018,6 +1018,15 @@ class DesignSession:
                 return [{"index": i + 1, "parts": n, "utilisation": util[i] if i < len(util) else None}
                         for i, n in enumerate(len(s.parts) for s in self._sheet_doc().layout())] \
                     if self._sheet_doc() else []
+            if binding == "quotes.versions":
+                return [dict(q, pdf=qv.quote_pdf_path(v["record"]))
+                        for q, v in zip(self._quotes_info()["quotes"], self.quote_versions)]
+            if binding == "quotes.invoices":
+                return [{k: i[k] for k in ("number", "kind", "description", "issued_on", "due_on", "amount",
+                                           "currency")}
+                        | {"reference": f"{i['quote']['number']} v{i['quote']['version']}",
+                           "pdf": qv.invoice_pdf_path(v["record"])}
+                        for i, v in zip(self._quotes_info()["invoices"], self.invoices)]
             if binding == "brief.checks":
                 return self.brief_checks()
             if binding == "brief.items":
@@ -1703,10 +1712,12 @@ class DesignSession:
             files["formulas.json"] = self.formulas.project_file_text()
         for v in self.quote_versions:
             files[qv.quote_path(v["record"])] = v["text"]
+            files[qv.quote_pdf_path(v["record"])] = qv.quote_pdf(v["record"])
         for v in self.invoices:
             json_path, csv_path = qv.invoice_paths(v["record"])
             files[json_path] = v["text"]
             files[csv_path] = qv.invoice_csv(v["record"])
+            files[qv.invoice_pdf_path(v["record"])] = qv.invoice_pdf(v["record"])
         if self.brief:
             files[bf.BRIEF_FILE] = bf.file_text(self.brief)
             files[bf.BRIEF_MD] = bf.markdown(name, self.brief, self.brief_checks(),
