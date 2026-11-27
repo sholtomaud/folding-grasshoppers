@@ -291,7 +291,7 @@ def register(app: Flask, hops: hs.Hops, *, category: str, subcategory: str, icon
             hs.HopsString("Parts", "P", "Parts document from Waffle Slice or Nest"),
             hs.HopsString("Format", "F", "dxf or svg"),
             hs.HopsString("Name", "N", "File name stem; files are <name>-sheet<n>.<format>"),
-            hs.HopsString("Folder", "D", "Folder inside your home folder; empty = ~/Documents/CardboardCAD"),
+            hs.HopsString("Folder", "D", "Folder inside your home folder; empty = ~/Documents/Fold Theory"),
             hs.HopsBoolean("Write", "W", "Set True (e.g. with a Toggle) to write the files"),
         ],
         outputs=[

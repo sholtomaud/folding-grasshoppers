@@ -104,7 +104,7 @@ struct WorkflowSettingsSection: View {
             Text("Workflow")
         } footer: {
             Text(WorkflowBindings.applyHelp + " Ask the assistant to \"save this as a workflow\" to add your own; "
-                 + "each is a JSON file in ~/Documents/CardboardCAD/Workflows.")
+                 + "each is a JSON file in ~/Documents/Fold Theory/Workflows.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

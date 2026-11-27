@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "42AEFBAE01D2DFD981F7DA7D"
-               BuildableName = "CardboardCAD.app"
+               BuildableName = "Fold Theory.app"
                BlueprintName = "CardboardCAD"
                ReferencedContainer = "container:CardboardCAD.xcodeproj">
             </BuildableReference>
@@ -43,7 +43,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "42AEFBAE01D2DFD981F7DA7D"
-            BuildableName = "CardboardCAD.app"
+            BuildableName = "Fold Theory.app"
             BlueprintName = "CardboardCAD"
             ReferencedContainer = "container:CardboardCAD.xcodeproj">
          </BuildableReference>

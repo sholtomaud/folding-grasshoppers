@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build CardboardCAD.app (unsigned) and embed the Python runtime.
+# Build Fold Theory.app (unsigned) and embed the Python runtime.
 #
 #   scripts/build_app.sh            # Release, arm64, runtime in Contents/Resources/python
 #   PYTHON_LAYOUT=resources scripts/build_app.sh
@@ -31,8 +31,8 @@ rm -rf "$ARCHIVE"
 mkdir -p "$BUILD"
 set +e
 xcodebuild archive \
-  -project "$ROOT/app/$APP_NAME.xcodeproj" \
-  -scheme "$APP_NAME" \
+  -project "$ROOT/app/$XCODE_NAME.xcodeproj" \
+  -scheme "$XCODE_NAME" \
   -configuration "$CONFIGURATION" \
   -archivePath "$ARCHIVE" \
   -destination "generic/platform=macOS" \

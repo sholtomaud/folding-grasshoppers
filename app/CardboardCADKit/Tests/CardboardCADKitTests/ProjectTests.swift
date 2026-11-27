@@ -243,6 +243,6 @@ final class ProjectControllerTests: XCTestCase {
     func testDefaultFolderIsDocumentsProjects() {
         let home = URL(fileURLWithPath: "/Users/t")
         XCTAssertEqual(ProjectController.defaultProjectsFolder(home: home).path,
-                       "/Users/t/Documents/CardboardCAD/Projects")
+                       "/Users/t/Documents/Fold Theory/Projects")
     }
 }

@@ -6,7 +6,7 @@ component cannot watch the design on its own. The listener script
 polls ``/api/design/version`` and outputs the version number; wiring that
 into **LiveDesign** makes Hops fetch the design each time it changes.
 
-**SendToCardboardCAD** goes the other way: a Rhino mesh becomes the app's
+**SendToFoldTheory** (URL ``/send_to_cardboardcad``, kept from the old name) goes the other way: a Rhino mesh becomes the app's
 model, so the designer can model in Rhino and slice in the app.
 
 See ``docs/RHINO_LIVE_SYNC.md`` for the Grasshopper setup.
@@ -70,8 +70,8 @@ def register(hops: hs.Hops, session: DesignSession, *, category: str, subcategor
         "/live_design",
         name="LiveDesign",
         nickname="Live",
-        description="The design open in the CardboardCAD app, live. Connect the Version output of the "
-                    "CardboardCAD Live listener so it updates whenever the app's design changes",
+        description="The design open in the Fold Theory app, live. Connect the Version output of the "
+                    "Fold Theory Live listener so it updates whenever the app's design changes",
         inputs=[hs.HopsInteger("Version", "V", "Design version from the listener; any change fetches the design")],
         outputs=[
             hs.HopsInteger("Version", "V", "Version of the design these outputs show"),
@@ -94,9 +94,9 @@ def register(hops: hs.Hops, session: DesignSession, *, category: str, subcategor
 
     @hops.component(
         "/send_to_cardboardcad",
-        name="SendToCardboardCAD",
+        name="SendToFoldTheory",
         nickname="Send",
-        description="Send a Rhino mesh to the CardboardCAD app as its model (replaces the app's model and parts)",
+        description="Send a Rhino mesh to the Fold Theory app as its model (replaces the app's model and parts)",
         inputs=[
             hs.HopsMesh("Mesh", "M", "Closed mesh in mm (use Mesh Brep first for a Brep)"),
             hs.HopsString("Name", "N", "Name the app shows for the model"),
@@ -110,8 +110,8 @@ def register(hops: hs.Hops, session: DesignSession, *, category: str, subcategor
     )
     def send_to_cardboardcad(M, N="rhino model", S=False):
         if not S:
-            return session.version, "Not sent. Set Send to True to send this mesh to CardboardCAD."
+            return session.version, "Not sent. Set Send to True to send this mesh to Fold Theory."
         mesh: Mesh = mesh_from_rhino(M)
         name = (N or "rhino model").strip()[:80] or "rhino model"
         version = session.push_model(mesh, name)
-        return version, f"Sent {name} ({len(mesh.faces)} faces) to CardboardCAD."
+        return version, f"Sent {name} ({len(mesh.faces)} faces) to Fold Theory."

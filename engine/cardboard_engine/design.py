@@ -19,6 +19,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from . import brand
 from .components.contour import ContourError, ContourInput, contour_stack
 from .components.cut_estimate import CutEstimateError, CutEstimateInput, estimate
 from .components.export import ExportError, export_files, to_svg
@@ -48,7 +49,7 @@ SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
 MAX_PREVIEW_TRIANGLES = 400_000
 MAX_STEPS = 200
 
-SYSTEM_PROMPT = """You are the Design Assistant in CardboardCAD, a Mac app made for Fold Theory, a studio that builds furniture, displays and sculptures from flat cardboard sheets cut on a CNC or laser cutter.
+SYSTEM_PROMPT = """You are the Design Assistant in Fold Theory, the Mac app of the Fold Theory studio, which builds furniture, displays and sculptures from flat cardboard sheets cut on a CNC or laser cutter.
 
 You turn what the designer asks for into calls to the tools you have. The tools all act on one shared design:
 1. A 3D model: make one with create_shape, or load the designer's own model with load_model_file (an .stl or .obj exported from Rhino). Use scale_model to set its real size.
@@ -192,7 +193,7 @@ TOOLS: List[dict] = [
             "format": {"type": "string", "enum": ["dxf", "svg"], "default": "dxf", "description": "File format"},
             "name": {"type": "string", "default": "cardboardcad", "description": "File name stem"},
             "folder": {"type": "string", "default": "",
-                       "description": "Folder inside the home folder; empty means ~/Documents/CardboardCAD"},
+                       "description": "Folder inside the home folder; empty means ~/Documents/Fold Theory"},
         },
     ),
     _tool(
@@ -205,7 +206,7 @@ TOOLS: List[dict] = [
                      "description": "Project name, e.g. \"Acme Expo - Concept A\". Empty keeps the current project's name"},
             "folder": {"type": "string", "default": "",
                        "description": "Project folder inside the home folder; empty means "
-                                      "~/Documents/CardboardCAD/Projects/<name>"},
+                                      "~/Documents/Fold Theory/Projects/<name>"},
         },
     ),
 ]
@@ -684,7 +685,7 @@ class DesignSession:
         return {
             "schema": proj.PROJECT_SCHEMA,
             "name": name,
-            "app": "CardboardCAD",
+            "app": brand.APP_NAME,
             "engine_version": __version__,
             "saved_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "units": "mm",
@@ -746,7 +747,7 @@ class DesignSession:
                     "summary": m.get("summary")}
 
     def push_model(self, mesh: Mesh, name: str) -> int:
-        """A model sent from Rhino (Hops SendToCardboardCAD) replaces the current one."""
+        """A model sent from Rhino (Hops SendToFoldTheory) replaces the current one."""
         with self._lock:
             self._set_model(mesh, name or "rhino model")
             self._log_step("send_from_rhino", True, "Received " + self._describe_model() + " from Rhino")
@@ -801,7 +802,7 @@ class DesignSession:
 
     def _live_summary(self) -> str:
         if self.model is None:
-            return "No design in CardboardCAD yet. Make one in the app's Design Assistant."
+            return "No design in Fold Theory yet. Make one in the app's Design Assistant."
         text = self._t_model_info()
         if self.last_estimate:
             text += f"\nEstimate: {self.last_estimate['time_min']:.1f} min, total {self.last_estimate['total_cost']:.2f}"

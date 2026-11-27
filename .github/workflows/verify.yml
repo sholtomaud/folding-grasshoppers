@@ -107,22 +107,22 @@ jobs:
 
       - name: Engine runs from the signed bundle
         run: |
-          APP=build/app/CardboardCAD.app
+          APP="build/app/Fold Theory.app"
           HOME_REL=$(/usr/libexec/PlistBuddy -c 'Print :CardboardPythonHome' "$APP/Contents/Info.plist")
           "$APP/$HOME_REL/bin/python3.12" -I -B -u scripts/smoke_engine.py "$APP/$HOME_REL/bin/python3.12"
           codesign --verify --deep --strict "$APP"
 
       - name: End-to-end app launch
-        run: scripts/ci/e2e_app.sh build/app/CardboardCAD.app
+        run: scripts/ci/e2e_app.sh "build/app/Fold Theory.app"
 
       - name: Window probe (chat message box visible in the real window)
         if: always()
-        run: set -o pipefail; scripts/ci/window_probe.sh build/app/CardboardCAD.app | tee -a "$GITHUB_STEP_SUMMARY"
+        run: set -o pipefail; scripts/ci/window_probe.sh "build/app/Fold Theory.app" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Layout probe (informational)
         if: always()
         continue-on-error: true
-        run: scripts/ci/layout_probe.sh build/app/CardboardCAD.app | tee -a "$GITHUB_STEP_SUMMARY"
+        run: scripts/ci/layout_probe.sh "build/app/Fold Theory.app" | tee -a "$GITHUB_STEP_SUMMARY"
 
   # The newest macOS, the release people run: the same window probe.
   macos-latest-window:
@@ -148,8 +148,8 @@ jobs:
       - name: Window probe (chat message box visible in the real window)
         run: |
           set -o pipefail
-          defaults write "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build/app/CardboardCAD.app/Contents/Info.plist)" enginePort -int 5001
-          scripts/ci/window_probe.sh build/app/CardboardCAD.app | tee -a "$GITHUB_STEP_SUMMARY"
+          defaults write "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "build/app/Fold Theory.app/Contents/Info.plist")" enginePort -int 5001
+          scripts/ci/window_probe.sh "build/app/Fold Theory.app" | tee -a "$GITHUB_STEP_SUMMARY"
 
   proof-gate:
     name: Proof tamper gate (agentic-uplift)

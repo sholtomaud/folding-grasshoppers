@@ -181,6 +181,6 @@ final class WorkflowControllerTests: XCTestCase {
 
     func testDefaultFolderIsBesideProjects() {
         let home = URL(fileURLWithPath: "/Users/t", isDirectory: true)
-        XCTAssertEqual(WorkflowController.defaultWorkflowsFolder(home: home).path, "/Users/t/Documents/CardboardCAD/Workflows")
+        XCTAssertEqual(WorkflowController.defaultWorkflowsFolder(home: home).path, "/Users/t/Documents/Fold Theory/Workflows")
     }
 }

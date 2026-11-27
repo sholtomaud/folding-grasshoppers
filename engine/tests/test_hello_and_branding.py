@@ -48,19 +48,19 @@ def test_hello_solve(client):
     }
     r = client.post("/solve", json=payload)
     assert r.status_code == 200, r.data
-    assert hops_outputs(r) == {"Message": "Hello, Grasshopper, from CardboardCAD by Fold Theory"}
+    assert hops_outputs(r) == {"Message": "Hello, Grasshopper, from Fold Theory"}
 
 
 def test_api_hello(client):
     r = client.post("/api/hello", json={"name": "SwiftUI"})
     assert r.status_code == 200
-    assert r.get_json() == {"message": "Hello, SwiftUI, from CardboardCAD by Fold Theory"}
+    assert r.get_json() == {"message": "Hello, SwiftUI, from Fold Theory"}
 
 
 @pytest.mark.parametrize("body", [{}, {"name": ""}, {"name": "   "}])
 def test_api_hello_defaults_to_world(client, body):
     r = client.post("/api/hello", json=body)
-    assert r.get_json() == {"message": "Hello, world, from CardboardCAD by Fold Theory"}
+    assert r.get_json() == {"message": "Hello, world, from Fold Theory"}
 
 
 def test_api_hello_rejects_non_string(client):

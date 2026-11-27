@@ -4,7 +4,7 @@ A ``Mesh`` here is just vertices and faces (triangles or quads), so the
 geometry code needs neither rhino3dm nor numpy. ``hops_geometry`` converts
 rhino3dm meshes into this form.
 
-Units are whatever the model uses; CardboardCAD assumes millimetres.
+Units are whatever the model uses; Fold Theory assumes millimetres.
 """
 
 from __future__ import annotations
