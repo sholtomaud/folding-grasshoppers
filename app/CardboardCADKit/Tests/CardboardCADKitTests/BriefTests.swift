@@ -47,9 +47,12 @@ final class BriefViewTests: XCTestCase {
         let c = ProjectViewsController()
         let fake = FakeBriefData()
         c.attach(client: fake)
-        XCTAssertTrue(await c.setBrief(key: "max_height_mm", text: "2,400"))
-        XCTAssertTrue(await c.setBrief(key: "branding", text: " Acme blue "))
-        XCTAssertTrue(await c.setBrief(key: "budget", text: ""))
+        let height = await c.setBrief(key: "max_height_mm", text: "2,400")
+        let branding = await c.setBrief(key: "branding", text: " Acme blue ")
+        let cleared = await c.setBrief(key: "budget", text: "")
+        XCTAssertTrue(height)
+        XCTAssertTrue(branding)
+        XCTAssertTrue(cleared)
         XCTAssertEqual(fake.briefCalls, [["max_height_mm": 2400], ["branding": "Acme blue"], ["budget": nil]])
     }
 
