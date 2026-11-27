@@ -256,6 +256,8 @@ public protocol DesignToolRunner: AnyObject {
     /// The designer's answer to a request_inputs form (POST /api/settings/form). Values are as typed.
     func submitInputForm(id: String, values: [String: String], scope: String, setBy: String) async throws
         -> FormSubmission
+    /// Rhino edits the assistant has not been told about yet. Each is returned once.
+    func pendingDesignNotes() async throws -> [String]
 }
 
 public extension DesignToolRunner {
@@ -263,6 +265,12 @@ public extension DesignToolRunner {
         -> FormSubmission {
         throw EngineClientError.httpStatus(404)
     }
+
+    func pendingDesignNotes() async throws -> [String] { [] }
+}
+
+private struct DesignNotes: Decodable {
+    let notes: [String]
 }
 
 extension EngineClient: DesignToolRunner {
@@ -304,6 +312,11 @@ extension EngineClient: DesignToolRunner {
         }
         guard status == 200 else { throw EngineClientError.httpStatus(status) }
         return try decode(data)
+    }
+
+    public func pendingDesignNotes() async throws -> [String] {
+        let out: DesignNotes = try await get("/api/design/notes", timeout: 5)
+        return out.notes
     }
 
     public func resetDesign() async throws {

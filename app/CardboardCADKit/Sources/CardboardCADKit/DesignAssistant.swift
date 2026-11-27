@@ -99,9 +99,17 @@ public final class DesignAssistant {
             activity = nil
         }
 
+        // What the designer changed in Rhino since the last message goes to Claude first.
+        let notes = (try? await tools.pendingDesignNotes()) ?? []
+        var message = text
+        if !notes.isEmpty {
+            let list = notes.map { "- " + $0 }.joined(separator: "\n")
+            items.append(ChatItem(kind: .notice, text: "Rhino edits told to the assistant:\n" + list))
+            message = "[Rhino edits since my last message]\n" + list + "\n\n" + text
+        }
         let checkpoint = history.count
-        history.append(["role": "user", "content": .string(text)])
-        turnSources = [text]
+        history.append(["role": "user", "content": .string(message)])
+        turnSources = [message]
         do {
             activity = "Thinking…"
             var steps = 0

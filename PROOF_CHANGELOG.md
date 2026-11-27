@@ -162,12 +162,22 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Previous Attestation:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
 - **Attestation SHA-256:** `895f1926f2c8a7ffcc802bb980100fcaac732cbe232bcc0023fcb18353bd8b38`
 
-## 2026-11-27T03:48:22Z — `715f4fe` (PASS)
+## 2026-11-27T03:38:13Z — `0a62990` (PASS)
 
-- **Commit:** `715f4fe`
-- **Timestamp:** `2026-11-27T03:48:22Z`
-- **Proof Lock Root SHA-256:** `39876fd2d00de4923e0cf58102838349ee4e7ed0bddd9f237e46eb869edec2d3`
+- **Commit:** `0a62990`
+- **Timestamp:** `2026-11-27T03:38:13Z`
+- **Proof Lock Root SHA-256:** `bd0d963ec1c15096a3e46a8d18be9e4ab6685b99118f364b3787d36cd4610ebd`
 - **Verdict:** `PASS`
-- **Summary:** Foundation A merged with main (rename #62, listener fix #64): settings, forms, formulas, JSON views, Project tab, diagnostics; floors pytest 451, swift 149
+- **Summary:** Merge main (Fold Theory rename, listener fix) into the two-way Rhino PR; test floors 415 pytest / 135 swift
 - **Previous Attestation:** `895f1926f2c8a7ffcc802bb980100fcaac732cbe232bcc0023fcb18353bd8b38`
-- **Attestation SHA-256:** `63f5879ecdbecd8f07f91a970f1baa15eb2439b758d0bdaacfd583b67d7d1896`
+- **Attestation SHA-256:** `54af328d9740bfae3af008cdc0c8881a0d28e249cc07b7ce8511c71d767cb105`
+
+## 2026-11-27T07:04:43Z — `4a2883c` (PASS)
+
+- **Commit:** `4a2883c`
+- **Timestamp:** `2026-11-27T07:04:43Z`
+- **Proof Lock Root SHA-256:** `f7469d139e5ed619e9593653c21bc0bcffcfa9737728c8f30ba6a45b973d3c27`
+- **Verdict:** `PASS`
+- **Summary:** Merge main (two-way Rhino #65) into settings/forms/views/diagnostics; Rhino two-way test prices move to project settings; floors pytest 506, swift 153
+- **Previous Attestation:** `54af328d9740bfae3af008cdc0c8881a0d28e249cc07b7ce8511c71d767cb105`
+- **Attestation SHA-256:** `2ca0b999a151a86b5aac66deb580507b29bcf89f87f9229f5c5ada15dbc2dfa5`

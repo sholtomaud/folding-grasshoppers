@@ -34,6 +34,8 @@ from .components.waffle import WaffleError, WaffleInput, waffle_slice
 from . import project as proj
 from .diagnostics import LEVELS as DIAG_LEVELS, SOURCES as DIAG_SOURCES, DiagnosticsLog, format_entries
 from .formulas import FormulaError, FormulaStore, build_quote, needed_fields
+from . import rhino_sync
+from .rhino_sync import Override
 from .project import ProjectError
 from .settings import BUILTIN_DEFINITIONS, SettingsError, SettingsStore, definition_from, field_for_form
 from .views import ACTIONS, BLOCK_TYPES, ViewError, ViewStore, static_catalog
@@ -87,6 +89,8 @@ Prices, rates, margin and GST are settings, never tool inputs. When a tool says 
 When a quote needs a new kind of line (glue per joint, install crew hours, freight), add it with add_formula: an expression over settings and measurements, with a worked example the engine checks. Ask for any new value with request_inputs first (it can define a new field). Formulas use + - * / ^, min, max, round, ceil, floor, abs, if, sum and count, and units are checked.
 The app's tabs are JSON views (list_views shows the block types and bindings). When the designer wants a new tab, table or form, build it with save_view; the engine rejects a view that uses an unknown block, binding or action and says why.
 To find out why something went wrong (Grasshopper, Rhino, a form, a view, a tool), call read_diagnostics and answer from what it shows.
+
+The designer also works in Rhino, linked live to this app. When they reshape a flat part there, it becomes a Rhino hand edit (an override) that the app keeps through later steps for as long as it still fits the generated part. Treat hand edits as the designer's decisions: build on them and never undo them. Before a step that would change an overridden part (re-slicing with other settings, scaling the model), say which hand edits it affects and ask first. A message may start with notes on what the designer just changed in Rhino. model_info lists the hand edits; clear_rhino_override removes one, only when the designer asks.
 
 Format replies as short paragraphs; use "- " bullet lists only for short lists."""
 
@@ -381,6 +385,13 @@ TOOLS += [
         required=["defaults"],
     ),
 ]
+TOOLS.append(_tool(
+    "clear_rhino_override",
+    "Remove the designer's Rhino hand edit (override) of one flat part, so the part goes back to the shape the "
+    "method makes. Only when the designer asks; model_info lists the parts with hand edits.",
+    {"part": {"type": "string", "description": "The part id, e.g. \"X3\""}},
+    required=["part"],
+))
 _TOOLS_BY_NAME = {t["name"]: t for t in TOOLS}
 
 
@@ -489,6 +500,10 @@ class DesignSession:
         self.forms: Dict[str, dict] = {}
         self._form: Optional[dict] = None
         self.last_quote: Optional[dict] = None
+        # Rhino hand edits of flat parts, by part id. Kept through re-runs (see rhino_sync.py).
+        self.overrides: Dict[str, Override] = {}
+        self.notes: List[str] = []    # Rhino edits not yet told to the Design Assistant
+        self.notices: List[str] = []  # recent things the app should show (conflicts, stale edits)
         self._clear_all()
         self.steps: List[dict] = []
 
@@ -504,6 +519,7 @@ class DesignSession:
         self.method_summary: Optional[str] = None
         self.parts: Optional[PartsDoc] = None
         self.parts3d: Dict[str, list] = {}
+        self.generated: Dict[str, Any] = {}  # the parts as the method made them, before hand edits
         self.board_thickness: float = 0.0
         self.nested: Optional[dict] = None
         self.last_estimate: Optional[dict] = None
@@ -517,6 +533,7 @@ class DesignSession:
     def reset(self) -> None:
         with self._lock:
             self._clear_all()
+            self.overrides, self.notes, self.notices = {}, [], []
             self.steps = []
             self.project = None
             self.settings.clear_project()
@@ -925,8 +942,10 @@ class DesignSession:
         return (f"{self.model_name}: {_mm(hx - lx)} x {_mm(hy - ly)} x {_mm(hz - lz)} mm (W x D x H), "
                 f"{len(m.faces)} faces")
 
-    def _set_model(self, mesh: Mesh, name: str) -> None:
+    def _set_model(self, mesh: Mesh, name: str, keep_overrides: bool = False) -> None:
         self._clear_all()
+        if not keep_overrides:
+            self.overrides = {}
         self.model, self.model_name = mesh, name
 
     def _t_create_shape(self, shape, width_mm=300, depth_mm=300, height_mm=300, segments=32):
@@ -961,7 +980,7 @@ class DesignSession:
         f = value if key == "factor" else value / current
         name = self.model_name
         had_parts = self.parts is not None
-        self._set_model(scale_mesh(mesh, f), name)
+        self._set_model(scale_mesh(mesh, f), name, keep_overrides=True)
         text = f"Scaled by {f:.4g}. Now " + self._describe_model()
         if had_parts:
             text += ". The old parts were cleared; run a method again."
@@ -976,6 +995,10 @@ class DesignSession:
         if self.nested is not None:
             n = self.nested
             lines.append(f"Nested on {n['sheet_count']} sheet(s) of {_mm(n['sheet_width'])} x {_mm(n['sheet_height'])} mm")
+        if self.overrides:
+            lines.append("Rhino hand edits (keep them; ask before changing these parts): " + "; ".join(
+                f"{o.part} ({o.summary}, {'in use' if o.status == 'applied' else o.status})"
+                for o in self.overrides.values()))
         return "\n".join(lines)
 
     def _parts_text(self, parts) -> str:
@@ -993,7 +1016,7 @@ class DesignSession:
         self.method, self.parts, self.parts3d = "waffle", PartsDoc(parts=r.parts), r.ribs3d
         self.board_thickness = thickness_mm
         self.method_summary = f"waffle, {x_ribs} X ribs and {y_ribs} Y ribs, {_mm(thickness_mm)} mm board"
-        return f"Waffle: {self._parts_text(r.parts)}"
+        return f"Waffle: {self._parts_text(r.parts)}" + self._after_method()
 
     def _t_contour_stack(self, thickness_mm=3.0, axis="z", etch=True, kerf_mm=0.0):
         r = contour_stack(self._need_model(), ContourInput(thickness=thickness_mm, kerf=kerf_mm, etch=etch, axis=axis))
@@ -1001,7 +1024,7 @@ class DesignSession:
         self.method, self.parts, self.parts3d = "contour", PartsDoc(parts=r.parts), r.layers3d
         self.board_thickness = thickness_mm
         self.method_summary = f"contour stack, {len(r.parts)} layers of {_mm(thickness_mm)} mm board along {axis}"
-        return f"Contour stack: {self._parts_text(r.parts)}"
+        return f"Contour stack: {self._parts_text(r.parts)}" + self._after_method()
 
     def _t_unfold(self, tab_width_mm=8.0, tab_angle_deg=45.0, flat_angle_deg=1.0):
         r = unfold(self._need_model(), UnfoldInput(tab_width=tab_width_mm, tab_angle=tab_angle_deg,
@@ -1009,7 +1032,45 @@ class DesignSession:
         self._clear_parts()
         self.method, self.parts = "unfold", PartsDoc(parts=r.parts)
         self.method_summary = f"unfold, {len(r.parts)} net(s) from {r.face_count} faces, {r.tab_count} glue tabs"
-        return f"Unfold: {len(r.parts)} net(s), {r.tab_count} glue tabs. " + self._parts_text(r.parts)
+        return f"Unfold: {len(r.parts)} net(s), {r.tab_count} glue tabs. " + self._parts_text(r.parts) + \
+            self._after_method()
+
+    def _after_method(self) -> str:
+        """Apply the Rhino hand edits that still fit to the parts a method just made."""
+        before = {k: o.status for k, o in self.overrides.items()}
+        parts, self.generated, note = rhino_sync.apply_overrides(self.parts.parts, self.overrides)
+        self.parts = PartsDoc(parts=parts)
+        for k, o in self.overrides.items():
+            if o.status != "applied" and before.get(k) != o.status:
+                self._notice(f"The Rhino hand edit of {k} no longer fits ({o.status}); the generated {k} is used.")
+        return (" " + note) if note else ""
+
+    def _t_clear_rhino_override(self, part):
+        if part not in self.overrides:
+            have = ", ".join(self.overrides) or "none"
+            raise ToolInputError(f"{part} has no Rhino hand edit. Parts with one: {have}")
+        del self.overrides[part]
+        ok, err = self._run_recipe(dict(self.recipe))
+        text = f"Cleared the Rhino hand edit of {part}; it is back to the shape the method makes."
+        return text if ok else text + " " + err
+
+    def _run_recipe(self, recipe: dict):
+        """Run the stored method, nesting and estimate again. Returns (ok, why it stopped)."""
+        method = recipe.get("method")
+        if not method:
+            return True, ""
+        steps = [(method["tool"], method.get("input", {}))]
+        for key, tname in (("nest", "nest_sheets"), ("estimate", "estimate_cost")):
+            if recipe.get(key) is not None:
+                steps.append((tname, recipe[key]))
+        for tname, args in steps:
+            try:
+                checked = _check_args(_TOOLS_BY_NAME[tname], args)
+                getattr(self, "_t_" + tname)(**checked)
+                self._record(tname, checked)
+            except (ToolInputError, *INPUT_ERRORS) as exc:
+                return False, f"The {tname} step could not run again: {exc}"
+        return True, ""
 
     def _t_nest_sheets(self, sheet_width_mm=1200.0, sheet_height_mm=800.0, gap_mm=5.0, margin_mm=10.0,
                        rotations=(0, 90)):
@@ -1148,6 +1209,7 @@ class DesignSession:
             "workflow": {"name": self.workflows.active()["name"],
                          "apply_defaults": self.workflows.settings()["apply_defaults"]},
             "summary": self._summary(),
+            "rhino_overrides": [o.to_dict() for o in self.overrides.values()],
             "files": files,
         }
 
@@ -1171,6 +1233,13 @@ class DesignSession:
         scratch.settings.load_project(directory)
         scratch.formulas.load_project(directory)
         scratch._set_model(mesh, model_name)
+        raw_overrides = m.get("rhino_overrides") or []
+        if not isinstance(raw_overrides, list):
+            raise ProjectError(f"{proj.MANIFEST}: rhino_overrides must be a list")
+        try:
+            scratch.overrides = {o.part: o for o in map(Override.from_dict, raw_overrides)}
+        except PartsError as exc:
+            raise ProjectError(f"{proj.MANIFEST}: {exc}") from None
         recipe = m.get("recipe") or {}
         if not isinstance(recipe, dict):
             raise ProjectError(f"{proj.MANIFEST}: recipe must be an object")
@@ -1203,8 +1272,10 @@ class DesignSession:
         chat = proj.read_chat(directory)
         with self._lock:
             for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
-                         "board_thickness", "nested", "last_estimate", "last_quote", "recipe"):
+                         "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
+                         "generated"):
                 setattr(self, attr, getattr(scratch, attr))
+            self.notes, self.notices = [], []
             self.settings.project_data = scratch.settings.project_data
             self.settings.concept_data = scratch.settings.concept_data
             self.formulas.project_formulas = scratch.formulas.project_formulas
@@ -1222,6 +1293,151 @@ class DesignSession:
             self._log_step("send_from_rhino", True, "Received " + self._describe_model() + " from Rhino")
             self._bump()
             return self.version
+
+    # ---- two-way Rhino (rhino_sync.py, assets/rhino_fold_theory.py) ----------
+    def _note(self, text: str) -> None:
+        self.notes.append(text)
+        del self.notes[:-rhino_sync.MAX_NOTES]
+
+    def _notice(self, text: str) -> None:
+        self.notices.append(text)
+        del self.notices[:-rhino_sync.MAX_NOTICES]
+
+    def take_notes(self) -> List[str]:
+        """Rhino edits the Design Assistant has not been told about yet (each is handed out once)."""
+        with self._lock:
+            out, self.notes = self.notes, []
+            return out
+
+    def _model_object(self, root: str) -> dict:
+        return {"id": "model", "kind": "model", "layer": root + "::Model", "name": self.model_name,
+                "mesh": {"vertices": [[round(c, 6) for c in v] for v in self.model.vertices],
+                         "faces": [list(f) for f in self.model.faces]}}
+
+    def _model_revision(self) -> Optional[str]:
+        if self.model is None:
+            return None
+        return rhino_sync.revision({k: v for k, v in self._model_object("").items() if k != "layer"})
+
+    def scene(self, since: Optional[int] = None) -> dict:
+        """The design as tagged objects for the Rhino script. Unchanged since ``since``: just the version."""
+        with self._lock:
+            if since is not None and since == self.version:
+                return {"version": self.version, "changed": False}
+            root = rhino_sync.layer_root(self.project["name"] if self.project else None)
+            objs: List[dict] = []
+            if self.model is not None:
+                objs.append(self._model_object(root))
+            for pid, loops in self.parts3d.items():
+                objs.append({"id": f"assembly:{pid}", "kind": "assembly", "part": pid, "layer": root + "::Assembly",
+                             "loops": [[[round(c, 6) for c in p] for p in loop] for loop in loops]})
+            if self.parts is not None:
+                local = {p.id: p for p in self.parts.parts}
+                x = 0.0
+
+                def drawn(polys):
+                    return [[[round(p[0] + x, 6) + 0.0, round(p[1], 6) + 0.0] for p in poly] for poly in polys]
+
+                for sheet in self.parts.layout():
+                    if sheet.size is not None:
+                        w, h = sheet.size
+                    else:
+                        w = max((p.bbox()[1][0] for p in sheet.parts), default=0.0)
+                        h = max((p.bbox()[1][1] for p in sheet.parts), default=0.0)
+                    objs.append({"id": f"sheet:{sheet.index}", "kind": "sheet", "index": sheet.index,
+                                 "layer": root + "::Sheets",
+                                 "outline": [[x, 0.0], [x + w, 0.0], [x + w, h], [x, h]]})
+                    for laid in sheet.parts:
+                        own = local[laid.id]
+                        lx, ly = laid.label_point()
+                        ov = self.overrides.get(laid.id)
+                        objs.append({
+                            "id": f"part:{laid.id}", "kind": "part", "part": laid.id, "label": laid.label or laid.id,
+                            "layer": root + "::Parts", "sheet": sheet.index,
+                            "frame": rhino_sync.frame_for(own, laid, x, sheet.index),
+                            "shape": rhino_sync.shape_of(own),
+                            "cut": drawn(laid.cut), "score": drawn(laid.score), "etch": drawn(laid.etch),
+                            "label_at": [round(lx + x, 6), round(ly, 6)],
+                            "override": ov.status if ov is not None else None,
+                        })
+                    x += w + SHEET_GAP_MM
+            for o in objs:
+                o["revision"] = rhino_sync.revision({k: v for k, v in o.items() if k != "layer"})
+                o["version"] = self.version
+            return {
+                "version": self.version, "changed": True, "units": "mm", "root": root,
+                "project": self.project["name"] if self.project else None,
+                "objects": objs,
+                "overrides": [o.info() for o in self.overrides.values()],
+                "notices": list(self.notices),
+            }
+
+    def rhino_model(self, mesh: Mesh, name: Optional[str] = None, base_revision: Optional[str] = None) -> dict:
+        """The model was edited in Rhino: replace it, keep the hand edits, and run the recipe again."""
+        with self._lock:
+            conflict = (base_revision is not None and self.model is not None
+                        and base_revision != self._model_revision())
+            recipe = dict(self.recipe)
+            self._set_model(mesh, (name or "").strip()[:80] or self.model_name or "rhino model", keep_overrides=True)
+            ok, err = self._run_recipe(recipe)
+            text = "Model edited in Rhino: now " + self._describe_model() + "."
+            if recipe.get("method"):
+                ran = [recipe["method"]["tool"]] + [t for k, t in (("nest", "nest_sheets"),
+                                                                   ("estimate", "estimate_cost")) if recipe.get(k)]
+                text += (" Ran " + ", ".join(ran) + " again.") if ok else " " + err
+            if conflict:
+                text += " It replaced a newer model in the app."
+            self._note("In Rhino, the designer edited the model. " + text)
+            self._notice(text)
+            self._log_step("rhino_model_edit", ok, text)
+            self._bump()
+            return {"ok": ok, "version": self.version, "conflict": conflict, "message": text,
+                    "revisions": {"model": self._model_revision()}}
+
+    def rhino_part(self, pid, frame, cut, score=None, etch=None, base_shape=None) -> dict:
+        """A flat part was edited in Rhino (sheet coordinates). It becomes a hand edit. Raises PartsError."""
+        with self._lock:
+            if self.parts is None:
+                raise PartsError("There are no parts yet, so there is nothing to edit")
+            if not isinstance(pid, str) or pid not in self.generated:
+                raise PartsError(f"There is no part {pid!r} in the design")
+            if base_shape is not None and not isinstance(base_shape, str):
+                raise PartsError("base_shape must be text")
+            edited = rhino_sync.part_from_edit(pid, rhino_sync.check_frame(frame), cut, score, etch)
+            generated = self.generated[pid]
+            current = next(p for p in self.parts.parts if p.id == pid)
+            conflict = base_shape is not None and base_shape != rhino_sync.shape_of(current)
+            ok, err = True, ""
+            if rhino_sync.same_shape(edited, current) and not conflict:
+                status, text = "unchanged", f"{pid} is unchanged."
+                return {"ok": True, "status": status, "conflict": False, "message": text, "version": self.version}
+            if rhino_sync.same_shape(edited, generated):
+                self.overrides.pop(pid, None)
+                ok, err = self._run_recipe(dict(self.recipe))
+                status, text = "cleared", f"{pid} is back to the shape the method makes; its hand edit was removed."
+                self._note(f"In Rhino, the designer put {pid} back to its generated shape (no hand edit now).")
+            elif rhino_sync.same_shape_moved(edited, current):
+                status = "moved"
+                text = (f"{pid} was only moved. Nesting places the parts on the sheets, so the move is not kept; "
+                        "reshape a part to make a hand edit, or ask the assistant to nest again.")
+            else:
+                summary = rhino_sync.describe_edit(generated, edited)
+                self.overrides[pid] = Override(part=pid, cut=edited.cut, score=edited.score, etch=edited.etch,
+                                               base_shape=rhino_sync.shape_of(generated), summary=summary)
+                ok, err = self._run_recipe(dict(self.recipe))
+                status = self.overrides[pid].status
+                text = f"{pid} edited in Rhino ({summary}). It is now a hand edit (override)."
+                self._note(f"In Rhino, the designer edited part {pid} ({summary}). It is now a hand edit "
+                           "(override): keep it, and ask before changing this part.")
+            if conflict:
+                text += f" It replaced a newer {pid} made in the app."
+            if not ok:
+                text += " " + err
+            if status != "moved":
+                self._notice(text)
+            self._log_step("rhino_part_edit", ok, text)
+            self._bump()
+            return {"ok": ok, "status": status, "conflict": conflict, "message": text, "version": self.version}
 
     # ---- live sync (Rhino) -------------------------------------------------
     def live(self, since: Optional[int] = None) -> dict:
@@ -1285,6 +1501,8 @@ class DesignSession:
             if self._state_cache is None:
                 self._state_cache = self._build_state()
             out = dict(self._state_cache)
+            out["rhino"] = {"overrides": [o.info() for o in self.overrides.values()],
+                            "notices": list(self.notices)}
             out["project"] = None if self.project is None else {
                 "name": self.project["name"],
                 "folder": self.project["folder"],

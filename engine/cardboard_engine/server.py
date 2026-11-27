@@ -43,6 +43,9 @@ from .settings import SettingsError  # noqa: E402
 from .views import ViewError  # noqa: E402
 from .project import ProjectError  # noqa: E402
 from . import hops_live  # noqa: E402
+from . import rhino_sync  # noqa: E402
+from .components.geometry import GeometryError  # noqa: E402
+from .components.parts import PartsError  # noqa: E402
 from .hops_activity import HopsActivity  # noqa: E402
 from .lifecycle import DRAIN_TIMEOUT_S, InFlightTracker, Lifecycle  # noqa: E402
 
@@ -243,6 +246,7 @@ def _register_design(app: Flask) -> DesignSession:
     app.config["DESIGN"] = session
     preview_path = os.path.join(os.path.dirname(__file__), "assets", "preview.html")
     listener_path = os.path.join(os.path.dirname(__file__), "assets", "rhino_live_listener.py")
+    fold_theory_path = os.path.join(os.path.dirname(__file__), "assets", "rhino_fold_theory.py")
 
     @app.get("/api/design/tools")
     def design_tools():
@@ -438,6 +442,57 @@ def _register_design(app: Flask) -> DesignSession:
             except ValueError:
                 return jsonify(error="invalid_input", message="since must be a whole number"), 400
         return jsonify(session.live(since))
+
+    @app.get("/api/design/notes")
+    def design_notes():
+        """Rhino edits the Design Assistant has not been told about. Each note is handed out once."""
+        return jsonify(notes=session.take_notes())
+
+    @app.get("/api/rhino/scene")
+    def rhino_scene():
+        """The design as tagged Rhino objects. ?since=<version> answers {changed: false} when up to date."""
+        since = request.args.get("since")
+        if since is not None:
+            try:
+                since = int(since)
+            except ValueError:
+                return jsonify(error="invalid_input", message="since must be a whole number"), 400
+        return jsonify(session.scene(since))
+
+    @app.post("/api/rhino/model")
+    def rhino_model():
+        """The model was edited in Rhino. Body: {mesh: {vertices, faces}, name?, base_revision?} (mm)."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("mesh"), dict):
+            return jsonify(error="invalid_input", message="Body must be {mesh: {vertices, faces}}"), 400
+        name, base = data.get("name"), data.get("base_revision")
+        if (name is not None and not isinstance(name, str)) or (base is not None and not isinstance(base, str)):
+            return jsonify(error="invalid_input", message="name and base_revision must be text"), 400
+        try:
+            mesh = rhino_sync.mesh_from_body(data["mesh"])
+        except (GeometryError, PartsError) as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(session.rhino_model(mesh, name=name, base_revision=base))
+
+    @app.post("/api/rhino/part")
+    def rhino_part():
+        """A flat part was edited in Rhino. Body: {id, frame, cut, score?, etch?, base_shape?} (sheet mm)."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="invalid_input", message="Body must be {id, frame, cut, score, etch}"), 400
+        try:
+            out = session.rhino_part(data.get("id"), data.get("frame"), data.get("cut"), data.get("score"),
+                                     data.get("etch"), data.get("base_shape"))
+        except (GeometryError, PartsError) as exc:
+            return jsonify(error="invalid_input", message=str(exc)), 422
+        return jsonify(out)
+
+    @app.get("/rhino/fold_theory.py")
+    def rhino_fold_theory_script():
+        """The Fold Theory script for Rhino 8's Script Editor (see docs/RHINO_TWO_WAY.md)."""
+        with open(fold_theory_path, "rb") as fh:
+            body = fh.read()
+        return body, 200, {"Content-Type": "text/x-python; charset=utf-8", "Cache-Control": "no-store"}
 
     @app.get("/rhino/live_listener.py")
     def rhino_listener():

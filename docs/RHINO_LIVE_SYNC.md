@@ -8,6 +8,9 @@ You need: Rhino 8 for Mac (Rhino 7 works too), with Hops installed (type
 `PackageManager` in Rhino's command line, search **Hops**, **Install**,
 restart Rhino), and Fold Theory running with the **green** engine dot.
 
+To edit the design in plain Rhino and have the edits flow back into the app
+(no Grasshopper needed), see [RHINO_TWO_WAY.md](RHINO_TWO_WAY.md).
+
 ## How it works
 
 Hops only asks the engine for an answer when one of its inputs changes. So

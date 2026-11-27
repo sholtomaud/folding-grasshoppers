@@ -44,6 +44,9 @@ extension EngineClient: DesignProjectStore {
     /// The Grasshopper listener script for live Rhino sync.
     public var liveListenerURL: URL { baseURL.appendingPathComponent("rhino/live_listener.py") }
 
+    /// The Fold Theory script for Rhino 8's Script Editor: two-way sync without Grasshopper.
+    public var rhinoScriptURL: URL { baseURL.appendingPathComponent("rhino/fold_theory.py") }
+
     public func saveProject(name: String, folder: String, chat: JSONValue?) async throws -> ProjectSaved {
         var body: JSONValue = ["name": .string(name), "folder": .string(folder)]
         if let chat { body["chat"] = chat }

@@ -458,6 +458,18 @@ send a Rhino mesh to the app. It takes a small listener script (copy it with
 component. Step by step: [docs/RHINO_LIVE_SYNC.md](docs/RHINO_LIVE_SYNC.md)
 (also **Design > Rhino Live Sync Help** in the app).
 
+### Edit the design in plain Rhino (two-way, no Grasshopper)
+
+**Design > Copy Rhino Two-Way Script**, paste it into Rhino 8's Script Editor
+(`ScriptEditor` command, new Python 3 script) and press Run. The design appears
+on `Fold Theory` layers in Rhino. Edit the model there and the app re-slices,
+nests and costs it again; reshape a flat part (move a slot, add a hole) and it
+becomes a hand edit the app keeps. The Design Assistant is told what you
+changed. Step by step:
+[docs/RHINO_TWO_WAY.md](https://github.com/sholtomaud/folding-grasshoppers/blob/main/docs/RHINO_TWO_WAY.md)
+(also **Design > Rhino Two-Way Help** in the app). This is a prototype that
+has not been tried in Rhino yet.
+
 ## 5. Hello world demo
 
 This checks the whole chain, Mac app > engine > Grasshopper, in three ways.
