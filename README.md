@@ -299,7 +299,19 @@ install, packing and freight, design time, margin, GST and the total:
 | Margin, GST | percentages of the cost |
 
 A rate is only asked for when a line uses it: with no design hours set, the
-design rate is not needed and the line is 0. Ask the assistant for a new line, for example "add install crew
+design rate is not needed and the line is 0.
+
+**Issuing a quote and invoicing.** Say "issue the quote" and the engine
+freezes the current quote as the next version of the project's quote number,
+for example *Q-0007 v2*, with its validity date (quote valid for, 30 days by
+default), terms, GST, client and company details. A frozen version never
+changes: it is saved as `quotes/Q-0007/v2.json` exactly as issued. Then
+"invoice a 30% deposit on v2" or "make the final invoice" makes
+`invoices/INV-0041.json` from that version, with its lines, and
+`INV-0041.csv`, one row for the accounting package. Earlier invoices are
+taken off the final one, so the invoices add up to the quote to the cent.
+Quote and invoice numbers are the settings *Next quote number* and *Next
+invoice number*: set them once to carry on from your own numbering. Ask the assistant for a new line, for example "add install crew
 hours: one hour per 40 parts, rounded up", and it adds
 `install_hours = ceil(parts / 40)` with an example (95 parts gives 3), which
 the engine checks before saving. Units are checked: adding minutes to an
@@ -422,6 +434,8 @@ What is in a project folder (example for a project called `Stool`):
 | `estimate/estimate.json` | the same, for other programs |
 | `estimate/quote.json` | the quote: every line, the total, and the settings and formula versions it was made from |
 | `estimate/quote.csv` | the quote lines and total, to the cent; opens in any spreadsheet |
+| `quotes/Q-0007/v1.json`, `v2.json`, … | each issued quote version, frozen exactly as issued |
+| `invoices/INV-0041.json`, `INV-0041.csv` | each invoice, and its row for the accounting package |
 | `settings.json` | this project's settings (only once you set one for this project) |
 | `formulas.json` | formulas added for this project only, if any |
 | `views/<id>.json` | tabs saved for this project only, if any |

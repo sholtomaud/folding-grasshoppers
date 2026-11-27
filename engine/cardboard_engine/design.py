@@ -11,6 +11,7 @@ error result (``is_error``) that Claude can read and correct, never raised.
 
 from __future__ import annotations
 
+import datetime
 import json
 import math
 import os
@@ -38,6 +39,7 @@ from . import rhino_sync
 from . import scene as sc
 from . import brief as bf
 from . import structure as st
+from . import quotes as qv
 from .rhino_sync import Override
 from .project import ProjectError
 from .settings import BUILTIN_DEFINITIONS, SettingsError, SettingsStore, definition_from, field_for_form
@@ -47,7 +49,7 @@ from .workflow import WorkflowError, WorkflowStore
 VALIDATION_ERRORS = (SettingsError, FormulaError, ViewError, WorkflowError)
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
-    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, bf.BriefError, st.StructureError,
+    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, bf.BriefError, st.StructureError, qv.QuoteError,
     *VALIDATION_ERRORS,
 )
 # Prices and rates are settings, never tool inputs (Claude never types the numbers).
@@ -64,9 +66,10 @@ SETUP_TOOLS = {"request_inputs", "get_settings", "add_formula", "list_formulas",
                "read_diagnostics"}
 # Tools that do not change the design: a saved project stays saved.
 READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_objects", "select_object",
-                    "check_brief", "check_structure"} | WORKFLOW_TOOLS | SETUP_TOOLS)
-# The brief (brief.py): not workflow steps, and failing checks are not reported back on them.
-BRIEF_TOOLS = {"set_brief", "check_brief", "check_structure"}
+                    "check_brief", "check_structure", "list_quotes"} | WORKFLOW_TOOLS | SETUP_TOOLS)
+# The brief, checks, issued quotes and invoices: not workflow steps, and failing brief checks are not
+# reported back on them.
+BRIEF_TOOLS = {"set_brief", "check_brief", "check_structure", "issue_quote", "make_invoice", "list_quotes"}
 # Scene (#43): tools that take an optional object name, and the scene tools themselves.
 OBJECT_TOOLS = ("create_shape", "load_model_file", "scale_model", "model_info", "waffle_slice", "contour_stack",
                 "unfold", "clear_rhino_override", "check_structure")
@@ -477,6 +480,21 @@ TOOLS += [
                                                                         "brief)"}},
         required=["use"],
     ),
+    _tool(
+        "issue_quote",
+        "Issue the engine's current quote (from estimate_cost) to the client: it is frozen as the next version of "
+        "the project's quote number (Q-0007 v1, v2...), with validity date, terms, GST and company details, and "
+        "never changes afterwards. Only when the designer asks to issue or send a quote.", {}),
+    _tool(
+        "make_invoice",
+        "Make an invoice from an issued quote version: a deposit or progress invoice for a percentage, or the final "
+        "invoice for what is left. It carries that version's lines. Only when the designer asks.",
+        {"kind": {"type": "string", "enum": list(qv.KINDS), "description": "deposit, progress or final"},
+         "version": {"type": "integer", "minimum": 1, "description": "Quote version (default: the latest)"},
+         "percent": {"type": "number", "description": "Share of the quote, for deposit and progress invoices"}},
+        required=["kind"],
+    ),
+    _tool("list_quotes", "List the issued quote versions and invoices of this project.", {}),
 ]
 for _t in TOOLS:
     if _t["name"] in OBJECT_TOOLS:
@@ -599,6 +617,9 @@ class DesignSession:
         self.active: Optional[str] = None
         self.brief: Dict[str, Any] = {}  # brief.py: what the client asked for
         self.last_structure: Optional[dict] = None  # structure.py: the latest check_structure result
+        # quotes.py: issued quote versions and invoices, each {"record": dict, "text": the frozen JSON}
+        self.quote_versions: List[dict] = []
+        self.invoices: List[dict] = []
         self.scene_doc: Optional[PartsDoc] = None  # the scene's parts once nested
         self._clear_all()
         self.steps: List[dict] = []
@@ -637,6 +658,7 @@ class DesignSession:
             self.scene_objects, self.active = [], None
             self.brief = {}
             self.last_structure = None
+            self.quote_versions, self.invoices = [], []
             self.steps = []
             self.project = None
             self.settings.clear_project()
@@ -1323,6 +1345,65 @@ class DesignSession:
         self.last_structure = dict(r, object=name or None)
         return st.text(r, name)
 
+    # ---- issued quotes and invoices (quotes.py) ----------------------------
+    def _next_number(self, key: str) -> int:
+        n = self.settings.resolve(key)["value"]
+        self.settings.set(key, n + 1, scope="all", set_by="Fold Theory")
+        return n
+
+    def _t_issue_quote(self):
+        if self.last_quote is None or self.last_quote.get("total") is None:
+            raise ToolInputError("There is no quote to issue yet: run estimate_cost first.")
+        if len(self.quote_versions) >= qv.MAX_VERSIONS:
+            raise ToolInputError(f"This project already has {qv.MAX_VERSIONS} quote versions")
+        if self.quote_versions:
+            number = self.quote_versions[0]["record"]["number"]
+        else:
+            number = qv.quote_number(self._next_number("next_quote_number"))
+        get = lambda k: self.settings.resolve(k)["value"]  # noqa: E731
+        rec = qv.issue(self.last_quote, number, len(self.quote_versions) + 1, today=datetime.date.today(),
+                       valid_days=get("quote_valid_days"), terms=get("quote_terms") or "",
+                       company={"name": get("company_name") or "", "abn": get("company_abn") or ""},
+                       client={"client_name": get("client_name") or "", "job_name": get("job_name") or ""})
+        self.quote_versions.append({"record": rec, "text": qv.frozen_text(rec)})
+        return (f"Quote {number} v{rec['version']} issued: total {rec['total']:.2f} {rec['currency']} including GST "
+                f"{rec['gst']:.2f}, valid until {rec['valid_until']}. It is frozen and saved with the project as "
+                f"{qv.quote_path(rec)}.")
+
+    def _t_make_invoice(self, kind, version=None, percent=None):
+        if not self.quote_versions:
+            raise ToolInputError("There is no issued quote yet: issue one with issue_quote first.")
+        if len(self.invoices) >= qv.MAX_INVOICES:
+            raise ToolInputError(f"This project already has {qv.MAX_INVOICES} invoices")
+        n = version or len(self.quote_versions)
+        if n > len(self.quote_versions):
+            raise ToolInputError(f"There is no quote version {n}; the latest is v{len(self.quote_versions)}")
+        rec = self.quote_versions[n - 1]["record"]
+        previous = [i["record"] for i in self.invoices]
+        inv = qv.make_invoice(rec, kind, percent, previous, "", today=datetime.date.today(),
+                              due_days=self.settings.resolve("payment_terms_days")["value"])
+        inv["number"] = qv.invoice_number(self._next_number("next_invoice_number"))
+        self.invoices.append({"record": inv, "text": qv.frozen_text(inv)})
+        return (f"Invoice {inv['number']} ({inv['description']}): {inv['amount']:.2f} {inv['currency']} including "
+                f"GST {inv['gst']:.2f}, due {inv['due_on']}. Saved with the project as {qv.invoice_paths(inv)[0]}, "
+                "with a CSV row for the accounting package.")
+
+    def _t_list_quotes(self):
+        if not self.quote_versions:
+            return "No quote has been issued yet."
+        out = [f"{q['number']} v{q['version']}: {q['total']:.2f} {q['currency']}, issued {q['issued_on']}, valid "
+               f"until {q['valid_until']}" for q in (v["record"] for v in self.quote_versions)]
+        out += [f"{i['number']}: {i['description']}, {i['amount']:.2f} {i['currency']}, due {i['due_on']}"
+                for i in (v["record"] for v in self.invoices)]
+        return "\n".join(out)
+
+    def _quotes_info(self) -> dict:
+        return {"quotes": [{k: v["record"][k] for k in ("number", "version", "issued_on", "valid_until", "total",
+                                                         "currency")} for v in self.quote_versions],
+                "invoices": [{k: v["record"][k] for k in ("number", "kind", "description", "issued_on", "due_on",
+                                                           "amount", "currency")} | {"quote": v["record"]["quote"]}
+                             for v in self.invoices]}
+
     def _t_list_objects(self):
         if not self.scene_objects:
             return "The design is one model, not a scene. add_object starts a scene."
@@ -1620,6 +1701,12 @@ class DesignSession:
             files["settings.json"] = self.settings.project_file_text()
         if self.formulas.project_formulas:
             files["formulas.json"] = self.formulas.project_file_text()
+        for v in self.quote_versions:
+            files[qv.quote_path(v["record"])] = v["text"]
+        for v in self.invoices:
+            json_path, csv_path = qv.invoice_paths(v["record"])
+            files[json_path] = v["text"]
+            files[csv_path] = qv.invoice_csv(v["record"])
         if self.brief:
             files[bf.BRIEF_FILE] = bf.file_text(self.brief)
             files[bf.BRIEF_MD] = bf.markdown(name, self.brief, self.brief_checks(),
@@ -1687,6 +1774,35 @@ class DesignSession:
             })
         return {"active": self.active, "objects": objs}
 
+    @staticmethod
+    def _read_quotes(directory: str) -> Tuple[List[dict], List[dict]]:
+        """The issued quote versions and invoices in a project folder, as their exact text."""
+        versions: List[dict] = []
+        qdir = os.path.join(directory, qv.QUOTES_DIR)
+        for number in sorted(os.listdir(qdir)) if os.path.isdir(qdir) else []:
+            if not qv.QUOTE_NUMBER.match(number):
+                continue
+            found = []
+            for fname in os.listdir(os.path.join(qdir, number)):
+                mt = re.fullmatch(r"v(\d+)\.json", fname)
+                if mt:
+                    found.append((int(mt.group(1)), fname))
+            for n, fname in sorted(found)[:qv.MAX_VERSIONS]:
+                rel = f"{qv.QUOTES_DIR}/{number}/{fname}"
+                text = proj._read_text(os.path.join(directory, rel), proj.MAX_MANIFEST_BYTES, rel)
+                rec = qv.read_quote(text, rel)
+                if rec["number"] != number or rec["version"] != n:
+                    raise qv.QuoteError(f"{rel} holds {rec['number']} v{rec['version']}")
+                versions.append({"record": rec, "text": text})
+        invoices: List[dict] = []
+        idir = os.path.join(directory, qv.INVOICES_DIR)
+        for fname in sorted(os.listdir(idir)) if os.path.isdir(idir) else []:
+            if fname.endswith(".json") and qv.INVOICE_NUMBER.match(fname[:-5]) and len(invoices) < qv.MAX_INVOICES:
+                rel = f"{qv.INVOICES_DIR}/{fname}"
+                text = proj._read_text(os.path.join(directory, rel), proj.MAX_MANIFEST_BYTES, rel)
+                invoices.append({"record": qv.read_invoice(text, rel), "text": text})
+        return versions, invoices
+
     def open_project(self, path: str) -> dict:
         """Load a project folder and rebuild its design. On error the current design is kept."""
         if not isinstance(path, str):
@@ -1703,6 +1819,10 @@ class DesignSession:
                 scratch.brief = bf.read_file(proj._read_text(brief_path, proj.MAX_MANIFEST_BYTES, bf.BRIEF_FILE))
             except bf.BriefError as exc:
                 raise ProjectError(str(exc)) from None
+        try:
+            scratch.quote_versions, scratch.invoices = self._read_quotes(directory)
+        except qv.QuoteError as exc:
+            raise ProjectError(str(exc)) from None
         recipe = m.get("recipe") or {}
         if not isinstance(recipe, dict):
             raise ProjectError(f"{proj.MANIFEST}: recipe must be an object")
@@ -1743,7 +1863,7 @@ class DesignSession:
         with self._lock:
             for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
                          "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
-                         "generated", "scene_objects", "active", "scene_doc", "brief"):
+                         "generated", "scene_objects", "active", "scene_doc", "brief", "quote_versions", "invoices"):
                 setattr(self, attr, getattr(scratch, attr))
             self.notes, self.notices = [], []
             self.settings.project_data = scratch.settings.project_data
@@ -2126,6 +2246,7 @@ class DesignSession:
             "objects": self._objects_info(),
             "active_object": self.active,
             "brief": {"values": dict(self.brief), "checks": self.brief_checks()},
+            **self._quotes_info(),
         }
 
     def _mesh_object(self, oid: str, kind: str, label: str, mesh: Mesh) -> dict:
