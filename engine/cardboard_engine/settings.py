@@ -83,6 +83,15 @@ BUILTIN_DEFINITIONS: Dict[str, Definition] = {d.key: d for d in (
     _d("company_name", "Company name", "text", "", default="Fold Theory", group="Company"),
     _d("company_abn", "ABN", "text", "", default="", group="Company"),
     _d("quote_valid_days", "Quote valid for", "integer", "days", 1, 365, 30, "Company"),
+    _d("board_ect", "Edge crush strength (ECT)", "number", "kN/m", 0.001, None, None, "Board",
+       "From the board supplier's data sheet; used by the indicative structural check"),
+    _d("seat_safety_factor", "Safety factor for seats", "number", "", 1, 20, 3, "Board",
+       "Seats take impact loads"),
+    _d("load_safety_factor", "Safety factor for counters and shelves", "number", "", 1, 20, 2, "Board"),
+    _d("max_panel_ratio", "Rib panel limit", "number", "x thickness", 1, None, 50, "Board",
+       "Widest unbraced rib panel, as a multiple of the board thickness, before a buckling warning"),
+    _d("max_span_ratio", "Top span limit", "number", "x thickness", 1, None, 50, "Board",
+       "Longest span of a counter or shelf top between ribs, as a multiple of the board thickness"),
 )}
 
 
