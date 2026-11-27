@@ -161,3 +161,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Rhino listener: schedule solutions instead of forcing them; 4 new tests, pytest floor 351
 - **Previous Attestation:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
 - **Attestation SHA-256:** `895f1926f2c8a7ffcc802bb980100fcaac732cbe232bcc0023fcb18353bd8b38`
+
+## 2026-11-27T03:48:22Z — `715f4fe` (PASS)
+
+- **Commit:** `715f4fe`
+- **Timestamp:** `2026-11-27T03:48:22Z`
+- **Proof Lock Root SHA-256:** `39876fd2d00de4923e0cf58102838349ee4e7ed0bddd9f237e46eb869edec2d3`
+- **Verdict:** `PASS`
+- **Summary:** Foundation A merged with main (rename #62, listener fix #64): settings, forms, formulas, JSON views, Project tab, diagnostics; floors pytest 451, swift 149
+- **Previous Attestation:** `895f1926f2c8a7ffcc802bb980100fcaac732cbe232bcc0023fcb18353bd8b38`
+- **Attestation SHA-256:** `63f5879ecdbecd8f07f91a970f1baa15eb2439b758d0bdaacfd583b67d7d1896`
