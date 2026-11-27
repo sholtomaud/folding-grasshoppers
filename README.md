@@ -208,8 +208,10 @@ parts, prices). The built-in **Standard** workflow is:
 1. Model: make or load the model at its real size.
 2. Parts: waffle, contour stack or unfold, whichever suits the form.
 3. Nest on sheets: 1200 × 800 mm board, 5 mm gap, 10 mm margin.
-4. Estimate cost: the assistant asks for your sheet price and hourly machine
-   rate the first time, then offers to remember them.
+4. Estimate cost: the engine works out machine time, cost and the quote from
+   your **settings**. The first time, the assistant shows a small form in the
+   chat for your sheet price and hourly machine rate (see *Prices, settings
+   and the Project tab* below).
 5. Cut files and 6. Save project: only when you ask.
 
 So "make a cylinder stool 450 mm tall as a waffle from 6 mm board" now ends
@@ -223,25 +225,97 @@ with the parts nested on 1200 × 800 sheets and a cost, without asking for it.
 | On (the default) | Uses the workflow's saved values for anything you didn't say, carries on through the steps, and tells you which values it used ("Used workflow values: sheet 1200 × 800…") |
 | Off | Before each step, asks you for the values the workflow covers ("What board size? The workflow says 1200 × 800."), and waits for your answer |
 
-A value saved as *ask* (the prices in Standard, until you give them) is always
-asked for.
+Prices and rates are not workflow values any more: they are settings, typed
+by you in a form, never by the assistant.
 
 **Make your own workflow from a conversation.** Talk the assistant through
 how you work, then say "save this as a workflow", for example:
 
 > For honeycomb jobs: always waffle from 10 mm board, nest on 2400 × 1200
-> sheets with an 8 mm gap, cost it at 38 a sheet and 60 an hour, and ask me
-> who the client is first. Save that as a workflow called Honeycomb.
+> sheets with an 8 mm gap, cost it, and ask me who the client is first.
+> Save that as a workflow called Honeycomb.
 
 It saves the workflow and switches to it. Pick a workflow in the toolbar,
 in **Design > Workflow**, or in Settings, or ask "use the Honeycomb
-workflow". To change one saved value, say for example "remember 12.50 a
-sheet". Each workflow is a plain JSON file in
+workflow". To change one saved value, say for example "remember an 8 mm
+gap". Each workflow is a plain JSON file in
 `~/Documents/Fold Theory/Workflows/` (**Design > Workflow > Show Workflows
 Folder**), so you can copy it to another Mac or edit it by hand; then choose
 **Reload Workflows**. Delete a file there to remove that workflow; delete
 `Standard.json` to get the built-in Standard back. Saved projects record
 which workflow made them (`"workflow"` in `project.json`).
+
+### Prices, settings and the Project tab
+
+The assistant never does the sums. Every number that matters (sheets,
+machine time, board and machine cost, margin, GST, the quote total) is worked
+out by the engine from **settings** and **formulas**, the same way every
+time. The assistant chooses what to do; the engine does the arithmetic.
+
+**Settings** are your prices and rates: sheet price, machine rate, labour
+rate, margin, GST, machine speeds, client and job, company name and ABN.
+Each has a label, a unit (for example `AUD/sheet`) and an allowed range, and
+remembers who set it and when. They come in layers, and the most specific
+wins:
+
+| Layer | Where it is kept | Used for |
+|---|---|---|
+| Fold Theory defaults (the rate card) | `~/Documents/Fold Theory/Settings/settings.json` | every project |
+| Workflow | the `"settings"` in `~/Documents/Fold Theory/Workflows/<name>.json` | jobs that use that workflow |
+| Project | `settings.json` in the project folder, e.g. `~/Documents/Fold Theory/Projects/Stool/settings.json` | this project only |
+| Concept | (comes with concepts, issue #46) | one concept |
+
+**Forms in the chat.** When a price is missing, the assistant asks with a
+form instead of guessing: "What does a sheet of 10 mm honeycomb cost?", with
+a field in AUD/sheet and a choice of **This project** or **All projects**.
+Type the value and press **Save**. A typo (`abc`) or a negative price shows a
+red note under the field and nothing is saved. The assistant is only told
+*which* settings you set, never the numbers, and carries on.
+
+**The Project tab** sits next to **3D & Sheets** above the preview. It
+shows the job, the workflow steps done so far, the quote lines and total,
+and every setting with where its value came from, for example
+`38.50 AUD/sheet · project · SM, 27 Nov`. Change a setting there and press
+Return: the engine works the quote out again at once. Pick **This project**
+or **All projects** next to it to choose where the new value is saved.
+
+**Unverified numbers.** If a reply from the assistant contains an amount or
+quantity that no tool gave in that turn (for example "about 500"), the app
+marks it **Unverified** in orange under the reply. Trust the Project tab.
+
+**Formulas.** The quote is a list of formulas, each with a worked example
+the engine checks: `material = round(sheets * sheet_price, 2)`,
+`machine = round(cut_minutes * machine_rate, 2)`, then margin, GST and the
+total. Ask the assistant for a new line, for example "add install crew
+hours: one hour per 40 parts, rounded up", and it adds
+`install_hours = ceil(parts / 40)` with an example (95 parts gives 3), which
+the engine checks before saving. Units are checked: adding minutes to an
+area is refused. Saved formulas go to
+`~/Documents/Fold Theory/Settings/formulas.json` (all projects) or
+`formulas.json` in the project folder. Every quote records the formula
+versions it used, in `estimate/quote.json`, so an old quote can be worked
+out again exactly.
+
+**Tabs are JSON views.** Each tab other than 3D & Sheets and Diagnostics is
+a JSON file drawn by the app's own building blocks (sections, fields,
+tables, totals, settings, checklists, buttons). Fold Theory's Project tab
+ships with the app; ask the assistant for a new tab ("add a Costs tab with
+just the quote lines and the total") and it saves one to
+`~/Documents/Fold Theory/Views/<id>.json`, or to `views/<id>.json` in the
+project folder for one project. The engine checks each view first and
+refuses unknown blocks, unknown data and buttons that are not registered,
+saying why. **Undo Last Change** at the top of a tab puts the file back
+exactly as it was. A new kind of building block still needs a new version
+of the app.
+
+**Diagnostics.** The **Diagnostics** tab lists what Grasshopper (LiveDesign
+and its listener's On switch, SendToFoldTheory), the engine's tools and the
+checks on forms, views and formulas reported, newest first. Filter by
+source and level. Ask the assistant "why is Rhino not updating?" or "why was
+my view rejected?" and it reads the same log. API keys and tokens are
+removed before anything is written. The log is
+`~/Library/Application Support/Fold Theory/diagnostics/diagnostics.jsonl`
+(1 MB, then it moves to `diagnostics.jsonl.1`).
 
 ### Save and open projects
 
@@ -273,6 +347,10 @@ What is in a project folder (example for a project called `Stool`):
 | `cut-files/Stool-sheet1.dxf`, `Stool-sheet1.svg`, … | cut files, one per sheet, layers CUT, SCORE, ETCH, LABEL |
 | `estimate/estimate.csv` | the cost estimate; opens in Numbers, Excel or Google Sheets |
 | `estimate/estimate.json` | the same, for other programs |
+| `estimate/quote.json` | the quote: every line, the total, and the settings and formula versions it was made from |
+| `settings.json` | this project's settings (only once you set one for this project) |
+| `formulas.json` | formulas added for this project only, if any |
+| `views/<id>.json` | tabs saved for this project only, if any |
 | `preview/preview.png` | a picture of the 3D preview, as it was when you saved |
 | `preview/model.svg` | a drawing of the model (opens in any web browser) |
 
@@ -303,7 +381,9 @@ open /Applications/Fold Theory.app
 app. To try a change before it is merged, replace `git checkout main` and
 `git pull` with `git checkout <branch>` and `git pull origin <branch>`, for
 example `claude/project-thread-r4a2ee` for project saving and Rhino live
-sync, or `claude/project-thread-u3agc6` for workflows.
+sync, `claude/project-thread-u3agc6` for workflows, or
+`claude/project-thread-87xy59` for settings, forms, the Project tab and
+Diagnostics.
 
 ## 4. Connect Grasshopper (Hops)
 
@@ -464,6 +544,10 @@ path to jump there.
 | Exported cut files | `~/Documents/Fold Theory/` unless you name another folder |
 | Saved projects | `~/Documents/Fold Theory/Projects/<project name>/` (see section 3, *Save and open projects*) |
 | Workflows | `~/Documents/Fold Theory/Workflows/<workflow name>.json`, and `.settings.json` there for the active workflow and Apply defaults (see section 3, *Workflows*) |
+| Settings for all projects (the rate card) | `~/Documents/Fold Theory/Settings/settings.json` |
+| Formulas for all projects | `~/Documents/Fold Theory/Settings/formulas.json` |
+| Tabs (JSON views) for all projects | `~/Documents/Fold Theory/Views/<id>.json`, earlier versions in `Views/.history/<id>/` |
+| Diagnostics log | `~/Library/Application Support/Fold Theory/diagnostics/diagnostics.jsonl` |
 | Python inside the app | `/Applications/Fold Theory.app/Contents/Resources/python/` |
 
 ### Coming from CardboardCAD

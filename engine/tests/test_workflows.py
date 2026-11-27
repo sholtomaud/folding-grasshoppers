@@ -57,8 +57,8 @@ def save_board_workflow(session, apply=True, **extra):
             {"title": "Quote", "tools": ["estimate_cost"], "instructions": "Cost it."},
             {"title": "Files", "tools": ["export_cut_files"], "instructions": "Only when asked.", "optional": True},
         ],
-        defaults={"nest_sheets": {"sheet_width_mm": 2400, "sheet_height_mm": 1200, "gap_mm": 8},
-                  "estimate_cost": {"sheet_price": 30, "machine_rate": None}},
+        # Prices are settings now (#28), so a workflow saved by Claude holds no prices.
+        defaults={"nest_sheets": {"sheet_width_mm": 2400, "sheet_height_mm": 1200, "gap_mm": 8}},
         questions=["Who is the client?"],
     )
     args.update(extra)
@@ -80,8 +80,8 @@ def test_standard_workflow_is_active_with_board_size_and_nesting_by_default(sess
     assert tools_in_steps.index("nest_sheets") < tools_in_steps.index("estimate_cost")
     assert std["defaults"]["nest_sheets"]["sheet_width_mm"] == 1200
     assert std["defaults"]["nest_sheets"]["sheet_height_mm"] == 800
-    # Prices are not known until the designer gives them: Claude must ask.
-    assert std["defaults"]["estimate_cost"]["sheet_price"] is None
+    # Prices are not known until the designer gives them: Claude must ask (request_inputs).
+    assert "sheet_price" not in std["settings"]
     assert any(w["name"] == STANDARD_NAME and w["builtin"] for w in info["workflows"])
 
 
@@ -141,10 +141,10 @@ def test_a_value_marked_ask_is_asked_for_even_with_defaults_on(session):
     save_board_workflow(session)
     make_parts(session)
     run(session, "nest_sheets")
-    text = run(session, "estimate_cost")
-    assert "machine_rate" in text
-    assert "ask the designer" in text.lower()
-    assert session.recipe["estimate"]["sheet_price"] == 30
+    r = session.run_tool("estimate_cost", {})
+    assert r.is_error
+    assert "machine_rate" in r.text
+    assert "ask the designer" in r.text.lower() and "request_inputs" in r.text
 
 
 def test_after_each_step_claude_is_told_the_next_one(session):
@@ -217,18 +217,17 @@ def test_use_workflow_switches_and_unknown_names_are_errors(session):
 
 
 def test_set_workflow_defaults_remembers_prices(session, tmp_path):
-    text = run(session, "set_workflow_defaults", defaults={"estimate_cost": {"sheet_price": 12.5, "machine_rate": 60}})
+    # Prices are settings the designer types in a form (#28): Claude cannot save them in a workflow.
+    r = session.run_tool("set_workflow_defaults",
+                         {"defaults": {"estimate_cost": {"sheet_price": 12.5, "machine_rate": 60}}})
+    assert r.is_error and "request_inputs" in r.text
+    text = run(session, "set_workflow_defaults", defaults={"nest_sheets": {"gap_mm": 6}})
     assert STANDARD_NAME in text
     std = session.workflows.active()
-    assert std["defaults"]["estimate_cost"] == {"sheet_price": 12.5, "machine_rate": 60}
+    assert std["defaults"]["nest_sheets"]["gap_mm"] == 6
     # The board size from the built-in workflow is kept.
     assert std["defaults"]["nest_sheets"]["sheet_width_mm"] == 1200
     assert os.path.isfile(os.path.join(workflows_dir(str(tmp_path)), f"{STANDARD_NAME}.json"))
-    make_parts(session)
-    run(session, "nest_sheets")
-    text = run(session, "estimate_cost")
-    assert "ask the designer" not in text.lower()
-    assert session.recipe["estimate"]["machine_rate"] == 60
 
 
 def test_a_broken_workflow_file_is_skipped(session, tmp_path):

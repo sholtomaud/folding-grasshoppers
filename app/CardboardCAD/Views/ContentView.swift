@@ -7,6 +7,7 @@ struct ContentView: View {
     let claudeKey: ClaudeKey
     let projects: ProjectController
     let workflows: WorkflowController
+    let projectViews: ProjectViewsController
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
@@ -19,7 +20,7 @@ struct ContentView: View {
             ChatSplit {
                 DesignAssistantView(engine: engine, assistant: assistant, claudeKey: claudeKey, projects: projects)
             } right: {
-                PreviewPane(engine: engine)
+                PreviewArea(engine: engine, assistant: assistant, views: projectViews)
             }
             .frame(maxHeight: .infinity)
             StatusBar(engine: engine, openSettings: { openSettings() })
@@ -29,7 +30,17 @@ struct ContentView: View {
             assistant.attach(tools: client)
             projects.attach(store: client)
             workflows.attach(client: client)
+            projectViews.attach(client: client)
             await workflows.refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .foldTheorySaveProject)) { _ in
+            Task {
+                if projects.current == nil {
+                    await ProjectPanels.saveAs(projects)
+                } else {
+                    await projects.saveAgain()
+                }
+            }
         }
         .toolbar { WorkflowToolbar(workflows: workflows) }
         .navigationSubtitle(projects.current?.name ?? "")

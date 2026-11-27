@@ -91,7 +91,7 @@ struct DesignAssistantView: View {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     if assistant.items.isEmpty { welcome }
                     ForEach(assistant.items) { item in
-                        ChatRow(item: item).id(item.id)
+                        ChatRow(item: item, assistant: assistant).id(item.id)
                     }
                     if assistant.isBusy {
                         HStack(spacing: 8) {
@@ -219,6 +219,7 @@ struct DesignAssistantView: View {
 
 struct ChatRow: View {
     let item: DesignAssistant.ChatItem
+    let assistant: DesignAssistant
 
     var body: some View {
         switch item.kind {
@@ -233,9 +234,19 @@ struct ChatRow: View {
                     .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 12))
             }
         case .assistant:
-            Text(markdown(item.text))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(markdown(item.text))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !item.unverified.isEmpty {
+                    // Claude never calculates: these numbers did not come from the engine this turn.
+                    Label("Unverified: \(item.unverified.joined(separator: ", ")). The engine did not give these numbers; check the Project tab.",
+                          systemImage: "exclamationmark.shield")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .help("Every number that matters is worked out by the engine. Numbers in a reply that no tool gave are marked.")
+                }
+            }
         case .tool(let name, let isError):
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: isError ? "exclamationmark.triangle" : "hammer")
@@ -259,6 +270,8 @@ struct ChatRow: View {
         case .notice:
             Label(item.text, systemImage: "info.circle")
                 .foregroundStyle(.secondary)
+        case .form(let form):
+            InputFormCard(itemID: item.id, form: form, assistant: assistant)
         }
     }
 

@@ -63,6 +63,20 @@ def live_geometry(live: dict):
     return models, parts3d, cut, score, outlines, labels
 
 
+def note_live_call(session: DesignSession, component: str, listener_version) -> None:
+    """Grasshopper asked for the design: record it, so Claude can see what Rhino last got."""
+    try:
+        v = int(listener_version) if listener_version is not None else None
+    except (TypeError, ValueError):
+        v = None
+    try:
+        session.diagnostics.write("grasshopper", "debug" if v is not None else "info",
+                                  f"{component} fetched design version {session.version}",
+                                  design_version=session.version, details={"listener_version": v})
+    except (OSError, ValueError):
+        pass
+
+
 def register(hops: hs.Hops, session: DesignSession, *, category: str, subcategory: str, icon: str) -> None:
     brand = dict(category=category, subcategory=subcategory, icon=icon)
 
@@ -88,6 +102,7 @@ def register(hops: hs.Hops, session: DesignSession, *, category: str, subcategor
         **brand,
     )
     def live_design(V=0):
+        note_live_call(session, "LiveDesign", V)
         live = session.live()
         models, parts3d, cut, score, outlines, labels = live_geometry(live)
         return live["version"], models, parts3d, cut, score, outlines, labels, live["parts"] or "", live["summary"]
@@ -111,7 +126,14 @@ def register(hops: hs.Hops, session: DesignSession, *, category: str, subcategor
     def send_to_cardboardcad(M, N="rhino model", S=False):
         if not S:
             return session.version, "Not sent. Set Send to True to send this mesh to Fold Theory."
-        mesh: Mesh = mesh_from_rhino(M)
+        try:
+            mesh: Mesh = mesh_from_rhino(M)
+        except Exception as exc:
+            session.diagnostics.write("grasshopper", "error", f"SendToFoldTheory could not read the mesh: {exc}",
+                                      design_version=session.version)
+            raise
         name = (N or "rhino model").strip()[:80] or "rhino model"
         version = session.push_model(mesh, name)
+        session.diagnostics.write("grasshopper", "info", f"SendToFoldTheory sent {name} ({len(mesh.faces)} faces)",
+                                  design_version=version)
         return version, f"Sent {name} ({len(mesh.faces)} faces) to Fold Theory."

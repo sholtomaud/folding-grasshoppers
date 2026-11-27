@@ -47,7 +47,10 @@ def stool(client, x=5, y=5, nest=True, estimate=False):
     if nest:
         tool(client, "nest_sheets", sheet_width_mm=1200, sheet_height_mm=800)
     if estimate:
-        tool(client, "estimate_cost", sheet_price=10, machine_rate=60)
+        for key, value in (("sheet_price", 10), ("machine_rate", 60)):
+            r = client.post("/api/settings", json={"key": key, "value": value, "scope": "project"})
+            assert r.status_code == 200, r.get_json()
+        tool(client, "estimate_cost")
 
 
 def scene(client, since=None):

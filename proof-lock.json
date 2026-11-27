@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "bd0d963ec1c15096a3e46a8d18be9e4ab6685b99118f364b3787d36cd4610ebd",
+  "rootSha256": "f7469d139e5ed619e9593653c21bc0bcffcfa9737728c8f30ba6a45b973d3c27",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -89,6 +89,11 @@
       "sha256": "ea528b50e7eccf7f5d01ff62cf6910efae47ed5e3eb6e65971c0fc32c4ae80fd"
     },
     {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/ProjectDataTests.swift",
+      "zone": "tests",
+      "sha256": "bbd8a26c2b06769ca58c567f2a4d7a463903632e0df76a99736593c54debce25"
+    },
+    {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/ProjectTests.swift",
       "zone": "tests",
       "sha256": "587d50072342f8c9d7e4577ad1e8d387ed555d495b9a7d204245e6c8a7a1df40"
@@ -156,17 +161,27 @@
     {
       "path": "engine/tests/test_design_cost_prompts.py",
       "zone": "tests",
-      "sha256": "c4c5a1c6b6d911a99fa74d69800ce5ce5d7bb892456e7204a0465dffd2890d52"
+      "sha256": "9868777343e6eb87bc55cea2a2e63805bde80ae7d2fc821ebe3de0aeef0fecfb"
     },
     {
       "path": "engine/tests/test_design_session.py",
       "zone": "tests",
-      "sha256": "2f98bdbfd01dc88f0e49644e268f8bc078bbdf40b8e9f8ddb2c2b6c7cb91c6b5"
+      "sha256": "1eae0958cb43a9cf82aff57dbae8df017c64458ec57ec5597695a99c7f8129a8"
+    },
+    {
+      "path": "engine/tests/test_diagnostics.py",
+      "zone": "tests",
+      "sha256": "845b158612e813a566c7f2af71b1f212a2e9abe39db15829017ceaaf184669d1"
     },
     {
       "path": "engine/tests/test_fold_theory_name.py",
       "zone": "tests",
       "sha256": "a37d296e023b38125e260eb740d641af61aa6883bddf02e6a68c118bf3f61c04"
+    },
+    {
+      "path": "engine/tests/test_formulas.py",
+      "zone": "tests",
+      "sha256": "776366321b2b2429bce8a11fd1249c391f8257c195c25ee51099042daf4726e3"
     },
     {
       "path": "engine/tests/test_geometry_core.py",
@@ -202,6 +217,11 @@
       "path": "engine/tests/test_hops_unfold.py",
       "zone": "tests",
       "sha256": "492c47fda31962051ade730ad0cef767bab3d998afcdf98559897fb48c41c7f0"
+    },
+    {
+      "path": "engine/tests/test_input_forms.py",
+      "zone": "tests",
+      "sha256": "a8e4f2674e053209bd1440ce54e92cc8d775a9862a83ae8835b055d59416552d"
     },
     {
       "path": "engine/tests/test_live_listener_grasshopper.py",
@@ -246,17 +266,22 @@
     {
       "path": "engine/tests/test_project.py",
       "zone": "tests",
-      "sha256": "ddada3175875cd5a17757689d1244fb1550f3703ec43f043c4a47ae173dc171b"
+      "sha256": "5d8614d66aeff3b76dbb1b7a1946965a767a560112d10dfe2fdaf08aa2bd9e9d"
     },
     {
       "path": "engine/tests/test_rhino_two_way.py",
       "zone": "tests",
-      "sha256": "fa89ac77a892aa536832cdfa98f7dc09eda36f049823e47ae3b1d3bc529b728d"
+      "sha256": "ac4d1556d5ec27ae78a08d5c606a8361cb3d714f1e2c10c4049740f5d7791e4d"
     },
     {
       "path": "engine/tests/test_server.py",
       "zone": "tests",
       "sha256": "95ea3aea3a5a0b6d2f7985a193ffe774ffa0dfd3067f8697d7420d8940f4b28d"
+    },
+    {
+      "path": "engine/tests/test_settings.py",
+      "zone": "tests",
+      "sha256": "fd2268c0f5dfe8e25143ea8c70bf63e1a0f83c515850529556f5956a9b0c4db7"
     },
     {
       "path": "engine/tests/test_triangulate.py",
@@ -269,6 +294,11 @@
       "sha256": "d02dd4689a4c32bfe471f7429eb94a27ce225f3a9accaecc89c3fae81f3664ee"
     },
     {
+      "path": "engine/tests/test_views.py",
+      "zone": "tests",
+      "sha256": "2aaa3c76b718fdf085343846310965fd9893666ec2b1ff3b46b37d7bbb52f0b2"
+    },
+    {
       "path": "engine/tests/test_waffle.py",
       "zone": "tests",
       "sha256": "2fcc5ef210760a631053e5eeed1278a9bffe3118e7c1a64cf3007180a4db7964"
@@ -276,7 +306,7 @@
     {
       "path": "engine/tests/test_workflows.py",
       "zone": "tests",
-      "sha256": "ca03d11d1d9177d7ee679427e0d0e9a995b9191cdef9e4314a3305622853fa19"
+      "sha256": "0e5c19e5df28ff61e6719f97cbef051d92f543f195a01473c4f8ffce1502643b"
     },
     {
       "path": "scripts/ci/check_test_floors.py",
@@ -291,7 +321,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "46382df1e8b480f9c1059c0e99e3f571901da7608d53676fc8fcbda61ae74133"
+      "sha256": "370b40e40ce05a9b3d15536d1ad75477174b824ac41fd149a8761691b5802fa1"
     },
     {
       "path": "uplift.config.json",

@@ -17,16 +17,21 @@ public final class DesignAssistant {
             case tool(name: String, isError: Bool)
             case error
             case notice
+            /// A form Claude asked for with request_inputs; the answer goes to the engine's settings.
+            case form(InputForm)
         }
 
         public let id: UUID
         public let kind: Kind
         public let text: String
+        /// Amounts or quantities in an assistant reply that no tool gave this turn (Claude never calculates).
+        public let unverified: [String]
 
-        public init(kind: Kind, text: String, id: UUID = UUID()) {
+        public init(kind: Kind, text: String, id: UUID = UUID(), unverified: [String] = []) {
             self.id = id
             self.kind = kind
             self.text = text
+            self.unverified = unverified
         }
     }
 
@@ -43,6 +48,8 @@ public final class DesignAssistant {
 
     // MARK: conversation sent to Claude
     @ObservationIgnored public private(set) var history: [JSONValue] = []
+    /// What this turn's numbers may come from: the designer's message and every tool result.
+    @ObservationIgnored private var turnSources: [String] = []
 
     @ObservationIgnored private let model: ChatModelClient
     @ObservationIgnored private var tools: DesignToolRunner?
@@ -102,6 +109,7 @@ public final class DesignAssistant {
         }
         let checkpoint = history.count
         history.append(["role": "user", "content": .string(message)])
+        turnSources = [message]
         do {
             activity = "Thinking…"
             var steps = 0
@@ -115,7 +123,8 @@ public final class DesignAssistant {
                 history.append(["role": "assistant", "content": .array(response.content)])
                 for block in response.content where block["type"]?.stringValue == "text" {
                     if let t = block["text"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
-                        items.append(ChatItem(kind: .assistant, text: t))
+                        items.append(ChatItem(kind: .assistant, text: t,
+                                              unverified: NumberGuard.unverified(reply: t, known: turnSources)))
                     }
                 }
                 switch response.stopReason {
@@ -157,6 +166,10 @@ public final class DesignAssistant {
                                           isError: true, version: 0)
             }
             items.append(ChatItem(kind: .tool(name: name, isError: output.isError), text: output.content))
+            turnSources.append(output.content)
+            if let form = output.form {
+                items.append(ChatItem(kind: .form(form), text: form.question))
+            }
             if output.setupChanged {
                 setup = nil
                 onSetupChanged?()
@@ -175,6 +188,34 @@ public final class DesignAssistant {
     func replaceConversation(items: [ChatItem], history: [JSONValue]) {
         self.items = items
         self.history = history
+    }
+
+    /// The designer filled in a form. The engine checks and stores the values; on success
+    /// the form becomes a note and Claude is told which settings were set, never the numbers.
+    /// Returns the engine's answer (field errors to show), or nil while the assistant is busy.
+    @discardableResult
+    public func submitForm(itemID: UUID, form: InputForm, values: [String: String], scope: String,
+                           setBy: String) async -> FormSubmission? {
+        guard !isBusy else { return nil }
+        guard let tools else {
+            return FormSubmission(ok: false, message: "The engine is not running.",
+                                  errors: ["_form": "The engine is not running."])
+        }
+        let answer: FormSubmission
+        do {
+            answer = try await tools.submitInputForm(id: form.id, values: values, scope: scope, setBy: setBy)
+        } catch {
+            return FormSubmission(ok: false, message: error.localizedDescription,
+                                  errors: ["_form": error.localizedDescription])
+        }
+        guard answer.ok else { return answer }
+        if let i = items.firstIndex(where: { $0.id == itemID }) {
+            let labels = form.fields.map(\.label).joined(separator: ", ")
+            items[i] = ChatItem(kind: .notice, text: "Saved \(labels) for \(InputForm.scopeTitle(scope).lowercased()).",
+                                id: itemID)
+        }
+        await send(answer.message)
+        return answer
     }
 
     /// A line in the chat from the app itself (not sent to Claude).

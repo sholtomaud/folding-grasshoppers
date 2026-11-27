@@ -32,19 +32,32 @@ from .components.triangulate import extrude
 from .components.unfold import UnfoldError, UnfoldInput, unfold
 from .components.waffle import WaffleError, WaffleInput, waffle_slice
 from . import project as proj
+from .diagnostics import LEVELS as DIAG_LEVELS, SOURCES as DIAG_SOURCES, DiagnosticsLog, format_entries
+from .formulas import FormulaError, FormulaStore, build_quote, needed_fields
 from . import rhino_sync
 from .rhino_sync import Override
 from .project import ProjectError
+from .settings import BUILTIN_DEFINITIONS, SettingsError, SettingsStore, definition_from, field_for_form
+from .views import ACTIONS, BLOCK_TYPES, ViewError, ViewStore, static_catalog
 from .workflow import WorkflowError, WorkflowStore
 
+VALIDATION_ERRORS = (SettingsError, FormulaError, ViewError, WorkflowError)
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
-    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, WorkflowError,
+    NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, *VALIDATION_ERRORS,
 )
+# Prices and rates are settings, never tool inputs (Claude never types the numbers).
+SETTING_ONLY_INPUTS = {"estimate_cost": ("sheet_price", "machine_rate", "labour_rate", "margin_pct", "gst_pct")}
+ESTIMATE_SETTINGS = ("cut_speed", "score_speed", "pierce_time", "travel_overhead", "sheet_price", "machine_rate")
+MAX_FORMS = 20
+MAX_FORM_FIELDS = 12
 # Tools that read or change workflows (workflow.py), not the design.
 WORKFLOW_TOOLS = {"list_workflows", "save_workflow", "use_workflow", "set_workflow_defaults"}
+# Tools for settings, formulas, views and diagnostics: they do not change the design.
+SETUP_TOOLS = {"request_inputs", "get_settings", "add_formula", "list_formulas", "list_views", "save_view",
+               "read_diagnostics"}
 # Tools that do not change the design: a saved project stays saved.
-READ_ONLY_TOOLS = {"model_info", "export_cut_files", "save_project"} | WORKFLOW_TOOLS
+READ_ONLY_TOOLS = {"model_info", "export_cut_files", "save_project"} | WORKFLOW_TOOLS | SETUP_TOOLS
 MODEL_TOOLS = {"create_shape", "load_model_file", "scale_model"}
 METHOD_TOOLS = {"waffle_slice", "contour_stack", "unfold"}
 SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
@@ -69,7 +82,13 @@ Everything is in millimetres. Z is up and models sit on the ground. Typical boar
 
 The app shows a live preview next to this chat: the 3D model (and the assembled ribs, layers or folded nets) and the flat cut sheets. It updates after every tool call, so describe results briefly instead of listing every part. Point the designer to the preview when it helps ("see the Sheets tab").
 
-Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files or save_project when the designer asks for files or to save; they write into their Documents folder. For estimate_cost, ask for the sheet price and machine rate if you do not know them, rather than reporting a cost of 0. When a question would block you (no board size, no price) and the workflow does not answer it, ask it plainly and wait.
+Keep replies short and plain. If a request is ambiguous in a way that changes the result (for example no size at all for a new object), ask one short question, or make a sensible choice and say so. If a tool returns an error, read it, fix the input and try again, or explain the problem. Only call export_cut_files or save_project when the designer asks for files or to save; they write into their Documents folder. When a question would block you (no board size) and the workflow does not answer it, ask it plainly and wait.
+
+Numbers: you never calculate. Never do arithmetic yourself: no totals, sums, conversions, rough estimates or "about" figures. Every number that matters (sheets, machine time, costs, margin, GST, the quote total) is worked out by the engine from the settings and its formulas, and the app shows the quote in the Project tab. Repeat a number only exactly as a tool gave it, or point the designer to the Project tab; the app marks any amount or quantity in your reply that no tool gave as unverified.
+Prices, rates, margin and GST are settings, never tool inputs. When a tool says a setting is missing, call request_inputs with those keys, then stop and wait: the designer fills in a form in the chat and their answer arrives as their next message. You are told which values were set, not the numbers. Never guess a price. get_settings shows what is set and where each value comes from (Fold Theory defaults, the workflow, this project).
+When a quote needs a new kind of line (glue per joint, install crew hours, freight), add it with add_formula: an expression over settings and measurements, with a worked example the engine checks. Ask for any new value with request_inputs first (it can define a new field). Formulas use + - * / ^, min, max, round, ceil, floor, abs, if, sum and count, and units are checked.
+The app's tabs are JSON views (list_views shows the block types and bindings). When the designer wants a new tab, table or form, build it with save_view; the engine rejects a view that uses an unknown block, binding or action and says why.
+To find out why something went wrong (Grasshopper, Rhino, a form, a view, a tool), call read_diagnostics and answer from what it shows.
 
 The designer also works in Rhino, linked live to this app. When they reshape a flat part there, it becomes a Rhino hand edit (an override) that the app keeps through later steps for as long as it still fits the generated part. Treat hand edits as the designer's decisions: build on them and never undo them. Before a step that would change an overridden part (re-slicing with other settings, scaling the model), say which hand edits it affects and ask first. A message may start with notes on what the designer just changed in Rhino. model_info lists the hand edits; clear_rhino_override removes one, only when the designer asks.
 
@@ -179,15 +198,15 @@ TOOLS: List[dict] = [
     ),
     _tool(
         "estimate_cost",
-        "Estimate cutting time and cost of the current parts. Cut length, score length, pierces and sheet count "
-        "are measured from the design (nest first for a real sheet count); give machine speeds and prices.",
+        "Work out cutting time, cost and the quote for the current parts. Cut length, score length, pierces "
+        "and sheet count are measured from the design (nest first for a real sheet count). Prices, rates, "
+        "margin and GST come from the settings, never from you: if one is missing this says so, and you ask "
+        "with request_inputs. Machine speeds come from the settings too unless the designer gives one here.",
         {
-            "cut_speed": _num("Cutting speed, mm/s", 20.0),
-            "score_speed": _num("Scoring and etching speed, mm/s", 40.0),
-            "pierce_time": _num("Seconds per pierce", 0.5),
-            "travel_overhead": _num("Extra time for travel moves, as a fraction", 0.15),
-            "sheet_price": _num("Price of one sheet", 0.0),
-            "machine_rate": _num("Machine cost per hour", 0.0),
+            "cut_speed": _num("Cutting speed, mm/s, only if the designer gave one for this job"),
+            "score_speed": _num("Scoring and etching speed, mm/s, only if the designer gave one"),
+            "pierce_time": _num("Seconds per pierce, only if the designer gave one"),
+            "travel_overhead": _num("Extra time for travel moves as a fraction, only if the designer gave one"),
         },
     ),
     _tool(
@@ -211,6 +230,100 @@ TOOLS: List[dict] = [
             "folder": {"type": "string", "default": "",
                        "description": "Project folder inside the home folder; empty means "
                                       "~/Documents/Fold Theory/Projects/<name>"},
+        },
+    ),
+]
+
+_FIELD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "key": {"type": "string", "description": "Setting key, e.g. sheet_price; a new key defines a new setting"},
+        "label": {"type": "string", "description": "Only for a new setting: its label, e.g. \"Glue per joint\""},
+        "type": {"type": "string", "enum": ["number", "integer", "currency", "percent", "text", "boolean"],
+                 "description": "Only for a new setting"},
+        "unit": {"type": "string", "description": "Only for a new setting: e.g. AUD, AUD/h, mm, min"},
+        "minimum": {"type": "number"},
+        "maximum": {"type": "number"},
+        "help": {"type": "string", "description": "One line shown under the field"},
+    },
+    "required": ["key"],
+}
+
+TOOLS += [
+    _tool(
+        "request_inputs",
+        "Ask the designer for setting values with a small form in the chat, for example the sheet price and "
+        "machine rate. The form has typed fields with units and checks, and the designer chooses this project "
+        "or all projects. After calling it, stop and wait: their answer arrives as their next message, and "
+        "you are told which settings were set (never the numbers).",
+        {
+            "question": {"type": "string", "default": "", "description": "The question at the top of the form"},
+            "fields": {"type": "array", "items": _FIELD_SCHEMA, "description": "The settings to ask for"},
+            "scope": {"type": "string", "enum": ["project", "all"], "default": "project",
+                      "description": "Which choice the form starts on"},
+        },
+        required=["fields"],
+    ),
+    _tool(
+        "get_settings",
+        "List the settings (prices, rates, margin, GST, machine speeds, company and job details), each with its "
+        "value and the layer it comes from: Fold Theory defaults, the workflow, this project.",
+        {"group": {"type": "string", "default": "", "description": "Only this group, e.g. Costs, Machine, Job"}},
+    ),
+    _tool(
+        "add_formula",
+        "Add or change a formula (a quote line or other worked-out number) over settings, measurements and "
+        "other formulas, e.g. install_hours = ceil(parts / 40). Give a worked example: input values and the "
+        "expected result, which the engine checks before saving. Measurements: sheets, parts, cut_length, "
+        "score_length, pierces. Only after the designer agrees.",
+        {
+            "key": {"type": "string", "description": "Lower-case key, e.g. install_hours"},
+            "label": {"type": "string", "description": "What the quote line says, e.g. \"Install crew hours\""},
+            "expr": {"type": "string", "description": "The expression, e.g. ceil(parts / 40)"},
+            "unit": {"type": "string", "description": "Unit of the result, e.g. AUD, h, min, mm2"},
+            "example": {"type": "object",
+                        "description": "{\"inputs\": {name: number in that field's unit}, \"expected\": number}"},
+            "role": {"type": "string", "enum": ["line", "total", "subtotal", "working"], "default": "line",
+                     "description": "line: a quote line; working: an intermediate number"},
+            "description": {"type": "string", "default": ""},
+            "scope": {"type": "string", "enum": ["project", "all"], "default": "project"},
+        },
+        required=["key", "label", "expr", "unit", "example"],
+    ),
+    _tool(
+        "list_formulas",
+        "List the formulas the quote is made from, with their expressions, units and versions.",
+        {},
+    ),
+    _tool(
+        "list_views",
+        "List the app's JSON views (tabs), the block types a view can use, the data a block can bind to, and "
+        "the registered actions buttons can run.",
+        {},
+    ),
+    _tool(
+        "save_view",
+        "Save a JSON view (a tab in the app). It is checked first: unknown block types, keys, bindings or "
+        "actions are rejected with the reason. Saving replaces a view with the same id, and the designer can "
+        "undo it in one click. Only when the designer asks for a new or changed screen.",
+        {
+            "view": {"type": "object",
+                     "description": "{\"schema\": \"cardboardcad.view/1\", \"id\": \"costs\", \"title\": \"Costs\", "
+                                    "\"blocks\": [...]} (see list_views)"},
+            "scope": {"type": "string", "enum": ["project", "all"], "default": "all",
+                      "description": "all: every project; project: only this saved project"},
+        },
+        required=["view"],
+    ),
+    _tool(
+        "read_diagnostics",
+        "Read the diagnostics log: what Grasshopper (LiveDesign, Hops), the Rhino plugin, the engine's tools and "
+        "the checks on forms, views and formulas reported. Use it to find out why something failed.",
+        {
+            "source": {"type": "string", "enum": list(DIAG_SOURCES), "description": "Only this source"},
+            "level": {"type": "string", "enum": list(DIAG_LEVELS), "default": "info",
+                      "description": "This level and more severe"},
+            "limit": _num("How many of the newest entries", 30, 1, 200, True),
         },
     ),
 ]
@@ -350,6 +463,8 @@ class ToolResult:
     is_error: bool = False
     # The system prompt changed (a workflow tool ran): the app fetches it again.
     setup_changed: bool = False
+    # request_inputs: the form the app shows in the chat.
+    form: Optional[dict] = None
 
 
 def _mm(v: float) -> str:
@@ -366,13 +481,25 @@ def _length(poly, closed: bool) -> float:
 class DesignSession:
     """The one design the engine holds. Thread-safe: preview polls run beside tool calls."""
 
-    def __init__(self, home: str):
+    def __init__(self, home: str, diagnostics: Optional[DiagnosticsLog] = None):
         self.home = home
         self._lock = threading.RLock()
         self.version = 0
         self._state_cache: Optional[dict] = None
         self.project: Optional[dict] = None  # {name, folder, saved_version}
-        self.workflows = WorkflowStore(home, _TOOLS_BY_NAME, _check_args, WORKFLOW_TOOLS)
+        self.diagnostics = diagnostics if diagnostics is not None else DiagnosticsLog(None)
+        self.workflows = WorkflowStore(home, _TOOLS_BY_NAME, _check_args, WORKFLOW_TOOLS,
+                                       check_setting=lambda k, v: self.settings.check(k, v)[1])
+        self.settings = SettingsStore(home, lambda: self.workflows.active().get("settings", {}),
+                                      lambda: self.project["folder"] if self.project else None)
+        self.settings.on_change = self._settings_changed
+        self.formulas = FormulaStore(home, lambda: self.project["folder"] if self.project else None,
+                                     self.field_units)
+        self.views = ViewStore(home, lambda: self.project["folder"] if self.project else None,
+                               self.view_catalog, self.binding_data, self._view_rejected)
+        self.forms: Dict[str, dict] = {}
+        self._form: Optional[dict] = None
+        self.last_quote: Optional[dict] = None
         # Rhino hand edits of flat parts, by part id. Kept through re-runs (see rhino_sync.py).
         self.overrides: Dict[str, Override] = {}
         self.notes: List[str] = []    # Rhino edits not yet told to the Design Assistant
@@ -396,6 +523,7 @@ class DesignSession:
         self.board_thickness: float = 0.0
         self.nested: Optional[dict] = None
         self.last_estimate: Optional[dict] = None
+        self.last_quote = None
         self.recipe = {}
 
     def _bump(self) -> None:
@@ -408,6 +536,9 @@ class DesignSession:
             self.overrides, self.notes, self.notices = {}, [], []
             self.steps = []
             self.project = None
+            self.settings.clear_project()
+            self.formulas.clear_project()
+            self.forms = {}
             self._bump()
 
     # ---- tools -----------------------------------------------------------
@@ -417,21 +548,30 @@ class DesignSession:
             return ToolResult(f"There is no tool called {name!r}. Tools: {', '.join(_TOOLS_BY_NAME)}", True)
         with self._lock:
             was_saved = self._is_saved()
+            self._form = None
             try:
                 used, ask = {}, []
-                if name not in WORKFLOW_TOOLS:
+                priced = [k for k in SETTING_ONLY_INPUTS.get(name, ()) if isinstance(args, dict) and k in args]
+                if priced:
+                    raise ToolInputError(
+                        f"{', '.join(priced)} cannot be given to {name}: prices and rates are settings, and "
+                        "the engine reads them from the project settings. If one is missing, ask the designer "
+                        "with request_inputs and wait for their answer.")
+                if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS:
                     args, used, ask = self.workflows.fill(name, args)
                 checked = _check_args(tool, args)
                 text = getattr(self, "_t_" + name)(**checked)
-                if name not in WORKFLOW_TOOLS:
+                if name not in WORKFLOW_TOOLS and name not in SETUP_TOOLS:
                     extra = " ".join(x for x in (self.workflows.notes(name, used, ask),
                                                  self.workflows.next_step(name)) if x)
                     if extra:
                         text += "\n" + extra
-                result = ToolResult(text, setup_changed=name in WORKFLOW_TOOLS - {"list_workflows"})
+                result = ToolResult(text, setup_changed=name in WORKFLOW_TOOLS - {"list_workflows"},
+                                    form=self._form)
                 self._record(name, checked)
             except (ToolInputError, *INPUT_ERRORS) as exc:
                 result = ToolResult(str(exc), True)
+                self._diagnose(name, exc)
             self._log_step(name, not result.is_error, result.text)
             self._bump()
             if self.project is not None and (was_saved or name == "save_project") and (
@@ -442,6 +582,301 @@ class DesignSession:
     def system_prompt(self) -> str:
         """The system prompt for Claude: the fixed part and the active workflow."""
         return SYSTEM_PROMPT + "\n\n" + self.workflows.prompt_section()
+
+    def _diagnose(self, tool_name: str, exc: Exception) -> None:
+        source = "validation" if isinstance(exc, VALIDATION_ERRORS) else "engine"
+        level = "warning" if isinstance(exc, SettingsError) and "missing" in str(exc).lower() else "error"
+        try:
+            self.diagnostics.write(source, level, f"{tool_name} failed: {exc}", design_version=self.version,
+                                   details={"tool": tool_name})
+        except (OSError, ValueError):
+            pass
+
+    def _view_rejected(self, view_id: str, reason: str) -> None:
+        try:
+            self.diagnostics.write("validation", "error", f"View {view_id} rejected: {reason}",
+                                   design_version=self.version, details={"view": view_id})
+        except (OSError, ValueError):
+            pass
+
+    # ---- settings, forms and the quote ---------------------------------------
+    def field_units(self) -> Dict[str, str]:
+        """Every name a formula can use (settings and measurements) and its unit."""
+        units = {"sheets": "sheet", "parts": "count", "cut_length": "mm", "score_length": "mm",
+                 "pierces": "count", "sheet_width": "mm", "sheet_height": "mm", "parts.cut_length": "mm"}
+        for key, d in self.settings.definitions().items():
+            if d.type in ("number", "integer", "currency", "percent"):
+                units[key] = "%" if d.type == "percent" else d.unit
+        return units
+
+    def _measure(self, doc: PartsDoc) -> Dict[str, Any]:
+        per_part = [sum(_length(loop, True) for loop in p.cut) for p in doc.parts]
+        score = sum(_length(line, False) for p in doc.parts for line in (*p.score, *p.etch))
+        pierces = sum(len(p.cut) + len(p.score) + len(p.etch) for p in doc.parts)
+        sheets = self.nested["sheet_count"] if self.nested else 1
+        out = {"sheets": sheets, "parts": len(doc.parts), "cut_length": sum(per_part), "score_length": score,
+               "pierces": pierces, "parts.cut_length": per_part}
+        if self.nested:
+            out["sheet_width"] = self.nested["sheet_width"]
+            out["sheet_height"] = self.nested["sheet_height"]
+        return out
+
+    def _missing_settings_error(self, keys) -> SettingsError:
+        defs = [self.settings.definition(k) for k in keys]
+        names = ", ".join(f"{d.key} ({d.label}, {d.unit})" if d.unit else f"{d.key} ({d.label})" for d in defs)
+        fields = ", ".join(f'{{"key": "{d.key}"}}' for d in defs)
+        return SettingsError(
+            f"Missing settings: {names}. Do not guess them: ask the designer with "
+            f"request_inputs(fields=[{fields}]) and wait for their answer, then run this again.")
+
+    def _quote(self, measured: Dict[str, Any], overrides: Dict[str, Any]) -> dict:
+        formulas = self.formulas.all()
+        units = self.field_units()
+        need = needed_fields(formulas)
+        fields: Dict[str, dict] = {}
+        used_settings: Dict[str, dict] = {}
+        missing = []
+        for name in need:
+            if name in measured:
+                fields[name] = {"value": measured[name], "unit": units.get(name, "")}
+            elif name in units:
+                if overrides.get(name) is not None:
+                    fields[name] = {"value": overrides[name], "unit": units[name]}
+                    used_settings[name] = {"value": overrides[name], "layer": "this estimate", "set_by": "",
+                                           "set_at": ""}
+                    continue
+                r = self.settings.resolve(name)
+                if r["value"] is None:
+                    missing.append(name)
+                    continue
+                fields[name] = {"value": r["value"], "unit": units[name]}
+                used_settings[name] = {k: r[k] for k in ("value", "layer", "set_by", "set_at")}
+        if missing:
+            raise self._missing_settings_error(missing)
+        currency = self.settings.resolve("currency")["value"] or "AUD"
+        q = build_quote(formulas, fields, currency)
+        q["settings"] = used_settings
+        q["subtotal"] = next((l["value"] for l in q["lines"] if l["key"] == "subtotal"), None)
+        import datetime as _dt
+        q["made_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        q["design_version"] = self.version
+        return q
+
+    def _settings_changed(self) -> None:
+        """A setting changed: work the estimate and quote out again, so nothing shown is stale."""
+        with self._lock:
+            if self.last_estimate is not None and self.parts is not None:
+                try:
+                    self._t_estimate_cost(**(self.recipe.get("estimate") or {}))
+                except (ToolInputError, *INPUT_ERRORS):
+                    self.last_estimate = None
+                    self.last_quote = None
+            self._bump()
+
+    def set_setting(self, key: str, value, scope: str = "project", set_by: str = "") -> dict:
+        with self._lock:
+            try:
+                return self.settings.set(key, value, scope=scope, set_by=set_by)
+            except SettingsError as exc:
+                self.diagnostics.write("validation", "error", f"Setting {key} rejected: {exc}",
+                                       design_version=self.version, details={"key": str(key)[:60]})
+                raise
+
+    def submit_form(self, form_id: str, values, scope: str = "project", set_by: str = "") -> dict:
+        """The designer's answer to a request_inputs form. All or nothing; Claude never sees the numbers."""
+        with self._lock:
+            form = self.forms.get(form_id) if isinstance(form_id, str) else None
+            if form is None:
+                return {"ok": False, "errors": {"_form": "This form is no longer open; ask again."},
+                        "message": "That form is no longer open."}
+            if not isinstance(values, dict):
+                return {"ok": False, "errors": {"_form": "values must be an object"}, "message": "Bad form answer"}
+            keys = [f["key"] for f in form["fields"]]
+            raw = {k: values.get(k) for k in keys}
+            try:
+                self.settings.set_many(raw, scope=scope, set_by=set_by, definitions=form["definitions"])
+            except SettingsError as exc:
+                errors = getattr(exc, "errors", None) or {"_form": str(exc)}
+                self.diagnostics.write("validation", "warning",
+                                       "Form answer rejected: " + "; ".join(f"{k}: {v}" for k, v in errors.items()),
+                                       design_version=self.version, details={"form": form_id})
+                return {"ok": False, "errors": errors, "message": str(exc)}
+            del self.forms[form_id]
+            where = "for all projects (Fold Theory defaults)" if scope == "all" else "for this project"
+            return {"ok": True, "errors": {}, "keys": keys,
+                    "message": f"I filled in the form: {', '.join(keys)} set {where}. Carry on with what you were "
+                               "doing (run the step that needed them again)."}
+
+    def _t_request_inputs(self, fields, question="", scope="project"):
+        if not fields:
+            raise ToolInputError("Give at least one field to ask for")
+        if len(fields) > MAX_FORM_FIELDS:
+            raise ToolInputError(f"Ask for at most {MAX_FORM_FIELDS} values in one form")
+        defs = self.settings.definitions()
+        out_fields, new_defs = [], {}
+        for raw in fields:
+            key = raw.get("key")
+            if key in defs:
+                d = defs[key]
+            else:
+                d = definition_from(raw)
+                new_defs[d.key] = d.to_dict()
+            if any(f["key"] == d.key for f in out_fields):
+                continue
+            f = field_for_form(d, self.settings.resolve(d.key) if d.key in defs else {})
+            if isinstance(raw.get("help"), str) and raw["help"].strip():
+                f["help"] = raw["help"].strip()[:300]
+            out_fields.append(f)
+        import uuid
+
+        form = {"id": uuid.uuid4().hex[:12], "question": (question or "").strip()[:500], "fields": out_fields,
+                "scopes": ["project", "all"], "scope": scope if scope in ("project", "all") else "project"}
+        self.forms[form["id"]] = {"fields": out_fields, "definitions": new_defs}
+        while len(self.forms) > MAX_FORMS:
+            del self.forms[next(iter(self.forms))]
+        self._form = form
+        labels = ", ".join(f"{f['label']} ({f['unit']})" if f["unit"] else f["label"] for f in out_fields)
+        return (f"A form asking for {labels} is shown in the chat. Stop here and wait for the designer to fill "
+                "it in: their answer arrives as their next message. Do not guess or suggest values.")
+
+    def _t_get_settings(self, group=""):
+        rows = self.settings.listing()["settings"]
+        if group and group.strip():
+            rows = [r for r in rows if r["group"].lower() == group.strip().lower()]
+        lines = []
+        for r in rows:
+            unit = f" {r['unit']}" if r["unit"] else ""
+            if r["value"] is None or r["value"] == "":
+                lines.append(f"- {r['key']} ({r['label']}): not set" + ("; ask with request_inputs"
+                                                                        if r["type"] != "text" else ""))
+                continue
+            who = f", {r['set_by']}" if r["set_by"] else ""
+            lines.append(f"- {r['key']} ({r['label']}): {r['value']}{unit} [{r['layer']}{who}]")
+        return "Settings (most specific layer wins: default < workflow < project < concept):\n" + "\n".join(lines)
+
+    def _t_add_formula(self, key, label, expr, unit, example, role="line", description="", scope="project"):
+        f = self.formulas.save_formula({"key": key, "label": label, "expr": expr, "unit": unit, "example": example,
+                                        "role": role, "description": description}, scope=scope, set_by="Claude")
+        where = "for all projects" if scope == "all" else "for this project"
+        text = (f"Saved formula {f['key']} = {f['expr']} ({f['unit'] or 'plain number'}), version {f['version']}, "
+                f"{where}. Its worked example checks out.")
+        if self.last_estimate is not None:
+            self._settings_changed()
+            text += " The quote was worked out again; see the Project tab."
+        return text
+
+    def _t_list_formulas(self):
+        lines = [f"- {f['key']} ({f['label']}) = {f['expr']} [{f['unit'] or 'number'}] {f['role']}, "
+                 f"v{f['version']}, {f['source']}" for f in self.formulas.all()]
+        return "Formulas, in quote order:\n" + "\n".join(lines)
+
+    def _t_list_views(self):
+        views = ", ".join(f"{v['id']} ({v['title']}, {v['source']})" for v in self.views.listing())
+        blocks = ", ".join(BLOCK_TYPES)
+        cat = self.view_catalog()
+        binds = "; ".join(f"{k}" + (f" [{', '.join(v['columns'])}]" if v["kind"] == "collection" else "")
+                          for k, v in sorted(cat.items()) if not k.startswith("settings."))
+        return (f"Views: {views}.\nBlock types: {blocks}. Sections and tabs hold blocks; field, total and image "
+                f"bind one value; table, settings and checklist bind a list; button runs an action.\n"
+                f"Bindings: {binds}; settings.<key> for any setting (editable in a field).\n"
+                f"Actions: {', '.join(ACTIONS)}.\nThe project view is a good example: get it from the app's "
+                "Project tab, or build on {\"schema\": \"cardboardcad.view/1\", \"id\", \"title\", \"blocks\"}.")
+
+    def _t_save_view(self, view, scope="all"):
+        out = self.views.save(view, scope=scope, set_by="Claude")
+        return (f"Saved view {out['id']} ({out['title']}). The app shows it as a tab; the designer can undo it "
+                "in one click.")
+
+    def _t_read_diagnostics(self, source=None, level="info", limit=30):
+        return format_entries(self.diagnostics.read(source=source, level=level, limit=limit))
+
+    # ---- what views can show ---------------------------------------------------
+    def view_catalog(self) -> Dict[str, dict]:
+        return static_catalog(self.settings.definitions().keys())
+
+    def binding_data(self, binding: str):
+        with self._lock:
+            est = self.last_estimate or {}
+            q = self.last_quote or {}
+            if binding.startswith("settings."):
+                r = self.settings.resolve(binding.split(".", 1)[1])
+                return {k: r[k] for k in ("key", "label", "value", "unit", "layer", "set_by", "set_at", "type")}
+            if binding == "settings":
+                return self.settings.listing()["settings"]
+            if binding == "formulas":
+                return [{k: f.get(k) for k in ("key", "label", "expr", "unit", "version", "source", "role")}
+                        for f in self.formulas.all()]
+            if binding == "quote.lines":
+                return [l for l in q.get("lines", []) if l.get("role") != "working"]
+            if binding.startswith("quote."):
+                return q.get(binding.split(".", 1)[1])
+            if binding.startswith("estimate."):
+                return est.get(binding.split(".", 1)[1])
+            if binding == "project.name":
+                return self.project["name"] if self.project else None
+            if binding == "project.folder":
+                return self.project["folder"] if self.project else None
+            if binding == "project.status":
+                if self.project is None:
+                    return "Not saved yet"
+                return "Saved" if self._is_saved() else "Unsaved changes"
+            if binding.startswith("design."):
+                what = binding.split(".", 1)[1]
+                if self.model is None:
+                    return None
+                if what == "size":
+                    (lx, ly, lz), (hx, hy, hz) = self.model.bbox()
+                    return f"{_mm(hx - lx)} x {_mm(hy - ly)} x {_mm(hz - lz)} mm"
+                if what == "method":
+                    return self.method_summary or "No parts yet"
+                if what == "parts":
+                    return len(self.parts.parts) if self.parts is not None else 0
+                if what == "sheets":
+                    return self.nested["sheet_count"] if self.nested else None
+                return self.version
+            if binding.startswith("workflow."):
+                wf = self.workflows.active()
+                done = {s["tool"] for s in self.steps if s["ok"]}
+                steps = [{"title": s["title"], "tools": ", ".join(s["tools"]), "optional": s["optional"],
+                          "done": any(t in done for t in s["tools"])} for s in wf["steps"]]
+                if binding == "workflow.name":
+                    return wf["name"]
+                if binding == "workflow.status":
+                    nxt = next((s["title"] for s in steps if not s["done"] and not s["optional"]), None)
+                    return nxt or "All required steps done"
+                return steps
+            if binding == "parts":
+                return [{"id": p.id, "label": p.label or p.id} for p in (self.parts.parts if self.parts else [])]
+            if binding == "sheets":
+                util = (self.nested or {}).get("utilisation") or []
+                return [{"index": i + 1, "parts": n, "utilisation": util[i] if i < len(util) else None}
+                        for i, n in enumerate(len(s.parts) for s in self.parts.layout())] if self.parts else []
+            if binding == "diagnostics":
+                return [{k: e.get(k) for k in ("time", "source", "level", "message")}
+                        for e in self.diagnostics.read(limit=50)]
+            if binding == "preview.model":
+                return proj.model_svg(self.model.triangles()) if self.model is not None else None
+            return None
+
+    def numbers(self) -> List[str]:
+        """Numbers the engine has shown (estimate, quote, settings), as text: what Claude may repeat."""
+        out: List[str] = []
+
+        def add(v):
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                return
+            for t in (f"{v:.2f}", f"{v:.1f}", f"{v:g}", str(int(round(v)))):
+                if t not in out:
+                    out.append(t)
+
+        with self._lock:
+            for v in (self.last_estimate or {}).values():
+                add(v)
+            for line in (self.last_quote or {}).get("lines", []):
+                add(line["value"])
+            for r in self.settings.listing()["settings"]:
+                add(r["value"])
+        return out
 
     # ---- workflow tools ----------------------------------------------------
     def _t_list_workflows(self):
@@ -486,7 +921,7 @@ class DesignSession:
         elif name == "nest_sheets":
             self.recipe = {"method": self.recipe.get("method"), "nest": dict(checked)}
         elif name == "estimate_cost":
-            self.recipe["estimate"] = dict(checked)
+            self.recipe["estimate"] = {k: v for k, v in checked.items() if v is not None}
 
     def _is_saved(self) -> bool:
         return self.project is not None and self.project["saved_version"] == self.version
@@ -651,24 +1086,36 @@ class DesignSession:
         return (f"Nested {len(r.doc.parts)} parts on {r.sheet_count} sheet(s) of {_mm(sheet_width_mm)} x "
                 f"{_mm(sheet_height_mm)} mm. Board used per sheet: {use}.")
 
-    def _t_estimate_cost(self, **machine):
+    def _t_estimate_cost(self, **given):
+        """Measure the parts, take prices and rates from the settings, and work out the estimate and quote."""
         doc = self._need_parts()
-        cut = sum(_length(loop, True) for p in doc.parts for loop in p.cut)
-        score = sum(_length(line, False) for p in doc.parts for line in (*p.score, *p.etch))
-        pierces = sum(len(p.cut) + len(p.score) + len(p.etch) for p in doc.parts)
-        sheets = self.nested["sheet_count"] if self.nested else 1
-        r = estimate(CutEstimateInput(cut_length=cut, score_length=score, pierce_count=pierces,
-                                      sheet_count=sheets, **machine))
-        self.last_estimate = {"cut_length_mm": cut, "score_length_mm": score, "pierce_count": pierces,
-                              "sheet_count": sheets, **r.to_dict()}
-        text = (f"Cut {cut / 1000:.2f} m, score/etch {score / 1000:.2f} m, {pierces} pierces, {sheets} sheet(s). "
-                f"Machine time {r.time_min:.1f} min. Material {r.material_cost:.2f}, machine {r.machine_cost:.2f}, "
-                f"Total {r.total_cost:.2f}.")
+        m = self._measure(doc)
+        overrides = {k: v for k, v in given.items() if v is not None}
+        values, missing = {}, []
+        for key in ESTIMATE_SETTINGS:
+            v = overrides.get(key)
+            if v is None:
+                v = self.settings.resolve(key)["value"]
+            if v is None:
+                missing.append(key)
+            values[key] = v
+        if missing:
+            raise self._missing_settings_error(missing)
+        r = estimate(CutEstimateInput(cut_length=m["cut_length"], score_length=m["score_length"],
+                                      pierce_count=m["pierces"], sheet_count=m["sheets"], **values))
+        quote = self._quote(m, overrides)
+        self.last_estimate = {"cut_length_mm": m["cut_length"], "score_length_mm": m["score_length"],
+                              "pierce_count": m["pierces"], "sheet_count": m["sheets"], **r.to_dict()}
+        self.last_quote = quote
+        cur = quote["currency"]
+        text = (f"Cut {m['cut_length'] / 1000:.2f} m, score/etch {m['score_length'] / 1000:.2f} m, "
+                f"{m['pierces']} pierces, {m['sheets']} sheet(s). Machine time {r.time_min:.1f} min. "
+                f"Material {r.material_cost:.2f}, machine {r.machine_cost:.2f}, Total {r.total_cost:.2f}.")
+        lines = ", ".join(f"{l['label']} {l['value']:.2f}" for l in quote["lines"] if l["role"] == "line")
+        if quote["total"] is not None:
+            text += f" Quote: {lines}; quote total {quote['total']:.2f} {cur} (lines in the Project tab)."
         if not self.nested:
             text += " (Not nested yet, so 1 sheet was assumed.)"
-        if not machine.get("sheet_price") and not machine.get("machine_rate"):
-            text += (" No sheet price or machine rate was given, so the costs are 0: ask the designer "
-                     "for their sheet price and hourly machine rate.")
         return text
 
     def _t_export_cut_files(self, format="dxf", name="cardboardcad", folder=""):
@@ -718,6 +1165,12 @@ class DesignSession:
         if self.last_estimate is not None:
             files["estimate/estimate.json"] = json.dumps(self.last_estimate, indent=2) + "\n"
             files["estimate/estimate.csv"] = proj.estimate_csv(self.last_estimate)
+        if self.last_quote is not None:
+            files["estimate/quote.json"] = json.dumps(self.last_quote, indent=2) + "\n"
+        if self.settings.project_data["values"] or self.settings.project_data["definitions"]:
+            files["settings.json"] = self.settings.project_file_text()
+        if self.formulas.project_formulas:
+            files["formulas.json"] = self.formulas.project_file_text()
         # The model, not the ribs: interlocking ribs cannot be drawn back to front.
         # The app adds preview/preview.png, a snapshot of its 3D preview.
         files["preview/model.svg"] = proj.model_svg(self.model.triangles())
@@ -736,6 +1189,7 @@ class DesignSession:
             "sheet_size": [self.nested["sheet_width"], self.nested["sheet_height"]] if self.nested else None,
             "time_min": est.get("time_min"),
             "total_cost": est.get("total_cost"),
+            "quote_total": (self.last_quote or {}).get("total"),
         }
 
     def _manifest(self, name: str, files: List[str]) -> dict:
@@ -776,6 +1230,8 @@ class DesignSession:
             raise ProjectError(f"{rel}: {exc}") from None
         model_name = model_info.get("name") if isinstance(model_info.get("name"), str) else "model"
         scratch = DesignSession(home=self.home)
+        scratch.settings.load_project(directory)
+        scratch.formulas.load_project(directory)
         scratch._set_model(mesh, model_name)
         raw_overrides = m.get("rhino_overrides") or []
         if not isinstance(raw_overrides, list):
@@ -795,20 +1251,34 @@ class DesignSession:
             steps.append((method["tool"], method.get("input", {})))
             for key, tname in (("nest", "nest_sheets"), ("estimate", "estimate_cost")):
                 if recipe.get(key) is not None:
-                    steps.append((tname, recipe[key]))
+                    args = recipe[key]
+                    if tname == "estimate_cost" and isinstance(args, dict):
+                        # Saved before prices became settings: they become this project's settings.
+                        legacy = {k: args[k] for k in SETTING_ONLY_INPUTS["estimate_cost"] if k in args}
+                        scratch.settings.adopt_legacy(legacy, "earlier version of the project")
+                        args = {k: v for k, v in args.items() if k not in legacy}
+                    steps.append((tname, args))
         for tname, args in steps:
             try:
                 checked = _check_args(_TOOLS_BY_NAME[tname], args)
                 getattr(scratch, "_t_" + tname)(**checked)
                 scratch._record(tname, checked)
+            except SettingsError:
+                if tname != "estimate_cost":
+                    raise
+                # No prices yet: open the design without an estimate; Claude asks for them.
             except (ToolInputError, *INPUT_ERRORS) as exc:
                 raise ProjectError(f"{proj.MANIFEST}: the {tname} step could not run again: {exc}") from None
         chat = proj.read_chat(directory)
         with self._lock:
             for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
-                         "board_thickness", "nested", "last_estimate", "recipe", "overrides", "generated"):
+                         "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
+                         "generated"):
                 setattr(self, attr, getattr(scratch, attr))
             self.notes, self.notices = [], []
+            self.settings.project_data = scratch.settings.project_data
+            self.settings.concept_data = scratch.settings.concept_data
+            self.formulas.project_formulas = scratch.formulas.project_formulas
             self.steps = []
             self._log_step("open_project", True, f"Opened project {name} from {directory}")
             self._bump()
