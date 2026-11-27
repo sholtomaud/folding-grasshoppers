@@ -177,6 +177,7 @@ screen means changing a file, not rebuilding and re-signing the app.
 | The schemas for views, formulas, settings, workflows (versioned, e.g. `cardboardcad.view/1`) | Formulas and fields |
 | Security: files only inside the home folder, engine on `127.0.0.1`, keys in the Keychain, which hosts the app talks to | Workflows |
 | The list of registered actions | Settings and rate card |
+| The geometry primitives (profiles, placement, add/cut) | Part operations built from those primitives (#71) |
 | | Library entries |
 
 The core changes the way it does now: tests first, PR, proof seal. A schema
@@ -184,6 +185,19 @@ change is a core change. The configurable layer is validated against the core
 schemas, so it cannot run code, reach the network, read files outside the
 project or see keys. Every change to it is kept in a history (with who
 accepted it), which is how we track what Claude and people changed.
+
+**Geometry Claude can add (#71).** Part shapes are the one thing the
+configurable layer cannot change today, so Claude has to say "that needs a new
+version of the app" when a design needs a lock tab or a cable slot. A *part
+operation* closes that gap without running code. It is a JSON document built
+only from geometry primitives in the core: profiles (slot, barb, tooth,
+circle, polyline), placement along an edge or onto the neighbouring part, and
+add, cut, score or etch. Its sizes are bound to the board's thickness,
+clearance and kerf and to formulas. The engine checks it like a formula: a
+schema, parameter ranges, a worked example on a test part, and output checks
+(closed outlines, no slot narrower than the board). Saved operations become
+tools Claude can call, they go into the recipe and they keep a history. The
+built-in joint types (#70) are the first of them.
 
 ### 3.6 Proposals
 
@@ -386,6 +400,9 @@ Each is a separate PR, test first as usual.
 3. Engine: quote lines as formulas over settings and measurements;
    `quote.json`/`.csv` export. (Needs the foundation, section 3.)
 4. Engine: indicative structural check, once board data is in hand.
+4a. Engine: joint types for unfold and skins (#70): glue tab, tuck flap,
+   lock tab with slot, rib notch, jigsaw edge, slot joint, all sized from the
+   board's thickness, clearance and kerf.
 5. App: brief panel and check chips, built as a JSON view.
 6. App: concepts strip, freeze version, compare view.
 7. App: pitch PDF (renders from the existing preview).
@@ -624,9 +641,9 @@ Each feature has a GitHub issue, grouped under one parent issue per phase.
 
 | Parent | Issues |
 |---|---|
-| #19 Foundation | #26 project settings · #27 input forms in chat · #28 Claude never calculates · #29 formula engine · #30 JSON views · #31 locked core and change history · #32 proposals · #33 project workflows and status · #34 project view · #35 workflow view · #36 storage (files + SwiftData index) · #61 diagnostics Claude can read |
+| #19 Foundation | #26 project settings · #27 input forms in chat · #28 Claude never calculates · #29 formula engine · #30 JSON views · #31 locked core and change history · #32 proposals · #33 project workflows and status · #34 project view · #35 workflow view · #36 storage (files + SwiftData index) · #61 diagnostics Claude can read · #71 geometry tools Claude can add (part operations) |
 | #20 Two-way Rhino | #37 design as tagged Rhino objects · #38 model edits flow back · #39 part edits as overrides · #40 conflicts and telling Claude · #41 Rhino renders for the pitch · #42 packaged plugin |
-| #21 Phase 1 | #43 scene · #44 brief and checks · #45 structural check · #46 concepts and versions · #47 quote and invoice PDF · #48 pitch PDF · #49 projects location (Drive/OneDrive/iCloud) |
+| #21 Phase 1 | #43 scene · #44 brief and checks · #45 structural check · #46 concepts and versions · #47 quote and invoice PDF · #48 pitch PDF · #49 projects location (Drive/OneDrive/iCloud) · #70 joint types (lock tab, slot, jigsaw) |
 | #22 Phase 2 | #50 library · #51 Claude uses the library |
 | #23 Phase 3 | #52 inspiration tray · #53 logos and print areas |
 | #24 Phase 4 | #54 Google sign-in and Drive · #55 live budget sheet · #56 Microsoft (only if needed) |
