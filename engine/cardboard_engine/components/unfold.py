@@ -8,8 +8,18 @@
    new net, so nets never overlap themselves.
 4. Edges joined inside a net are folds, scored when the fold is sharper than
    ``flat_angle``. Every other edge is cut, and the two sides of a cut edge
-   get the same number. One side gets a glue tab (if it fits) with a fold
-   at its base.
+   get the same number. One side gets a joint (if it fits) with a fold
+   at its base:
+
+   - ``glue_tab`` (the default): a trapezoid flap glued to the next panel.
+   - ``tuck_flap``: no glue; a flap that stops one board thickness short of
+     each end of the edge, so it tucks behind the next panel's board.
+   - ``lock_tab``: a flap with a neck and a barbed head, and a slit in the
+     next panel, at the neck's distance from the edge plus one board
+     thickness for the corner. The neck is drawn kerf wider and the slit
+     kerf narrower, so the cut parts have the nominal sizes; the head stands
+     proud of the slit by half a board thickness each side, which the board
+     compresses to pass. A lock tab that does not fit falls back to a glue tab.
 
 Net ids are N1, N2... largest first.
 """
@@ -18,7 +28,7 @@ from __future__ import annotations
 
 import heapq
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import pyclipper
@@ -31,6 +41,8 @@ Vec = Tuple[float, float, float]
 P2 = Tuple[float, float]
 
 MAX_FACES = 20_000
+JOINTS = ("glue_tab", "tuck_flap", "lock_tab")
+JOINT_NAMES = {"glue_tab": "glue tab", "tuck_flap": "tuck flap", "lock_tab": "lock tab"}
 
 
 class UnfoldError(ValueError):
@@ -42,6 +54,10 @@ class UnfoldInput:
     tab_width: float = 8.0  # mm, 0 = no tabs
     tab_angle: float = 45.0  # degrees, slope of the tab's sides
     flat_angle: float = 1.0  # degrees; folds flatter than this are not scored
+    joint: str = "glue_tab"  # one of JOINTS
+    thickness: float = 3.0  # mm, board (sizes tuck flaps and lock tabs)
+    clearance: float = 0.2  # mm, extra slit size
+    kerf: float = 0.0  # mm, cutter width
 
 
 @dataclass
@@ -49,6 +65,9 @@ class UnfoldResult:
     parts: List[Part]
     face_count: int
     tab_count: int
+    joint_counts: Dict[str, int] = field(default_factory=dict)
+    joints: List[dict] = field(default_factory=list)  # one per joint: kind, edge, flap, slot...
+    joint_sizes: Dict[str, float] = field(default_factory=dict)
 
 
 def validate(inp: UnfoldInput) -> None:
@@ -57,6 +76,19 @@ def validate(inp: UnfoldInput) -> None:
         v = getattr(inp, name)
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
             errors.append(f"{label} must be a finite number")
+    if inp.joint not in JOINTS:
+        errors.append(f"joint must be one of {', '.join(JOINTS)} (got {inp.joint!r})")
+    for name, label in (("thickness", "Board thickness"), ("clearance", "Clearance"), ("kerf", "Kerf")):
+        v = getattr(inp, name)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+            errors.append(f"{label} must be a finite number")
+    if not errors:
+        if inp.thickness <= 0:
+            errors.append(f"Board thickness must be more than 0 (got {inp.thickness:g})")
+        if inp.clearance < 0 or inp.kerf < 0:
+            errors.append("Clearance and kerf must not be negative")
+        elif inp.kerf >= inp.thickness + inp.clearance:
+            errors.append("Kerf must be less than the board thickness plus clearance")
     if not errors:
         if inp.tab_width < 0:
             errors.append(f"Tab width must not be negative (got {inp.tab_width:g})")
@@ -260,6 +292,10 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
 
     parts: List[Part] = []
     tab_count = 0
+    counts: Dict[str, int] = {}
+    joints: List[dict] = []
+    slots: Dict[int, List[List[P2]]] = {n: [] for n in range(len(nets))}
+    sizes = _lock_sizes(inp) if inp.joint == "lock_tab" else {}
     edge_number = 0
     cut_marks: Dict[int, List[Text]] = {n: [] for n in range(len(nets))}
     tab_polys: Dict[int, List[List[P2]]] = {n: [] for n in range(len(nets))}
@@ -292,15 +328,45 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
         for fi, n, pa, pb in sides:
             cut_marks[n].append(Text(str(edge_number), _inset(pa, pb, text_size * 0.9), text_size))
         if inp.tab_width > 0:
-            for fi, n, pa, pb in sides:
-                tab = _tab(pa, pb, inp.tab_width, inp.tab_angle)
-                if not _overlaps(tab, net_polys[n] + tab_polys[n]):
-                    tab_polys[n].append(tab)
+            placed = None
+            if inp.joint == "lock_tab":
+                for (fi, n, pa, pb), (fo, no, oa, ob) in (tuple(sides), tuple(reversed(sides))):
+                    lock = _lock_tab(pa, pb, inp, sizes)
+                    if lock is None or _overlaps(lock[0], net_polys[n] + tab_polys[n]):
+                        continue
+                    slot = _slit(oa, ob, sizes)  # inside the other side's face
+                    region = _flat_region(no, fo, nets, faces, pos, normals, verts)
+                    if not _within(slot, region) or any(_overlaps(slot, [q]) for q in slots[no]):
+                        continue
+                    tab_polys[n].append(lock[0])
                     scores[n].append([pa, pb])
-                    tab_count += 1
+                    slots[no].append(slot)
+                    placed = "lock_tab"
+                    joints.append({"kind": "lock_tab", "edge": [pa, pb], "flap": lock[0], "slot": slot,
+                                   "slot_face": max(region, key=lambda q: abs(_area2(q))),
+                                   "slot_edge": [oa, ob], "tab_net": n, "slot_net": no})
                     break
+            if placed is None:
+                kind = "tuck_flap" if inp.joint == "tuck_flap" else "glue_tab"
+                for fi, n, pa, pb in sides:
+                    tab = (_tuck(pa, pb, inp.tab_width, inp.tab_angle, inp.thickness) if kind == "tuck_flap"
+                           else _tab(pa, pb, inp.tab_width, inp.tab_angle))
+                    if tab is not None and not _overlaps(tab, net_polys[n] + tab_polys[n]):
+                        tab_polys[n].append(tab)
+                        scores[n].append([pa, pb])
+                        placed = kind
+                        joints.append({"kind": kind, "edge": [pa, pb], "flap": tab, "tab_net": n})
+                        break
+            if placed is not None:
+                tab_count += 1
+                counts[placed] = counts.get(placed, 0) + 1
 
     order = sorted(range(len(nets)), key=lambda n: -sum(face_area[f] for f in nets[n]))
+    ids = {n: f"N{rank}" for rank, n in enumerate(order, start=1)}
+    for j in joints:
+        j["tab_part"] = ids[j.pop("tab_net")]
+        if "slot_net" in j:
+            j["slot_part"] = ids[j.pop("slot_net")]
     for rank, n in enumerate(order, start=1):
         shapes = regions_from_loops(net_polys[n])  # faces are disjoint; even-odd is fine
         loops = _union(net_polys[n] + tab_polys[n])
@@ -308,14 +374,15 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
         parts.append(
             Part(
                 id=pid,
-                cut=loops,
+                cut=loops + slots[n],
                 score=scores[n],
                 label=pid,
                 label_at=interior_point(max(shapes, key=lambda s: abs(_area2(s.outer)))) if shapes else None,
                 texts=cut_marks[n],
             )
         )
-    return UnfoldResult(parts=parts, face_count=len(faces), tab_count=tab_count)
+    return UnfoldResult(parts=parts, face_count=len(faces), tab_count=tab_count, joint_counts=counts,
+                        joints=joints, joint_sizes=sizes)
 
 
 def _union(polys) -> List[List[P2]]:
@@ -358,3 +425,85 @@ def _tab(pa: P2, pb: P2, width: float, angle: float) -> List[P2]:
         (pb[0] - ux * run + nx * width, pb[1] - uy * run + ny * width),
         pb,
     ]
+
+
+# ---- joints ------------------------------------------------------------------
+
+
+def _frame(pa: P2, pb: P2):
+    """(length, along, outward, point at (u along the edge, v outward))."""
+    l = math.dist(pa, pb)
+    ux, uy = (pb[0] - pa[0]) / l, (pb[1] - pa[1]) / l
+    nx, ny = _outward(pa, pb)
+    return l, (lambda u, v: (pa[0] + ux * u + nx * v, pa[1] + uy * u + ny * v))
+
+
+def _tuck(pa: P2, pb: P2, width: float, angle: float, thickness: float) -> Optional[List[P2]]:
+    """A glue-free flap that stops one board thickness short of each end of the edge."""
+    l, at = _frame(pa, pb)
+    if l <= 2 * thickness + 1e-6:
+        return None
+    a, b = at(thickness, 0), at(l - thickness, 0)
+    body = _tab(a, b, width, angle)
+    return body
+
+
+def _lock_sizes(inp: UnfoldInput) -> Dict[str, float]:
+    t, c, k = inp.thickness, inp.clearance, inp.kerf
+    barb = t / 2  # compression allowance, each side of the head
+    return {"thickness_mm": t, "clearance_mm": c, "kerf_mm": k, "body_mm": inp.tab_width,
+            "neck_length_mm": t + c, "barb_mm": barb, "head_length_mm": 2 * t,
+            "slot_width_drawn_mm": t + c - k, "slot_inset_mm": inp.tab_width + t}
+
+
+def _lock_tab(pa: P2, pb: P2, inp: UnfoldInput, sizes: Dict[str, float]):
+    """(outline, neck) of a lock tab on edge pa -> pb, or None if the edge is too short."""
+    l, at = _frame(pa, pb)
+    t, c, k = inp.thickness, inp.clearance, inp.kerf
+    neck = min(10 * t, max(3 * t, 0.3 * l))
+    if "neck_mm" not in sizes:
+        sizes.update(neck_mm=neck, neck_drawn_mm=neck + k, slot_length_drawn_mm=neck + c - k,
+                     head_width_drawn_mm=neck + c + 2 * sizes["barb_mm"] + k)
+    neck = sizes["neck_mm"]
+    run = inp.tab_width / math.tan(math.radians(inp.tab_angle))
+    body_top = neck + k  # the body narrows to the neck
+    if (body_top + 2 * run) > l - 2 * t or sizes["head_width_drawn_mm"] > l - 2 * t:
+        return None
+    m = l / 2
+    a = inp.tab_width
+    nl = sizes["neck_length_mm"]
+    hw = sizes["head_width_drawn_mm"] / 2
+    nw = sizes["neck_drawn_mm"] / 2
+    h = sizes["head_length_mm"]
+    tip = nw / 2
+    pts = [(m - nw - run, 0), (m - nw, a), (m - nw, a + nl), (m - hw, a + nl), (m - tip, a + nl + h),
+           (m + tip, a + nl + h), (m + hw, a + nl), (m + nw, a + nl), (m + nw, a), (m + nw + run, 0)]
+    return [at(u, v) for u, v in pts], neck
+
+
+def _slit(pa: P2, pb: P2, sizes: Dict[str, float]) -> List[P2]:
+    """The slit for a lock tab, inside the panel whose edge runs pa -> pb (counter-clockwise)."""
+    l, at = _frame(pa, pb)
+    m, half = l / 2, sizes["slot_length_drawn_mm"] / 2
+    v0 = -sizes["slot_inset_mm"]  # inwards
+    v1 = v0 - sizes["slot_width_drawn_mm"]
+    return [at(m - half, v0), at(m - half, v1), at(m + half, v1), at(m + half, v0)]
+
+
+def _flat_region(net: int, face: int, nets, faces, pos, normals, verts) -> List[List[P2]]:
+    """The outline of ``face`` and the faces of its net that lie in the same plane."""
+    n0 = normals[face]
+    d0 = _dot(n0, verts[faces[face][0]])
+    same = [fi for fi in nets[net]
+            if _dot(normals[fi], n0) > 1 - 1e-9 and abs(_dot(n0, verts[faces[fi][0]]) - d0) < 1e-6]
+    return _union([[pos[fi][i] for i in faces[fi]] for fi in same])
+
+
+def _within(poly: List[P2], region: List[List[P2]]) -> bool:
+    pc = pyclipper.Pyclipper()
+    q = [(int(round(x * SCALE)), int(round(y * SCALE))) for x, y in poly]
+    pc.AddPath(q, pyclipper.PT_SUBJECT, True)
+    for r in region:
+        pc.AddPath([(int(round(x * SCALE)), int(round(y * SCALE))) for x, y in r], pyclipper.PT_CLIP, True)
+    left = pc.Execute(pyclipper.CT_DIFFERENCE, pyclipper.PFT_NONZERO, pyclipper.PFT_NONZERO)
+    return not left
