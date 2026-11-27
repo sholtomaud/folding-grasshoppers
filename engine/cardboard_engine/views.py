@@ -49,6 +49,7 @@ ACTIONS: Dict[str, str] = {
     "save_project": "Save the project",
     "open_diagnostics": "Show the Diagnostics panel",
     "check_brief": "Check the design against the brief",
+    "issue_quote": "Issue the current quote as the next frozen version",
 }
 
 _COMMON = {"type", "id"}
@@ -118,6 +119,10 @@ def static_catalog(setting_keys=()) -> Dict[str, dict]:
         "preview.model": _scalar("Picture of the model"),
         "brief.items": _collection("Items wanted", ("name", "quantity", "notes")),
         "brief.checks": _collection("Brief checks", ("key", "label", "status", "message")),
+        "quotes.versions": _collection("Issued quote versions", ("number", "version", "issued_on", "valid_until",
+                                                                 "total", "currency", "pdf")),
+        "quotes.invoices": _collection("Invoices", ("number", "kind", "description", "reference", "issued_on",
+                                                    "due_on", "amount", "currency", "pdf")),
     }
     from .brief import FIELDS as BRIEF_FIELDS
 

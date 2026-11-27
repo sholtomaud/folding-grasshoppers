@@ -155,3 +155,88 @@ def invoice_csv(inv: dict) -> str:
                 f"{q['number']} v{q['version']}", inv["description"], f"{inv['amount_ex_gst']:.2f}",
                 f"{inv['gst']:.2f}", f"{inv['amount']:.2f}", inv["currency"]])
     return buf.getvalue()
+
+
+# ---- PDFs: only the record's own numbers -------------------------------------------
+
+
+def _header(doc, record: dict) -> None:
+    company = record.get("company") or {}
+    if company.get("name"):
+        doc.subheading(company["name"])
+    if company.get("abn"):
+        doc.text(f"ABN {company['abn']}")
+    doc.gap()
+
+
+def _client(doc, record: dict) -> None:
+    client = record.get("client") or {}
+    if client.get("client_name"):
+        doc.text(f"Client: {client['client_name']}")
+    if client.get("job_name"):
+        doc.text(f"Job: {client['job_name']}")
+    doc.gap()
+
+
+def _lines(doc, lines: List[dict], currency: str) -> None:
+    for line in lines:
+        if line.get("role") == "total":
+            doc.gap()
+        doc.line(line["label"], f"{line['value']:.2f}", currency)
+
+
+def quote_pdf(record: dict) -> bytes:
+    from .pdf import TextPdf
+
+    doc = TextPdf()
+    doc.heading("QUOTE")
+    _header(doc, record)
+    doc.text(f"Quote {record['number']} v{record['version']}")
+    doc.text(f"Issued {record['issued_on']}")
+    doc.text(f"Valid until {record['valid_until']}")
+    doc.gap()
+    _client(doc, record)
+    cur = record.get("currency", "")
+    _lines(doc, record["lines"], cur)
+    doc.gap()
+    doc.text(f"Includes GST of {record.get('gst') or 0:.2f} {cur}.")
+    if record.get("terms"):
+        doc.gap()
+        doc.subheading("Terms")
+        doc.text(record["terms"])
+    doc.gap()
+    doc.text("Every amount on this quote was worked out by the Fold Theory engine from the studio's rate card.")
+    return doc.render()
+
+
+def invoice_pdf(record: dict) -> bytes:
+    from .pdf import TextPdf
+
+    doc = TextPdf()
+    doc.heading("TAX INVOICE")
+    _header(doc, record)
+    q = record["quote"]
+    doc.text(f"Invoice {record['number']}")
+    doc.text(f"Issued {record['issued_on']}")
+    doc.text(f"Due {record['due_on']}")
+    doc.text(f"Quote {q['number']} v{q['version']}")
+    doc.gap()
+    _client(doc, record)
+    cur = record.get("currency", "")
+    doc.text(record["description"])
+    doc.gap()
+    doc.line("Amount excluding GST", f"{record['amount_ex_gst']:.2f}", cur)
+    doc.line("GST", f"{record['gst']:.2f}", cur)
+    doc.line("Amount due", f"{record['amount']:.2f}", cur)
+    doc.gap()
+    doc.subheading(f"Quote {q['number']} v{q['version']}, for reference")
+    _lines(doc, record["lines"], cur)
+    return doc.render()
+
+
+def quote_pdf_path(record: dict) -> str:
+    return quote_path(record)[:-len(".json")] + ".pdf"
+
+
+def invoice_pdf_path(record: dict) -> str:
+    return f"{INVOICES_DIR}/{record['number']}.pdf"
