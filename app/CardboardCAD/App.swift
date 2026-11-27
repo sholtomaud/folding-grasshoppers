@@ -49,7 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     )
 
-    let claudeKey = ClaudeKey(store: KeychainSecretStore())
+    /// The window probe (CI only) uses a throwaway in-memory key, never the Keychain.
+    let claudeKey = ClaudeKey(store: WindowProbe.isEnabled
+        ? InMemorySecretStore(WindowProbe.placeholderKey) as SecretStore
+        : KeychainSecretStore())
 
     /// The chat. Claude is called from the app with the key from the Keychain;
     /// the key is read on each request and never passed to the engine.
@@ -75,27 +78,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         workflows.onChange = { assistant.reloadSetup() }
         assistant.onSetupChanged = { Task { await workflows.refresh() } }
         Task { await engine.start() }
+        if WindowProbe.isEnabled {
+            let engine = engine, assistant = assistant
+            Task { await WindowProbe.run(engine: engine, assistant: assistant) }
+        }
     }
 
+    /// Set once the engine is stopped (or the cap ran out): the next terminate goes through.
+    private var readyToQuit = false
+    private var quitInProgress = false
+
+    /// Quitting (Cmd+Q, the menu, Dock, AppleScript).
+    ///
+    /// This used to return `.terminateLater` and stop the engine in a Task while
+    /// AppKit waited in a nested run loop. When the quit came from code already
+    /// running on the main queue (a menu action dispatched there), that Task
+    /// could never run and the app hung on Cmd+Q. CI's window probe reproduced it
+    /// on macOS 15 and 26. Now the first request is cancelled, the engine is
+    /// stopped normally, and the app terminates again by itself. A run-loop
+    /// timer caps the wait, and logout or shutdown stop the engine at once.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if engine.state == .stopped { return .terminateNow }
-        let engine = engine
-        Task { @MainActor in
-            let stop = Task { @MainActor in await engine.stop() }
-            let cap = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(Self.terminationCap * 1_000_000_000))
-            }
-            // Whichever finishes first.
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await stop.value }
-                group.addTask { await cap.value }
-                await group.next()
-                group.cancelAll()
-            }
-            cap.cancel()
-            sender.reply(toApplicationShouldTerminate: true)
+        if readyToQuit || engine.state == .stopped { return .terminateNow }
+        if Self.isSystemQuit() {
+            engine.stopImmediately()
+            return .terminateNow
         }
-        return .terminateLater
+        guard !quitInProgress else { return .terminateCancel }
+        quitInProgress = true
+
+        let engine = engine
+        Task { @MainActor [weak self] in
+            await engine.stop()
+            self?.finishQuit()
+        }
+        // Safety net in common run-loop modes, independent of Swift tasks.
+        let cap = Timer(timeInterval: Self.terminationCap, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.finishQuit() }
+        }
+        RunLoop.main.add(cap, forMode: .common)
+        return .terminateCancel
+    }
+
+    private func finishQuit() {
+        guard !readyToQuit else { return }
+        engine.stopImmediately()   // no-op when stop() already finished
+        readyToQuit = true
+        NSApp.terminate(nil)
+    }
+
+    /// Logout, restart or shutdown: the system sends a quit reason, and
+    /// cancelling would cancel the logout, so those quit at once.
+    private static func isSystemQuit() -> Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent else { return false }
+        return event.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason)) != nil
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -109,13 +144,18 @@ struct CardboardCADApp: App {
         WindowGroup(AppInfo.name) {
             ContentView(engine: delegate.engine, assistant: delegate.assistant, claudeKey: delegate.claudeKey,
                         projects: delegate.projects, workflows: delegate.workflows)
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: 900, minHeight: 480)
         }
         .defaultSize(width: 1280, height: 800)
         .commands {
             ProjectCommands(projects: delegate.projects, assistant: delegate.assistant)
             DesignCommands(assistant: delegate.assistant, projects: delegate.projects, engine: delegate.engine,
                            workflows: delegate.workflows)
+            // Cmd+Q: quit and stop the engine (AppDelegate.applicationShouldTerminate).
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit \(AppInfo.name)") { NSApp.terminate(nil) }
+                    .keyboardShortcut("q", modifiers: .command)
+            }
             CommandMenu("Engine") {
                 Button("Restart Engine") {
                     Task { await delegate.engine.restart() }
@@ -242,7 +282,7 @@ enum ProjectPanels {
         let base = ProjectController.defaultProjectsFolder()
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         panel.directoryURL = projects.current.map { $0.url.deletingLastPathComponent() } ?? base
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard await ModalUI.run(panel) == .OK, let url = panel.url else { return }
         await projects.save(name: url.lastPathComponent, folder: url.path)
     }
 
@@ -257,7 +297,7 @@ enum ProjectPanels {
         panel.allowsMultipleSelection = false
         let base = ProjectController.defaultProjectsFolder()
         if FileManager.default.fileExists(atPath: base.path) { panel.directoryURL = base }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard await ModalUI.run(panel) == .OK, let url = panel.url else { return }
         await projects.open(folder: url.path)
     }
 }
@@ -287,10 +327,52 @@ enum RhinoLiveSync {
     }
 
     private static func alert(_ title: String, _ text: String) {
+        ModalUI.alert(title, text)
+    }
+}
+
+// MARK: - Alerts and panels
+
+/// Alerts and open/save panels shown as sheets on the main window.
+///
+/// The listener alert used `NSAlert.runModal()` from inside a Swift `Task`
+/// (after an `await`), which nests a modal run loop inside a suspended
+/// main-actor job. On a real Mac it drew but would not dismiss, and while an
+/// app-modal alert is up the app cannot quit. A sheet does not block anything:
+/// it ends through its completion handler, and Cmd+Q keeps working.
+@MainActor
+enum ModalUI {
+    static func alert(_ title: String, _ text: String) {
         let a = NSAlert()
         a.messageText = title
         a.informativeText = text
-        a.runModal()
+        a.addButton(withTitle: "OK")
+        if let window = hostWindow() {
+            a.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            // No window to attach to: run it on the next turn of the run loop,
+            // outside any task.
+            DispatchQueue.main.async { _ = a.runModal() }
+        }
+    }
+
+    static func run(_ panel: NSSavePanel) async -> NSApplication.ModalResponse {
+        guard let window = hostWindow() else {
+            return await withCheckedContinuation { done in
+                panel.begin { done.resume(returning: $0) }
+            }
+        }
+        return await withCheckedContinuation { done in
+            panel.beginSheetModal(for: window) { done.resume(returning: $0) }
+        }
+    }
+
+    /// The main window, if it is up and has no sheet already.
+    static func hostWindow() -> NSWindow? {
+        let window = NSApp.windows.first { $0.isVisible && !($0 is NSPanel) && $0.title == AppInfo.name }
+            ?? NSApp.mainWindow ?? NSApp.keyWindow
+        guard let window, window.attachedSheet == nil else { return nil }
+        return window
     }
 }
 

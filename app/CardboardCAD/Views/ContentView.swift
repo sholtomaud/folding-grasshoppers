@@ -10,15 +10,16 @@ struct ContentView: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        // A plain VStack, not .safeAreaInset: HSplitView (an NSSplitView) ignores
-        // safe-area insets, so its panes ran underneath the status bar and the
-        // chat's message box was hidden behind it.
+        // No HSplitView. It is an NSSplitView with each pane in its own hosting
+        // view, and on a designer's Mac the chat pane came out taller than the
+        // space above the status bar, hiding the message box. ChatSplit is plain
+        // SwiftUI inside a GeometryReader: each pane gets exactly that height,
+        // and DesignAssistantView lets only the transcript shrink.
         VStack(spacing: 0) {
-            HSplitView {
+            ChatSplit {
                 DesignAssistantView(engine: engine, assistant: assistant, claudeKey: claudeKey, projects: projects)
-                    .frame(minWidth: 340, idealWidth: 420, maxWidth: 600, maxHeight: .infinity)
+            } right: {
                 PreviewPane(engine: engine)
-                    .frame(minWidth: 420, maxHeight: .infinity)
             }
             .frame(maxHeight: .infinity)
             StatusBar(engine: engine, openSettings: { openSettings() })
@@ -46,6 +47,73 @@ struct ContentView: View {
     private var runningPort: Int? {
         if case .running(let port) = engine.state { return port }
         return nil
+    }
+}
+
+// MARK: - Chat | preview split
+
+/// Two panes side by side with a draggable divider. The chat's width is kept
+/// between launches.
+struct ChatSplit<Left: View, Right: View>: View {
+    static var minLeft: CGFloat { 340 }
+    static var maxLeft: CGFloat { 640 }
+    static var minRight: CGFloat { 420 }
+
+    @AppStorage("chatPaneWidth") private var storedWidth: Double = 420
+    @State private var dragStartWidth: CGFloat?
+    private let left: Left
+    private let right: Right
+
+    init(@ViewBuilder left: () -> Left, @ViewBuilder right: () -> Right) {
+        self.left = left()
+        self.right = right()
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = Self.clamp(CGFloat(storedWidth), total: geo.size.width)
+            HStack(spacing: 0) {
+                left
+                    .frame(width: width, height: geo.size.height)
+                    .clipped()
+                handle(width: width, total: geo.size.width)
+                right
+                    .frame(maxWidth: .infinity)
+                    .frame(height: geo.size.height)
+                    .clipped()
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+        }
+    }
+
+    static func clamp(_ width: CGFloat, total: CGFloat) -> CGFloat {
+        let upper = max(minLeft, min(maxLeft, total - minRight - 1))
+        return min(max(width, minLeft), upper)
+    }
+
+    private func handle(width: CGFloat, total: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color(nsColor: .separatorColor))
+            .frame(width: 1)
+            .frame(maxHeight: .infinity)
+            .overlay {
+                Color.clear
+                    .frame(width: 9)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { value in
+                                let start = dragStartWidth ?? width
+                                if dragStartWidth == nil { dragStartWidth = width }
+                                storedWidth = Double(Self.clamp(start + value.translation.width, total: total))
+                            }
+                            .onEnded { _ in dragStartWidth = nil }
+                    )
+            }
+            .accessibilityHidden(true)
     }
 }
 

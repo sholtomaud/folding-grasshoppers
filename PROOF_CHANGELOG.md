@@ -121,3 +121,33 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** Workflows: 25 engine tests, 12 Swift tests; floors pytest 347, swift 118
 - **Previous Attestation:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`
 - **Attestation SHA-256:** `f5484fc3d08605a81ac4e67bbf06a4620d5ef15fe28eaa166a711089385c320c`
+
+## 2026-11-27T00:28:27Z — `8aabc72` (PASS)
+
+- **Commit:** `8aabc72`
+- **Timestamp:** `2026-11-27T00:28:27Z`
+- **Proof Lock Root SHA-256:** `ec5790d0cc6075b77ac198e3ca23086ff900709a89753d6b947405b9290eb940`
+- **Verdict:** `PASS`
+- **Summary:** Window probe (macOS 15 and 26), listener alert as a sheet, explicit Cmd+Q; merged with main
+- **Previous Attestation:** `f5484fc3d08605a81ac4e67bbf06a4620d5ef15fe28eaa166a711089385c320c`
+- **Attestation SHA-256:** `831c4c9f3f264ec0dd626c222b19c80ef6e559795fc62517b905438276a0b6e9`
+
+## 2026-11-27T00:34:18Z — `bea6a4b` (PASS)
+
+- **Commit:** `bea6a4b`
+- **Timestamp:** `2026-11-27T00:34:18Z`
+- **Proof Lock Root SHA-256:** `ec5790d0cc6075b77ac198e3ca23086ff900709a89753d6b947405b9290eb940`
+- **Verdict:** `PASS`
+- **Summary:** Chat | preview split without HSplitView; window probe with short and long chats
+- **Previous Attestation:** `831c4c9f3f264ec0dd626c222b19c80ef6e559795fc62517b905438276a0b6e9`
+- **Attestation SHA-256:** `17f5eb7b5c3689bccde22764a1102a4076829b3b9627b6c9343dc3d6239c6068`
+
+## 2026-11-27T00:40:15Z — `f6875ef` (PASS)
+
+- **Commit:** `f6875ef`
+- **Timestamp:** `2026-11-27T00:40:15Z`
+- **Proof Lock Root SHA-256:** `14d70aba537ec208ec1be85d00a564aa43738116c99bb8bce1fe5ad9b7f15d95`
+- **Verdict:** `PASS`
+- **Summary:** EngineQuitTests: stopImmediately (red); swift floor 121
+- **Previous Attestation:** `17f5eb7b5c3689bccde22764a1102a4076829b3b9627b6c9343dc3d6239c6068`
+- **Attestation SHA-256:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`

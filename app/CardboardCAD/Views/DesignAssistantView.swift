@@ -22,14 +22,19 @@ struct DesignAssistantView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+                .fixedSize(horizontal: false, vertical: true)
             Divider()
             if !claudeKey.isSet {
                 missingKey
             } else {
+                // The transcript takes whatever height is left and scrolls; the
+                // message box keeps its full height and is laid out first.
                 transcript
-                    .frame(maxHeight: .infinity)
+                    .frame(minHeight: 0, maxHeight: .infinity)
                 Divider()
                 composer
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
             }
         }
         .onAppear { claudeKey.refresh() }

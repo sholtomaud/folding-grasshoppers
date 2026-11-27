@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "rootSha256": "ebba7fc11dcf5d0770c9218e657dbbfa03f888c6fd8291d1015beaaee57c444d",
+  "rootSha256": "14d70aba537ec208ec1be85d00a564aa43738116c99bb8bce1fe5ad9b7f15d95",
   "metricFloors": {
     "minUnitTests": 0,
     "minPropertyTests": 0,
@@ -26,7 +26,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "zone": "harness",
-      "sha256": "d79690832067260ab03bbb5497103bdf9dc580ca00866b6e48277b8082f4dd33"
+      "sha256": "4c38a2c1c81bc167052b75f107189718c13843e152f9c7ddcd03b13b2ad2bb76"
     },
     {
       "path": "app/CardboardCADKit/Package.swift",
@@ -62,6 +62,11 @@
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineManagerTests.swift",
       "zone": "tests",
       "sha256": "9c1f47f71de34fd4372053c489b22c0a3852b97b8f417164105e25aa55bb6148"
+    },
+    {
+      "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/EngineQuitTests.swift",
+      "zone": "tests",
+      "sha256": "45847d3b185aaef7b9284a1abba8d1bdcfcff974996cbab37c7a29396c428e0d"
     },
     {
       "path": "app/CardboardCADKit/Tests/CardboardCADKitTests/HelloTests.swift",
@@ -261,7 +266,7 @@
     {
       "path": "test-floors.json",
       "zone": "harness",
-      "sha256": "3a0cd68af6efd9b827921833e25f3d722e0fc4722bfff5c9937851321443432c"
+      "sha256": "ed3c7a6e3fe51c24d25a94f738580fe06d45b7e93fadcfbcd6dc3b076997f9eb"
     },
     {
       "path": "uplift.config.json",
