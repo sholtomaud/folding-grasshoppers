@@ -42,49 +42,8 @@ if pgrep -f cardboard_engine.server >/dev/null; then
 fi
 grep -q '"found" : true' "$OUT/quit-menu.json" 2>/dev/null || QUIT="FAIL: no enabled Cmd+Q menu item ($QUIT)"
 echo "$QUIT" > "$OUT/quit.txt"
-
-python3 - "$OUT" <<'EOF'
-import base64, glob, json, os, subprocess, sys
-out = sys.argv[1]
-files = sorted(glob.glob(os.path.join(out, "probe-*.json")))
-failed = not files
-print("### Window probe: chat message box")
-print()
-print("| Window | Content | Message box (y, h, visible h) | Status bar top | Result |")
-print("|---|---|---|---|---|")
-for f in files:
-    d = json.load(open(f))
-    if "requested" not in d:
-        print(f"| {os.path.basename(f)} | | | | {d} |"); failed = True; continue
-    r, c, lay = d["requested"], d.get("composer") or {}, d["contentLayoutRect"]
-    box = f'{c.get("y", 0):.0f}, {c.get("h", 0):.0f}, {c.get("visibleH", 0):.0f}' if c else "not found"
-    res = "ok" if d["ok"] else "FAIL: " + "; ".join(d["problems"])
-    print(f'| {r["w"]:.0f} x {r["h"]:.0f} | {lay["w"]:.0f} x {lay["h"]:.0f} | {box} | {d["statusBarTop"]:.0f} | {res} |')
-    failed = failed or not d["ok"]
-print()
-for f in files:
-    d = json.load(open(f))
-    if not d.get("ok", False):
-        print(f"<details><summary>{os.path.basename(f)} view tree</summary>\n\n```")
-        print("\n".join(d.get("tree", [])[:400]))
-        print("```\n</details>\n")
-sys.stdout.flush()
-# Small JPEGs for the log (stderr keeps them out of the step summary).
-for png in sorted(glob.glob(os.path.join(out, "probe-*.png"))):
-    jpg = png[:-4] + ".jpg"
-    subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "55", "-Z", "1000", png, "--out", jpg],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if os.path.exists(jpg):
-        sys.stderr.write(f"=====BEGIN {os.path.basename(jpg)}=====\n")
-        sys.stderr.write(base64.encodebytes(open(jpg, "rb").read()).decode())
-        sys.stderr.write(f"=====END {os.path.basename(jpg)}=====\n")
-quit = open(os.path.join(out, "quit.txt")).read().strip()
-print(f"Cmd+Q (menu item, then app and engine gone): {quit}")
-failed = failed or quit != "ok"
-sys.exit(1 if failed else 0)
-EOF
-STATUS=$?
 echo "screencapture used: $SHOT" >&2
 cat "$OUT/screencapture.log" >&2 2>/dev/null || true
 tail -20 "$OUT/app.log" >&2 2>/dev/null || true
-exit $STATUS
+
+python3 "$ROOT/scripts/ci/window_probe_report.py" "$OUT"

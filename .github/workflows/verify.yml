@@ -124,6 +124,33 @@ jobs:
         continue-on-error: true
         run: scripts/ci/layout_probe.sh build/app/CardboardCAD.app | tee -a "$GITHUB_STEP_SUMMARY"
 
+  # The newest macOS, the release people run: the same window probe.
+  macos-latest-window:
+    name: macOS 26 (window probe)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          python3 -m pip install --user --break-system-packages "uv==${UV_VERSION}" || python3 -m pip install --user "uv==${UV_VERSION}"
+          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+      - name: Build Python runtime (aarch64-apple-darwin, cross mode)
+        run: RUNTIME_MODE=cross scripts/build_python_runtime.sh
+      - name: Build app and embed runtime (unsigned)
+        run: scripts/build_app.sh
+      - name: Ad-hoc sign
+        run: SIGN_IDENTITY=- scripts/sign.sh
+      - name: Window probe (chat message box visible in the real window)
+        run: |
+          set -o pipefail
+          defaults write "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build/app/CardboardCAD.app/Contents/Info.plist)" enginePort -int 5001
+          scripts/ci/window_probe.sh build/app/CardboardCAD.app | tee -a "$GITHUB_STEP_SUMMARY"
+
   proof-gate:
     name: Proof tamper gate (agentic-uplift)
     runs-on: ubuntu-24.04

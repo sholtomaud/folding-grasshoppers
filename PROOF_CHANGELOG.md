@@ -121,3 +121,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** CI window probe: checks the chat message box is visible in the real app window
 - **Previous Attestation:** `3cd2dbf094dcf41a2dbf46edc0068d96246616f9ab83f2ffdc2540f7cd187ed6`
 - **Attestation SHA-256:** `2474565d432fb47be877210824778a764db89e5c1392f28a3dca91a594b1a98c`
+
+## 2026-11-27T00:24:30Z — `a3e8243` (PASS)
+
+- **Commit:** `a3e8243`
+- **Timestamp:** `2026-11-27T00:24:30Z`
+- **Proof Lock Root SHA-256:** `6dcaf2be8904daa46a81b7cbad51e7f5e0712e37763951cce20a59d7725c26c6`
+- **Verdict:** `PASS`
+- **Summary:** Window probe also on macOS 26; realistic chat; report script
+- **Previous Attestation:** `2474565d432fb47be877210824778a764db89e5c1392f28a3dca91a594b1a98c`
+- **Attestation SHA-256:** `9c0688c4509b812628faf3f12dbe03bd6e17e3919d38f4fe24b0fb63609174f7`

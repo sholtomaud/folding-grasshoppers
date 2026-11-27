@@ -88,16 +88,29 @@ enum WindowProbe {
         return NSApp.mainMenu.flatMap(find)
     }
 
+    /// A chat like a real one: the designer's request, tool rows, and Claude's
+    /// replies with bold text and "- " lists.
     private static func fillChat(_ assistant: DesignAssistant) {
-        let long = """
-        I made the stool: a 350 mm wide, 450 mm tall cylinder, sliced into a waffle for 6 mm board.
+        let reply = """
+        I made the stool: a **350 mm wide, 450 mm tall** cylinder, sliced into a waffle for 6 mm board.
 
-        - Parts: 10 ribs, 5 across X and 5 across Y. The ribs that cross X are slotted from the top.
-        - Sheets: the parts fit on 2 sheets of 1200 x 800 mm, using about 68% of the board.
+        - **Parts:** 10 ribs, 5 across X and 5 across Y. The ribs that cross X are slotted from the top.
+        - **Sheets:** the parts fit on 2 sheets of 1200 x 800 mm, using about 68% of the board.
 
         You can change the number of ribs or the sheet size. I can also do a cost estimate, or export the cut files.
         """
-        for _ in 0..<4 { assistant.addNotice(long) }
+        var items: [JSONValue] = []
+        for _ in 0..<3 {
+            items.append(["kind": "user", "text": "Make a cylinder stool 450 mm tall and 350 mm wide as a waffle from 6 mm board"])
+            items.append(["kind": "tool", "tool": "create_shape", "is_error": false,
+                          "text": "Created cylinder: 350 x 350 x 450 mm (W x D x H), 96 faces"])
+            items.append(["kind": "tool", "tool": "waffle_slice", "is_error": false,
+                          "text": "Waffle: 10 parts (X1, X2, X3, X4, X5, Y1, Y2, Y3, Y4, Y5). Largest part 350 x 450 mm."])
+            items.append(["kind": "assistant", "text": .string(reply)])
+        }
+        let chat: JSONValue = ["schema": .string(DesignAssistant.conversationSchema),
+                               "items": .array(items), "history": []]
+        if !assistant.restore(conversation: chat) { assistant.addNotice(reply) }
     }
 
     static func mainWindow() -> NSWindow? {
