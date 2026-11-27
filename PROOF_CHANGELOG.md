@@ -151,3 +151,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** EngineQuitTests: stopImmediately (red); swift floor 121
 - **Previous Attestation:** `17f5eb7b5c3689bccde22764a1102a4076829b3b9627b6c9343dc3d6239c6068`
 - **Attestation SHA-256:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
+
+## 2026-11-27T03:46:05Z — `32aaa0f` (PASS)
+
+- **Commit:** `32aaa0f`
+- **Timestamp:** `2026-11-27T03:46:05Z`
+- **Proof Lock Root SHA-256:** `97bcd842faca6dc971fa578e2bbb15731923a76bf7efbaeb60ffcbdc84e42567`
+- **Verdict:** `PASS`
+- **Summary:** Foundation A: settings layers, request_inputs forms, Claude never calculates, formula engine, JSON views with Project tab, diagnostics log (#26-#30, #34, #61); locked tests that passed prices now set settings; floors pytest 447, swift 149
+- **Previous Attestation:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
+- **Attestation SHA-256:** `00449e53b381d8309dcb618f8a2aa60d61177a5336da1d1a3b674bab2a9001c0`
