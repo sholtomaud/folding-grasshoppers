@@ -51,7 +51,7 @@ log = logging.getLogger("cardboard_engine")
 
 # Hops shows components under Category > Subcategory, with this icon.
 HOPS_CATEGORY = "Fold Theory"
-HOPS_SUBCATEGORY = "CardboardCAD"
+HOPS_SUBCATEGORY = "Cardboard"
 HOPS_ICON = "assets/foldtheory-24.png"  # relative to this package
 
 REPORTED_PACKAGES = ("flask", "werkzeug", "ghhops-server", "rhino3dm")

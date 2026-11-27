@@ -106,8 +106,8 @@ def test_export_solve_returns_dxf_text(client, tmp_path, monkeypatch):
     texts = [json.loads(t) for t in out["Text"]]
     paths = [json.loads(p) for p in out["Paths"]]
     assert len(texts) == 1 and "ENTITIES" in texts[0]
-    assert paths == [str(tmp_path / "Documents" / "CardboardCAD" / "box-sheet1.dxf")]
-    assert (tmp_path / "Documents" / "CardboardCAD" / "box-sheet1.dxf").read_text() == texts[0]
+    assert paths == [str(tmp_path / "Documents" / "Fold Theory" / "box-sheet1.dxf")]
+    assert (tmp_path / "Documents" / "Fold Theory" / "box-sheet1.dxf").read_text() == texts[0]
 
 
 def test_api_waffle_slice_plain_json(client):

@@ -3,7 +3,7 @@
 A project is a plain folder, so it can be zipped, mailed, or synced with
 Google Drive or OneDrive as it is::
 
-    ~/Documents/CardboardCAD/Projects/<name>/
+    ~/Documents/Fold Theory/Projects/<name>/
         project.json            manifest (schema cardboardcad.project/1)
         chat.json               the Design Assistant conversation (written by the app)
         model/model.obj         the 3D model, in mm
@@ -34,6 +34,8 @@ import re
 import tempfile
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+from .brand import documents_dir
+
 MANIFEST = "project.json"
 CHAT = "chat.json"
 PROJECT_SCHEMA = "cardboardcad.project/1"
@@ -53,7 +55,7 @@ class ProjectError(ValueError):
 
 
 def default_projects_dir(home: str) -> str:
-    return os.path.join(home, "Documents", "CardboardCAD", "Projects")
+    return os.path.join(documents_dir(home), "Projects")
 
 
 def safe_project_name(raw) -> str:
@@ -85,7 +87,7 @@ def _inside_home(path: str, home: str, what: str) -> str:
 
 
 def resolve_save_dir(folder: str, name: str, home: str) -> Tuple[str, str]:
-    """(folder, name) to save into. No folder: ~/Documents/CardboardCAD/Projects/<name>."""
+    """(folder, name) to save into. No folder: ~/Documents/Fold Theory/Projects/<name>."""
     if folder and folder.strip():
         directory = _inside_home(folder, home, "project folder")
         clean = safe_project_name(name) if name and name.strip() else safe_project_name(os.path.basename(directory))
@@ -99,7 +101,7 @@ def resolve_open_dir(path: str, home: str) -> str:
     if os.path.basename(real) == MANIFEST and os.path.isfile(real):
         real = os.path.dirname(real)
     if not os.path.isfile(os.path.join(real, MANIFEST)):
-        raise ProjectError(f"{path} is not a CardboardCAD project (it has no {MANIFEST})")
+        raise ProjectError(f"{path} is not a Fold Theory project (it has no {MANIFEST})")
     return real
 
 
@@ -157,7 +159,7 @@ def check_writable(directory: str) -> Optional[dict]:
         return None
     if not os.path.isfile(os.path.join(directory, MANIFEST)):
         raise ProjectError(
-            f"{directory} is not a CardboardCAD project and is not empty; choose an empty folder or a new name")
+            f"{directory} is not a Fold Theory project and is not empty; choose an empty folder or a new name")
     try:
         return read_manifest(directory)
     except ProjectError:

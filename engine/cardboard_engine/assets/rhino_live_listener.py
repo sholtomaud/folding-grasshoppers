@@ -1,4 +1,4 @@
-# CardboardCAD Live listener for Grasshopper.
+# Fold Theory Live listener for Grasshopper.
 #
 # Paste this whole file into a Grasshopper Python script component
 # (Rhino 8: Maths > Script > Python 3 Script; Rhino 7: Maths > Script > GhPython).
@@ -7,11 +7,11 @@
 #
 #   Inputs:  On       (bool, optional; default True)   live updates on or off
 #            Interval (int, optional; default 500)     how often to check, in ms
-#            Port     (int, optional; default 5001)    the CardboardCAD engine port
+#            Port     (int, optional; default 5001)    the Fold Theory engine port
 #   Outputs: Version  the app's design version (connect to LiveDesign's V input)
 #            Status   what the listener is doing
 #
-# It asks the CardboardCAD app (http://127.0.0.1:<Port>/api/design/version)
+# It asks the Fold Theory app (http://127.0.0.1:<Port>/api/design/version)
 # for its design version on a background thread, and re-runs only when the
 # version changes, so Grasshopper does no work while the design is unchanged.
 # Full setup: docs/RHINO_LIVE_SYNC.md in the folding-grasshoppers repository.
@@ -96,7 +96,7 @@ class VersionWatcher(object):
                     self.connected = False
                 stop.wait(delay)
 
-        t = threading.Thread(target=run, name="CardboardCAD live listener")
+        t = threading.Thread(target=run, name="Fold Theory live listener")
         t.daemon = True
         t.start()
         return t
@@ -148,10 +148,10 @@ def run_in_grasshopper(ghenv, on, interval, port):
 
     w = entry["watcher"]
     if w.version is None:
-        return -1, "Waiting for CardboardCAD on port %d. Is the app open?" % port
+        return -1, "Waiting for Fold Theory on port %d. Is the app open?" % port
     if not w.connected:
-        return w.version, "CardboardCAD is not answering on port %d; showing design version %d." % (port, w.version)
-    return w.version, "Live: CardboardCAD design version %d (checking every %d ms)." % (w.version, interval)
+        return w.version, "Fold Theory is not answering on port %d; showing design version %d." % (port, w.version)
+    return w.version, "Live: Fold Theory design version %d (checking every %d ms)." % (w.version, interval)
 
 
 if "ghenv" in globals():  # inside a Grasshopper script component

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the self-contained Python runtime that ships inside CardboardCAD.app.
+# Build the self-contained Python runtime that ships inside Fold Theory.app.
 #
 #   scripts/build_python_runtime.sh            # aarch64-apple-darwin (default)
 #   TARGET=x86_64-apple-darwin scripts/build_python_runtime.sh

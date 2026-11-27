@@ -3,7 +3,11 @@
 #
 # Placeholders still to fill in (SPEC.md 4): TEAM_ID and NOTARY_PROFILE.
 
-APP_NAME="${APP_NAME:-CardboardCAD}"
+# APP_NAME is what people see: Fold Theory.app, the menus, the DMG. The Xcode
+# project, scheme and target keep the old name (XCODE_NAME) so build settings
+# and the bundle identifier, and with it saved settings and the Keychain item, carry over.
+APP_NAME="${APP_NAME:-Fold Theory}"
+XCODE_NAME="${XCODE_NAME:-CardboardCAD}"
 BUNDLE_ID="${BUNDLE_ID:-com.example.cardboardcad}"
 
 # Apple Developer Team ID (10 characters), e.g. ABCDE12345.

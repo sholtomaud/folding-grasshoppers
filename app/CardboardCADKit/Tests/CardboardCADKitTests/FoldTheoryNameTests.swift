@@ -105,7 +105,7 @@ final class LegacyDataMigrationTests: XCTestCase {
         XCTAssertEqual(read("Documents/CardboardCAD/Projects/Stool/project.json"), "stool")
         XCTAssertEqual(try fm.destinationOfSymbolicLink(atPath: home.appendingPathComponent("Documents/CardboardCAD").path),
                        "Fold Theory")
-        XCTAssertEqual(report.filter { $0.hasPrefix("Moved") }.count, 3 + 1)
+        XCTAssertEqual(report.filter { $0.hasPrefix("Moved") }.count, 3)  // Logs, Application Support, Documents
     }
 
     func testRunningTwiceChangesNothing() throws {

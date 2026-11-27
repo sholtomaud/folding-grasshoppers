@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="560" viewBox="0 0 1100 560" font-family="Helvetica, Arial, sans-serif">
-  <title>Grasshopper canvas: CardboardCAD live listener wired to LiveDesign (diagram, not a screenshot)</title>
+  <title>Grasshopper canvas: Fold Theory live listener wired to LiveDesign (diagram, not a screenshot)</title>
   <rect width="1100" height="560" fill="#d9d8d3"/>
   <g stroke="#c9c8c3" stroke-width="1">
     <path d="M0 140H1100M0 280H1100M0 420H1100M220 0V560M440 0V560M660 0V560M880 0V560"/>
@@ -47,7 +47,7 @@
 
   <!-- panel -->
   <rect x="700" y="380" width="360" height="80" fill="#fff59a" stroke="#555" stroke-width="2"/>
-  <text x="714" y="410" font-family="Menlo, monospace" font-size="14">Live: CardboardCAD design</text>
+  <text x="714" y="410" font-family="Menlo, monospace" font-size="14">Live: Fold Theory design</text>
   <text x="714" y="432" font-family="Menlo, monospace" font-size="14">version 12 (checking every 500 ms).</text>
   <circle cx="700" cy="420" r="6" fill="#fff" stroke="#555" stroke-width="2"/>
   <text x="880" y="480" font-size="14" text-anchor="middle" fill="#333">Panel</text>

@@ -48,8 +48,8 @@ Logged per build to `build/python-runtime-removed.txt`:
 ## Bundle layout
 
 ```
-CardboardCAD.app/Contents/
-├── MacOS/CardboardCAD
+Fold Theory.app/Contents/
+├── MacOS/Fold Theory
 ├── Info.plist                  <- CardboardPythonHome = Contents/Resources/python
 └── Resources/
     ├── Assets.car
@@ -70,7 +70,7 @@ the runtime in `Contents/Frameworks/python`. Signing the libraries and the
 interpreter worked, but signing the app failed:
 
 ```
-CardboardCAD.app: bundle format unrecognized, invalid, or unsuitable
+Fold Theory.app: bundle format unrecognized, invalid, or unsuitable
 In subcomponent: .../Contents/Frameworks/python/lib/python3.12
 ```
 

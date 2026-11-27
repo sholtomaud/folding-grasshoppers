@@ -70,9 +70,13 @@ def test_not_a_project_message_says_fold_theory(tmp_path):
         resolve_open_dir(str(tmp_path), home=str(tmp_path))
 
 
-def test_saved_project_manifest_names_fold_theory(tmp_path):
+def test_saved_project_is_in_documents_fold_theory_and_names_the_app(tmp_path):
     session = DesignSession(home=str(tmp_path))
-    assert session._manifest("Stool", [])["app"] == "Fold Theory"
+    r = session.run_tool("create_shape", {"shape": "box", "width_mm": 300, "depth_mm": 200, "height_mm": 100})
+    assert not r.is_error, r.text
+    session.save_project(name="Box")
+    manifest = tmp_path / "Documents" / "Fold Theory" / "Projects" / "Box" / "project.json"
+    assert json.loads(manifest.read_text())["app"] == "Fold Theory"
 
 
 def test_system_prompt_names_fold_theory():

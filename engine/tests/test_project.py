@@ -2,7 +2,7 @@
 
 A project is a plain folder (easy to sync with Google Drive or OneDrive):
 
-    ~/Documents/CardboardCAD/Projects/<name>/
+    ~/Documents/Fold Theory/Projects/<name>/
         project.json            manifest: name, recipe, summary, file list
         chat.json               the Design Assistant conversation (from the app)
         model/model.obj         the 3D model
@@ -55,7 +55,7 @@ def build_stool(session):
 
 
 def projects(home):
-    return home / "Documents" / "CardboardCAD" / "Projects"
+    return home / "Documents" / "Fold Theory" / "Projects"
 
 
 # ---- names and folders ----------------------------------------------------
@@ -203,7 +203,7 @@ def test_save_refuses_a_folder_that_is_not_a_project(session, home):
     other = home / "Documents" / "Taxes"
     other.mkdir(parents=True)
     (other / "2026.pdf").write_bytes(b"x")
-    with pytest.raises(ProjectError, match="not a CardboardCAD project"):
+    with pytest.raises(ProjectError, match="not a Fold Theory project"):
         session.save_project(folder=str(other))
     assert sorted(os.listdir(other)) == ["2026.pdf"]
 
@@ -267,7 +267,7 @@ def test_open_accepts_the_manifest_path_and_tilde(session, home):
     run(session, "create_shape", shape="cone")
     session.save_project(name="Cone")
     fresh = DesignSession(home=str(home))
-    out = fresh.open_project("~/Documents/CardboardCAD/Projects/Cone/project.json")
+    out = fresh.open_project("~/Documents/Fold Theory/Projects/Cone/project.json")
     assert out["folder"] == str(projects(home) / "Cone")
     assert out["chat"] is None
     assert fresh.state()["model"]["name"] == "cone"
@@ -283,7 +283,7 @@ def test_open_bumps_the_version(session, home):
 
 def test_open_refuses_folders_that_are_not_projects(session, home):
     (home / "Documents").mkdir()
-    with pytest.raises(ProjectError, match="not a CardboardCAD project"):
+    with pytest.raises(ProjectError, match="not a Fold Theory project"):
         session.open_project(str(home / "Documents"))
     with pytest.raises(ProjectError, match="home folder"):
         session.open_project("/etc")
@@ -399,5 +399,5 @@ def test_save_and_open_route_errors_are_422(client, tmp_path):
     assert client.post("/api/design/save", json={"name": 3}).status_code == 400
     r = client.post("/api/design/open", json={"folder": str(tmp_path)})
     assert r.status_code == 422
-    assert "not a CardboardCAD project" in r.get_json()["message"]
+    assert "not a Fold Theory project" in r.get_json()["message"]
     assert client.post("/api/design/open", json={}).status_code == 400

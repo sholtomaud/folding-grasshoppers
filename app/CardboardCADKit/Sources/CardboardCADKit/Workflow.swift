@@ -41,7 +41,7 @@ public struct WorkflowList: Codable, Equatable, Sendable {
 }
 
 /// Reads and changes the workflow settings. The engine keeps them in
-/// ~/Documents/CardboardCAD/Workflows/, shared with Claude's workflow tools.
+/// ~/Documents/Fold Theory/Workflows/, shared with Claude's workflow tools.
 public protocol WorkflowSettingsClient: AnyObject {
     func workflows() async throws -> WorkflowList
     /// nil leaves a setting as it is.
@@ -86,7 +86,7 @@ public final class WorkflowController {
     public var isConnected: Bool { client != nil }
 
     public static func defaultWorkflowsFolder(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        home.appendingPathComponent("Documents/CardboardCAD/Workflows", isDirectory: true)
+        AppBrand.documentsFolder(home: home).appendingPathComponent("Workflows", isDirectory: true)
     }
 
     /// Point at the running engine (nil while it is not running).

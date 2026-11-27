@@ -32,9 +32,9 @@ final class EngineConfigTests: XCTestCase {
             bundleURL: bundleURL, pythonHome: nil, port: 5001, environment: [:], allowDevRuntime: true, home: home
         )
         XCTAssertEqual(c.interpreterURL.path, "/Applications/CardboardCAD.app/Contents/Frameworks/python/bin/python3.12")
-        XCTAssertEqual(c.logsDirectory.path, "/Users/tester/Library/Logs/CardboardCAD")
-        XCTAssertEqual(c.dataDirectory.path, "/Users/tester/Library/Application Support/CardboardCAD")
-        XCTAssertEqual(c.cacheDirectory.path, "/Users/tester/Library/Caches/CardboardCAD")
+        XCTAssertEqual(c.logsDirectory.path, "/Users/tester/Library/Logs/Fold Theory")
+        XCTAssertEqual(c.dataDirectory.path, "/Users/tester/Library/Application Support/Fold Theory")
+        XCTAssertEqual(c.cacheDirectory.path, "/Users/tester/Library/Caches/Fold Theory")
         XCTAssertEqual(c.homeDirectory.path, "/Users/tester")
         XCTAssertFalse(c.usesDevRuntime)
     }

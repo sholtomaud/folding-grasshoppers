@@ -5,13 +5,13 @@
 #   3. quitting the app leaves no engine process
 #   4. force-killing the app -> watchdog stops the engine within ~5 s
 #
-#   scripts/ci/e2e_app.sh build/app/CardboardCAD.app
+#   scripts/ci/e2e_app.sh "build/app/Fold Theory.app"
 set -uo pipefail
 APP="${1:?path to .app}"
-BIN="$APP/Contents/MacOS/CardboardCAD"
+BIN="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")"
 PORT=5001
-LOG="$HOME/Library/Logs/CardboardCAD/engine.log"
+LOG="$HOME/Library/Logs/Fold Theory/engine.log"
 FAILED=0
 pass() { printf 'PASS  %s\n' "$*"; }
 fail() { printf 'FAIL  %s\n' "$*"; FAILED=1; }
@@ -70,7 +70,7 @@ echo "$EST" | grep -q '"total_cost":9.25208' && pass "cut_estimate reference vec
 
 HELLO="$(curl -fsS -H 'Content-Type: application/json' -d '{"name":"CI"}' "http://127.0.0.1:$PORT/api/hello" || true)"
 echo "hello: $HELLO"
-echo "$HELLO" | grep -q "Hello, CI, from CardboardCAD by Fold Theory" && pass "hello world" || fail "hello world"
+echo "$HELLO" | grep -q "Hello, CI, from Fold Theory" && pass "hello world" || fail "hello world"
 python3 scripts/demo_hello.py --port "$PORT" && pass "demo_hello.py (Hops protocol)" || fail "demo_hello.py"
 
 # 2. kill -9 the engine -> restart

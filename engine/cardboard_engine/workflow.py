@@ -5,7 +5,7 @@ sheets, estimate cost, export, save) and saved values for tool inputs (board
 size, gap, prices). The built-in Standard workflow makes nesting and costing
 part of every design. Workflows are plain JSON files, one per workflow::
 
-    ~/Documents/CardboardCAD/Workflows/
+    ~/Documents/Fold Theory/Workflows/
         Standard.json        only once the designer changes a saved value
         Big board.json       saved by Claude (save_workflow) or by hand
         .settings.json       {"active": "...", "apply_defaults": true}
@@ -27,6 +27,7 @@ import json
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .brand import documents_dir
 from .project import ProjectError, _write_atomic, safe_project_name
 
 WORKFLOW_SCHEMA = "cardboardcad.workflow/1"
@@ -71,7 +72,7 @@ class WorkflowError(ValueError):
 
 
 def workflows_dir(home: str) -> str:
-    return os.path.join(home, "Documents", "CardboardCAD", "Workflows")
+    return os.path.join(documents_dir(home), "Workflows")
 
 
 def _fmt(v) -> str:
