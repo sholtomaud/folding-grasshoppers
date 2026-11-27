@@ -59,7 +59,7 @@ _UNIT_NAMES: Dict[str, Tuple[Dims, float]] = {
     "days": ((0, 1, 0), 86400.0), "$": ((0, 0, 1), 1.0), "%": (NONE, 0.01),
 }
 _COUNT_WORDS = {"count", "each", "x", "fraction", "sheet", "sheets", "part", "parts", "pierce", "pierces",
-                "joint", "joints", "item", "items", "person", "people"}
+                "joint", "joints", "item", "items", "person", "people", "pallet", "pallets"}
 
 
 def _unit_term(term: str) -> Tuple[Dims, float]:
@@ -391,8 +391,9 @@ def _eval(node, env: Dict[str, Q]) -> Q:
             except (OverflowError, ZeroDivisionError, ValueError):
                 raise FormulaError("That power cannot be worked out") from None
             return Q(v, tuple(int(x * b.v) for x in a.d))
-        # comparisons
-        if a.d != b.d:
+        # comparisons (zero is zero in any unit, so "assembly_hours > 0" is allowed)
+        zero = lambda q: q.d == NONE and not q.is_list and q.v == 0  # noqa: E731
+        if a.d != b.d and not (zero(a) or zero(b)):
             raise FormulaError(f"Unit mismatch: cannot compare {_dims_text(a.d)} with {_dims_text(b.d)}")
         x, y = _scalar(a, op), _scalar(b, op)
         res = {"<": x < y, ">": x > y, "<=": x <= y, ">=": x >= y, "==": x == y, "!=": x != y}[op]
@@ -641,6 +642,21 @@ def build_quote(formulas: List[dict], fields: Dict[str, Any], currency: str = "A
             "fields": copy.deepcopy(fields), "formulas": copy.deepcopy(formulas)}
 
 
+def quote_csv(quote: dict) -> str:
+    """The quote's shown lines (not the working ones) as CSV, values to the cent."""
+    import csv
+    import io
+
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\n")
+    w.writerow(["key", "label", "role", "value", "unit"])
+    for line in quote.get("lines", []):
+        if line.get("role") == "working":
+            continue
+        w.writerow([line["key"], line["label"], line["role"], f"{line['value']:.2f}", line.get("unit", "")])
+    return buf.getvalue()
+
+
 def reproduce(quote: dict) -> dict:
     """Work out an old quote again from the formulas and fields it recorded."""
     return build_quote(quote["formulas"], quote["fields"], quote.get("currency", "AUD"))
@@ -663,9 +679,28 @@ BUILTIN_FORMULAS: List[dict] = [
     {"key": "machine", "label": "Machine time", "role": "line", "unit": "AUD",
      "expr": "round(cut_minutes * machine_rate, 2)", "description": "Machine time at the machine rate",
      "example": _ex({"cut_minutes": (30, "min"), "machine_rate": (60, "AUD/h")}, 30)},
+    {"key": "print", "label": "Print", "role": "line", "unit": "AUD",
+     "expr": "round(print_area * print_rate, 2)", "description": "Printed area at the print rate",
+     "example": _ex({"print_area": (0.5, "m2"), "print_rate": (60, "AUD/m2")}, 30)},
+    {"key": "assembly_time", "label": "Assembly time", "role": "working", "unit": "h",
+     "expr": "if(assembly_hours > 0, assembly_hours, parts * assembly_minutes_per_part)",
+     "description": "The assembly hours set for the job, or the parts times the minutes for each",
+     "example": _ex({"assembly_hours": (0, "h"), "parts": (24, "count"),
+                     "assembly_minutes_per_part": (5, "min/part")}, 2)},
+    {"key": "assembly", "label": "Assembly and install", "role": "line", "unit": "AUD",
+     "expr": "round(assembly_time * labour_rate, 2)", "description": "Assembly and install at the labour rate",
+     "example": _ex({"assembly_time": (2, "h"), "labour_rate": (55, "AUD/h")}, 110)},
+    {"key": "packing", "label": "Packing and freight", "role": "line", "unit": "AUD",
+     "expr": "round(pallet_count * freight_rate, 2)", "description": "Pallets at the freight rate",
+     "example": _ex({"pallet_count": (1, "pallet"), "freight_rate": (180, "AUD/pallet")}, 180)},
+    {"key": "design", "label": "Design time", "role": "line", "unit": "AUD",
+     "expr": "round(design_hours * design_rate, 2)", "description": "Design hours at the design rate",
+     "example": _ex({"design_hours": (4, "h"), "design_rate": (95, "AUD/h")}, 380)},
     {"key": "subtotal", "label": "Cost", "role": "subtotal", "unit": "AUD",
-     "expr": "material + machine", "description": "Board and machine",
-     "example": _ex({"material": (115.5, "AUD"), "machine": (30, "AUD")}, 145.5)},
+     "expr": "material + machine + print + assembly + packing + design",
+     "description": "Board, cutting, print, assembly, packing and design",
+     "example": _ex({"material": (115.5, "AUD"), "machine": (19.26, "AUD"), "print": (30, "AUD"),
+                     "assembly": (110, "AUD"), "packing": (180, "AUD"), "design": (380, "AUD")}, 834.76)},
     {"key": "margin", "label": "Margin", "role": "line", "unit": "AUD",
      "expr": "round(subtotal * margin_pct, 2)", "description": "Margin on cost",
      "example": _ex({"subtotal": (145.5, "AUD"), "margin_pct": (20, "%")}, 29.1)},

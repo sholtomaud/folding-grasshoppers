@@ -285,8 +285,21 @@ marks it **Unverified** in orange under the reply. Trust the Project tab.
 
 **Formulas.** The quote is a list of formulas, each with a worked example
 the engine checks: `material = round(sheets * sheet_price, 2)`,
-`machine = round(cut_minutes * machine_rate, 2)`, then margin, GST and the
-total. Ask the assistant for a new line, for example "add install crew
+`machine = round(cut_minutes * machine_rate, 2)`, then print, assembly and
+install, packing and freight, design time, margin, GST and the total:
+
+| Line | Formula |
+|---|---|
+| Board | sheets × sheet price |
+| Machine time | machine time × machine rate |
+| Print | printed area (m²) × print rate (print areas come in Phase 3) |
+| Assembly and install | the job's assembly hours, or parts × minutes per part, × labour rate |
+| Packing and freight | pallets × freight rate |
+| Design time | design hours × design rate |
+| Margin, GST | percentages of the cost |
+
+A rate is only asked for when a line uses it: with no design hours set, the
+design rate is not needed and the line is 0. Ask the assistant for a new line, for example "add install crew
 hours: one hour per 40 parts, rounded up", and it adds
 `install_hours = ceil(parts / 40)` with an example (95 parts gives 3), which
 the engine checks before saving. Units are checked: adding minutes to an
@@ -408,6 +421,7 @@ What is in a project folder (example for a project called `Stool`):
 | `estimate/estimate.csv` | the cost estimate; opens in Numbers, Excel or Google Sheets |
 | `estimate/estimate.json` | the same, for other programs |
 | `estimate/quote.json` | the quote: every line, the total, and the settings and formula versions it was made from |
+| `estimate/quote.csv` | the quote lines and total, to the cent; opens in any spreadsheet |
 | `settings.json` | this project's settings (only once you set one for this project) |
 | `formulas.json` | formulas added for this project only, if any |
 | `views/<id>.json` | tabs saved for this project only, if any |
