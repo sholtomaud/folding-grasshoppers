@@ -248,6 +248,16 @@ public protocol DesignToolRunner: AnyObject {
     func designSetup() async throws -> DesignSetup
     func runDesignTool(name: String, input: JSONValue) async throws -> DesignToolOutput
     func resetDesign() async throws
+    /// Rhino edits the assistant has not been told about yet. Each is returned once.
+    func pendingDesignNotes() async throws -> [String]
+}
+
+extension DesignToolRunner {
+    public func pendingDesignNotes() async throws -> [String] { [] }
+}
+
+private struct DesignNotes: Decodable {
+    let notes: [String]
 }
 
 extension EngineClient: DesignToolRunner {
@@ -289,6 +299,11 @@ extension EngineClient: DesignToolRunner {
         }
         guard status == 200 else { throw EngineClientError.httpStatus(status) }
         return try decode(data)
+    }
+
+    public func pendingDesignNotes() async throws -> [String] {
+        let out: DesignNotes = try await get("/api/design/notes", timeout: 5)
+        return out.notes
     }
 
     public func resetDesign() async throws {

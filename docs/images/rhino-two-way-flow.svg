@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="520" viewBox="0 0 1100 520" font-family="Helvetica, Arial, sans-serif">
+  <title>How the two-way Rhino link works (diagram)</title>
+  <rect width="1100" height="520" fill="#f6f5f1"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#444"/>
+    </marker>
+  </defs>
+
+  <!-- Rhino -->
+  <rect x="30" y="30" width="420" height="460" rx="14" fill="#fff" stroke="#444" stroke-width="2"/>
+  <text x="50" y="66" font-size="22" font-weight="bold" fill="#222">Rhino 8</text>
+  <text x="50" y="90" font-size="14" fill="#555">Fold Theory script running in the Script Editor</text>
+
+  <rect x="50" y="110" width="380" height="170" rx="8" fill="#eef3fb" stroke="#4a6fa5"/>
+  <text x="66" y="136" font-size="15" font-weight="bold" fill="#223">Layers</text>
+  <g font-size="14" fill="#223" font-family="Menlo, monospace">
+    <text x="66" y="160">Fold Theory</text>
+    <text x="86" y="180">Concept A</text>
+    <text x="106" y="200">Model         (editable)</text>
+    <text x="106" y="220">Parts › Cut, Score, Etch (editable)</text>
+    <text x="106" y="240">Parts › Labels</text>
+    <text x="106" y="260">Assembly · Sheets</text>
+  </g>
+
+  <rect x="50" y="300" width="380" height="80" rx="8" fill="#fff7e6" stroke="#b7791f"/>
+  <text x="66" y="326" font-size="15" font-weight="bold" fill="#5a3b00">You edit</text>
+  <text x="66" y="348" font-size="14" fill="#5a3b00">scale or reshape the model, move a slot,</text>
+  <text x="66" y="368" font-size="14" fill="#5a3b00">draw a hole inside a part on the Cut layer</text>
+
+  <rect x="50" y="400" width="380" height="70" rx="8" fill="#f1f1f1" stroke="#777"/>
+  <text x="66" y="426" font-size="15" font-weight="bold" fill="#333">Waits 1 second after your last change</text>
+  <text x="66" y="448" font-size="14" fill="#333">ten quick edits are sent once</text>
+
+  <!-- App -->
+  <rect x="650" y="30" width="420" height="460" rx="14" fill="#fff" stroke="#444" stroke-width="2"/>
+  <text x="670" y="66" font-size="22" font-weight="bold" fill="#222">Fold Theory app</text>
+  <text x="670" y="90" font-size="14" fill="#555">engine on 127.0.0.1 (this Mac only)</text>
+
+  <rect x="670" y="110" width="380" height="110" rx="8" fill="#eaf6ee" stroke="#2f855a"/>
+  <text x="686" y="136" font-size="15" font-weight="bold" fill="#123">Model edit</text>
+  <text x="686" y="158" font-size="14" fill="#123">replace the model, then run the recipe</text>
+  <text x="686" y="178" font-size="14" fill="#123">again: slice, nest, cost</text>
+  <text x="686" y="204" font-size="13" fill="#2f855a" font-family="Menlo, monospace">POST /api/rhino/model</text>
+
+  <rect x="670" y="236" width="380" height="130" rx="8" fill="#eaf6ee" stroke="#2f855a"/>
+  <text x="686" y="262" font-size="15" font-weight="bold" fill="#123">Part edit = hand edit (override)</text>
+  <text x="686" y="284" font-size="14" fill="#123">kept while the generated part is unchanged;</text>
+  <text x="686" y="304" font-size="14" fill="#123">otherwise flagged "no longer fits", never</text>
+  <text x="686" y="324" font-size="14" fill="#123">silently dropped. Used in nesting, cost, DXF.</text>
+  <text x="686" y="350" font-size="13" fill="#2f855a" font-family="Menlo, monospace">POST /api/rhino/part</text>
+
+  <rect x="670" y="382" width="380" height="88" rx="8" fill="#f3eefb" stroke="#6b46c1"/>
+  <text x="686" y="408" font-size="15" font-weight="bold" fill="#2d1a5a">Design Assistant is told</text>
+  <text x="686" y="430" font-size="14" fill="#2d1a5a">"In Rhino, the designer edited part X3 ...":</text>
+  <text x="686" y="450" font-size="14" fill="#2d1a5a">it keeps the edit and asks before changing it</text>
+
+  <!-- arrows -->
+  <path d="M450 330 C 540 330, 560 200, 648 170" fill="none" stroke="#444" stroke-width="3" marker-end="url(#a)"/>
+  <path d="M450 350 C 540 350, 560 300, 648 300" fill="none" stroke="#444" stroke-width="3" marker-end="url(#a)"/>
+  <text x="520" y="395" font-size="14" fill="#333">your edits</text>
+
+  <path d="M648 160 C 580 160, 530 200, 452 205" fill="none" stroke="#2b6cb0" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#a)"/>
+  <text x="466" y="104" font-size="14" fill="#2b6cb0">new design</text>
+  <text x="466" y="122" font-size="13" fill="#2b6cb0">checked every 0.5 s</text>
+  <text x="466" y="140" font-size="12" fill="#2b6cb0" font-family="Menlo, monospace">GET /api/rhino/scene</text>
+</svg>
