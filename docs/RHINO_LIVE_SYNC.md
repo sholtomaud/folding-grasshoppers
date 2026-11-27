@@ -191,6 +191,7 @@ design back to itself.
 | Status: `Waiting for CardboardCAD on port 5001` | Start CardboardCAD. Wait for the green dot. If you changed the port in Settings, connect a Panel with that number to **Port**. |
 | LiveDesign is orange with "Unable to connect" | Same as above; and check the Hops path is `http://127.0.0.1:5001/live_design` (not `localhost`). |
 | Grasshopper does not update | Is **On** True (or unconnected)? Does Status show a version number that changes when you change the design? If the number changes but LiveDesign does not, check the wire from **Version** to **V**. |
+| Status says `Live: … version N` but LiveDesign's outputs say "No data was collected" | You have the first listener script, which could cancel Hops while it waited. Copy the script again (**Design > Copy Rhino Live Listener Script**, from a CardboardCAD built after 27 Nov 2026), paste it over the old one, and press F5. Also right-click LiveDesign and untick **Asynchronous** if it is ticked. |
 | The listener stopped after editing the script | Recompute: Grasshopper menu **Solution > Recompute** (F5). |
 | `M` is empty, Summary says "No design" | The app has no model yet. Make one in the Design Assistant, or open a project (**File > Open Project…**). |
 

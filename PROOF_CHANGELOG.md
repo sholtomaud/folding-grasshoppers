@@ -151,3 +151,13 @@ Append-only cryptographic proof ledger. Each entry chains its `attestationSha256
 - **Summary:** EngineQuitTests: stopImmediately (red); swift floor 121
 - **Previous Attestation:** `17f5eb7b5c3689bccde22764a1102a4076829b3b9627b6c9343dc3d6239c6068`
 - **Attestation SHA-256:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
+
+## 2026-11-27T03:20:39Z — `61258f6` (PASS)
+
+- **Commit:** `61258f6`
+- **Timestamp:** `2026-11-27T03:20:39Z`
+- **Proof Lock Root SHA-256:** `dce00fa15110da9d35e573c2b4c8d6273d89aabea73d85b0077a29fddec24841`
+- **Verdict:** `PASS`
+- **Summary:** Rhino listener: schedule solutions instead of forcing them; 4 new tests, pytest floor 351
+- **Previous Attestation:** `f3a9450c13fbb53e81a55c874cfeb810c12876b7792e6a7c0e9033db44f5b209`
+- **Attestation SHA-256:** `895f1926f2c8a7ffcc802bb980100fcaac732cbe232bcc0023fcb18353bd8b38`
