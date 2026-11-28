@@ -190,6 +190,7 @@ What the assistant can do:
 | unfold / net / papercraft | folding nets with glue tabs (needs a faceted model, for example a cone with 8 sides) |
 | glue-free joints ("lock tabs on 3 mm board") | unfold with **tuck flaps** (they stop one board thickness short of each corner and tuck behind the next panel) or **lock tabs**: a barbed tab and a slit cut in the next panel, sized from the board thickness, clearance and kerf. Cut a test pair first |
 | jigsaw seams, or a joint on one edge ("jigsaw on edge 3, nothing on edge 5") | **jigsaw edges**: dovetail teeth and matching sockets for a flat, glue-free seam, the sockets the clearance wider once cut. Any joint can be set for single edges by the number printed on both sides of the edge |
+| a cut the methods don't make ("a hand hole in N1", "lock tabs for the skin on edges 2 and 5", "a cable notch in this rib") | the assistant uses a **part operation**, or makes a new one (see below) |
 | nest on sheets of W × H mm | lays the parts on as few sheets as possible |
 | cost / time | measures cut length, score length and pierces, and works out machine time and cost |
 | export DXF or SVG | writes one file per sheet into `~/Documents/Fold Theory/` (or a folder you name inside your home folder) |
@@ -200,6 +201,35 @@ What the assistant can do:
   preview in your web browser: `http://127.0.0.1:5001/preview`.
 - The old forms (Hello world and the cut-estimate calculator) are under
   **Design > Manual Tools** (⇧⌘T).
+
+### New geometry tools (part operations)
+
+When a design needs a kind of cut that the methods don't make, the assistant
+can make the tool itself. A **part operation** is a small JSON document
+(`foldtheory.operation/1`) built only from shapes the engine provides and
+tests: rectangle, slot, circle, polyline, arc, barb and dovetail tooth. Each
+shape is placed on an edge (in the middle, at a distance, or repeated along
+it), at a point of a part, or on the matching edge of the neighbouring part,
+and is added to the outline, cut out of it, scored or etched. Its sizes are
+expressions over the board (thickness, clearance, kerf) and the edge, with a
+minimum and maximum. No code is ever run.
+
+- The engine checks every operation before saving it: it runs the
+  operation's **worked example** on a test part, and refuses it, with the
+  reason, if the outline area or cut count doesn't come out as expected, if a
+  slot is narrower than the board, if a cut splits a part, or if an outline
+  crosses itself. Refusals go to Diagnostics.
+- `lock_tab` (a barbed flap with the slit that takes it in the next panel)
+  and `hand_hole` are built in. Operations Claude makes are kept for the
+  project (in `operations.json` in the project folder) or, if you agree, for
+  all projects.
+- To use one on an unfolded model, unfold with no joints on those edges
+  ("unfold with tab width 0", or "no joint on edge 3"), then ask for the
+  operation on the edges by number.
+- Applied operations are part of the recipe: they are applied again whenever
+  the method runs, so a new board thickness resizes them, and a saved project
+  opens with the same parts on another Mac. "Undo the last operation" takes
+  one off. Rhino hand edits still win.
 
 ### Workflows: nesting and costing every time
 

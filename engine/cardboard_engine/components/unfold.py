@@ -77,6 +77,9 @@ class UnfoldResult:
     joints: List[dict] = field(default_factory=list)  # one per joint: kind, edge, flap, slot...
     joint_sizes: Dict[str, float] = field(default_factory=dict)
     edge_numbers: List[int] = field(default_factory=list)  # the cut edges, as numbered on the parts
+    # Every cut edge: number, joint (or None) and both sides as {part, edge: [pa, pb]} in that part's
+    # counter-clockwise winding; the side with the joint comes first. Part operations (#71) use them.
+    cut_edges: List[dict] = field(default_factory=list)
 
 
 def validate(inp: UnfoldInput) -> None:
@@ -311,6 +314,7 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
     slots: Dict[int, List[List[P2]]] = {n: [] for n in range(len(nets))}
     cutaways: Dict[int, List[List[P2]]] = {n: [] for n in range(len(nets))}
     edge_numbers: List[int] = []
+    cut_edges: List[dict] = []
     used = {inp.joint, *inp.edge_joints.values()}
     sizes = {**(_lock_sizes(inp) if "lock_tab" in used else {}),
              **(_jigsaw_sizes(inp) if "jigsaw_edge" in used else {})}
@@ -393,6 +397,11 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
                     joints.append({"kind": flap_kind, "number": edge_number, "edge": [pa, pb], "flap": tab,
                                    "tab_net": n})
                     break
+        first = next((s for s in sides if joints and joints[-1]["number"] == edge_number
+                      and s[1] == joints[-1]["tab_net"] and same(s[2], joints[-1]["edge"][0])
+                      and same(s[3], joints[-1]["edge"][1])), sides[0])
+        cut_edges.append({"number": edge_number, "joint": placed,
+                          "sides": [(n, pa, pb) for _, n, pa, pb in [first] + [s for s in sides if s is not first]]})
         if placed is not None:
             if placed != "jigsaw_edge":
                 tab_count += 1
@@ -409,6 +418,8 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
         j["tab_part"] = ids[j.pop("tab_net")]
         if "slot_net" in j:
             j["slot_part"] = ids[j.pop("slot_net")]
+    for e in cut_edges:
+        e["sides"] = [{"part": ids[n], "edge": [pa, pb]} for n, pa, pb in e["sides"]]
     for rank, n in enumerate(order, start=1):
         shapes = regions_from_loops(net_polys[n])  # faces are disjoint; even-odd is fine
         loops = _union(net_polys[n] + tab_polys[n])
@@ -426,7 +437,8 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
             )
         )
     return UnfoldResult(parts=parts, face_count=len(faces), tab_count=tab_count, joint_counts=counts,
-                        joints=joints, joint_sizes=sizes, edge_numbers=edge_numbers)
+                        joints=joints, joint_sizes=sizes, edge_numbers=edge_numbers,
+                        cut_edges=cut_edges)
 
 
 def _union(polys) -> List[List[P2]]:
