@@ -365,9 +365,11 @@ def read_chat(directory: str):
         return None
 
 
-def write_files(directory: str, files: Dict[str, str], previous: Optional[dict]) -> List[str]:
-    """Write ``files`` (relative path -> text), the manifest last; remove stale files of ours."""
-    keep = set(files) | {CHAT}
+def write_files(directory: str, files: Dict[str, str], previous: Optional[dict], keep=()) -> List[str]:
+    """Write ``files`` (relative path -> text), the manifest last; remove stale files of ours.
+
+    ``keep``: files of ours that stay as they are (frozen concept versions are never written again)."""
+    keep = set(files) | {CHAT} | set(keep)
     old = previous.get("files", []) if isinstance(previous, dict) else []
     for rel in old if isinstance(old, list) else []:
         rel = _safe_rel(rel)

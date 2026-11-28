@@ -11,6 +11,7 @@ error result (``is_error``) that Claude can read and correct, never raised.
 
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import math
@@ -67,10 +68,12 @@ SETUP_TOOLS = {"request_inputs", "get_settings", "add_formula", "list_formulas",
                "read_diagnostics", "add_operation", "list_operations"}
 # Tools that do not change the design: a saved project stays saved.
 READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_objects", "select_object",
-                    "check_brief", "check_structure", "list_quotes"} | WORKFLOW_TOOLS | SETUP_TOOLS)
+                    "check_brief", "check_structure", "list_quotes", "list_concepts", "compare_concepts"}
+                   | WORKFLOW_TOOLS | SETUP_TOOLS)
 # The brief, checks, issued quotes and invoices: not workflow steps, and failing brief checks are not
 # reported back on them.
-BRIEF_TOOLS = {"set_brief", "check_brief", "check_structure", "issue_quote", "make_invoice", "list_quotes"}
+BRIEF_TOOLS = {"set_brief", "check_brief", "check_structure", "issue_quote", "make_invoice", "list_quotes",
+               "new_concept", "switch_concept", "list_concepts", "freeze_concept", "compare_concepts"}
 # Scene (#43): tools that take an optional object name, and the scene tools themselves.
 OBJECT_TOOLS = ("create_shape", "load_model_file", "scale_model", "model_info", "waffle_slice", "contour_stack",
                 "unfold", "clear_rhino_override", "check_structure", "apply_operation", "undo_operation")
@@ -79,6 +82,11 @@ METHOD_TOOLS = {"waffle_slice", "contour_stack", "unfold"}
 SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
 MAX_PREVIEW_TRIANGLES = 400_000
 MAX_STEPS = 200
+MAX_CONCEPTS = 8
+CONCEPTS_DIR = "concepts"
+# A concept's design: every per-object attribute and the scene's (see _design_snapshot).
+DESIGN_ATTRS = sc.OBJECT_ATTRS + ("recipe", "nested", "last_estimate", "last_quote", "scene_doc", "scene_objects",
+                                  "active", "last_structure")
 
 SYSTEM_PROMPT = """You are the Design Assistant in Fold Theory, the Mac app of the Fold Theory studio, which builds furniture, displays and sculptures from flat cardboard sheets cut on a CNC or laser cutter.
 
@@ -95,7 +103,8 @@ You turn what the designer asks for into calls to the tools you have. The tools 
    A design can be a scene of several named objects (a counter, four stools, a back wall). Pass object="counter" to create_shape, load_model_file, scale_model, model_info or a method to work on that object (a new name adds it); add_object, copy_object (for identical stools), move_object, remove_object, select_object and list_objects manage them. Each object has its own model, position and method, and its parts get its prefix (C-X1, S1-X1). nest_sheets, estimate_cost, export_cut_files and save_project always cover the whole scene.
 4. Then estimate_cost (machine time and money) and export_cut_files (DXF or SVG cut files, one per sheet).
 The active workflow (below) says which of these steps to run, in what order, and with which saved values.
-5. save_project saves everything (model, parts, cut files, estimate, a preview picture) as a project folder the designer can reopen. To present several concepts to a client, save each one under its own name, for example "Acme Expo - Concept A", then "Acme Expo - Concept B".
+5. save_project saves everything (model, parts, cut files, estimate, a preview picture) as a project folder the designer can reopen.
+   Concepts: one project can hold several concepts (A, B, C, D) for the client, each its own design with its own quote; the brief, settings and formulas are the project's. new_concept starts the next one (a copy of the current concept, or blank), switch_concept moves between them, compare_concepts lists each one's footprint, sheets, build hours, price and brief checks, and freeze_concept keeps a version that never changes (concepts/<name>/v1, v2...). When asked for three concepts, build each in a different construction style (for example a waffle, a contour stack and an unfold) and finish each with nest_sheets and estimate_cost.
 
 Everything is in millimetres. Z is up and models sit on the ground. Typical board: single-wall corrugated 3 mm, double-wall 6 mm, honeycomb board 10 to 20 mm. Common sheet sizes: 1200 x 800, 1000 x 700, 2400 x 1200 mm. When the designer gives no value, use the tool defaults and say which you used.
 
@@ -553,6 +562,28 @@ TOOLS += [
     ),
     _tool("undo_operation", "Take the last applied part operation off the parts.", {}),
 ]
+TOOLS += [
+    _tool(
+        "new_concept",
+        "Start another concept for this project (Concept B, C, D...). The first time, the design so far becomes "
+        "Concept A. The new concept starts as a copy of the current one, or blank, and becomes the active one; "
+        "every tool then works on it. The brief, settings and formulas are shared by all concepts.",
+        {"name": {"type": "string", "default": "", "description": "Name (default Concept <letter>)"},
+         "blank": {"type": "boolean", "default": False, "description": "Start empty instead of a copy"}},
+    ),
+    _tool("switch_concept", "Make another concept the active one, by name or letter.",
+          {"name": {"type": "string", "description": "Concept name or letter, e.g. B"}}, required=["name"]),
+    _tool("list_concepts", "List the project's concepts, the active one, their quotes and frozen versions.", {}),
+    _tool(
+        "freeze_concept",
+        "Freeze a concept (default the active one) as its next version, v1, v2...: a copy of the whole concept "
+        "(model, parts, cut files, estimate and quote) in concepts/<name>/vN/ that never changes. Do it before "
+        "a concept goes to the client.",
+        {"name": {"type": "string", "default": "", "description": "Concept name or letter"}},
+    ),
+    _tool("compare_concepts", "Compare the concepts side by side from the engine's numbers: footprint, sheets, "
+                              "build hours, price and brief checks.", {}),
+]
 for _t in TOOLS:
     if _t["name"] in OBJECT_TOOLS:
         _t["input_schema"]["properties"]["object"] = dict(_OBJ)
@@ -679,6 +710,10 @@ class DesignSession:
         self.quote_versions: List[dict] = []
         self.invoices: List[dict] = []
         self.scene_doc: Optional[PartsDoc] = None  # the scene's parts once nested
+        # Concepts (#46): [{name, letter, state (None for the active one), versions}]. The active
+        # concept's design is in the attributes above; the brief, settings and formulas are the project's.
+        self.concepts: List[dict] = []
+        self.active_concept: Optional[str] = None
         self._clear_all()
         self.steps: List[dict] = []
         # Where this Mac keeps per-Mac settings (projects location): the app's ENGINE_DATA_DIR.
@@ -721,6 +756,7 @@ class DesignSession:
             self.brief = {}
             self.last_structure = None
             self.quote_versions, self.invoices = [], []
+            self.concepts, self.active_concept = [], None
             self.steps = []
             self.project = None
             self.settings.clear_project()
@@ -1689,6 +1725,269 @@ class DesignSession:
         note = " ".join(x for x in (op_note, note) if x)
         return (" " + note) if note else ""
 
+    # ---- concepts (#46) ------------------------------------------------------------
+    def _design_snapshot(self) -> dict:
+        snap = {a: getattr(self, a) for a in DESIGN_ATTRS}
+        snap["concept_settings"] = self.settings.concept_data
+        return snap
+
+    def _load_design(self, snap: dict) -> None:
+        for a in DESIGN_ATTRS:
+            setattr(self, a, snap[a])
+        self.settings.concept_data = snap["concept_settings"]
+
+    def _blank_design(self) -> None:
+        from .settings import _empty
+
+        self._clear_all()
+        self.overrides = {}
+        self.scene_objects, self.active = [], None
+        self.last_structure = None
+        self.settings.concept_data = _empty()
+
+    def _concept(self, name: str) -> dict:
+        key = (name or "").strip().lower()
+        for c in self.concepts:
+            if key in (c["name"].lower(), c["letter"].lower(), f"concept {c['letter'].lower()}"):
+                return c
+        have = ", ".join(f"{c['name']} ({c['letter']})" for c in self.concepts) or "none yet"
+        raise ToolInputError(f"There is no concept {name!r}. Concepts: {have}")
+
+    def _active_entry(self) -> dict:
+        return next(c for c in self.concepts if c["name"] == self.active_concept)
+
+    def _ensure_concepts(self) -> bool:
+        """The design so far becomes Concept A. Returns True if it just did."""
+        if self.concepts:
+            return False
+        self.concepts = [{"name": "Concept A", "letter": "A", "slug": "Concept-A", "state": None, "versions": []}]
+        self.active_concept = "Concept A"
+        return True
+
+    def _switch_to(self, c: dict) -> None:
+        if c["name"] == self.active_concept:
+            return
+        cur = self._active_entry()
+        cur["state"] = self._design_snapshot()
+        self._load_design(c["state"])
+        c["state"] = None
+        self.active_concept = c["name"]
+
+    def _in_concept(self, c: dict, fn):
+        """Run fn() with concept c active, then go back to the concept that was active."""
+        back = self._active_entry()
+        if c is back:
+            return fn()
+        self._switch_to(c)
+        try:
+            return fn()
+        finally:
+            self._switch_to(back)
+
+    def _t_new_concept(self, name="", blank=False):
+        made_a = self._ensure_concepts()
+        if len(self.concepts) >= MAX_CONCEPTS:
+            raise ToolInputError(f"A project holds at most {MAX_CONCEPTS} concepts")
+        letter = next(chr(c) for c in range(ord("A"), ord("Z") + 1)
+                      if chr(c) not in {x["letter"] for x in self.concepts})
+        name = re.sub(r"\s+", " ", name or "").strip()[:60] or f"Concept {letter}"
+        if any(c["name"].lower() == name.lower() for c in self.concepts):
+            raise ToolInputError(f"There is already a concept called {name}")
+        from .components.export import safe_file_stem
+
+        slug = safe_file_stem(name)
+        while any(c["slug"] == slug for c in self.concepts):
+            slug += f"-{letter}"
+        cur = self._active_entry()
+        cur["state"] = self._design_snapshot()
+        if blank:
+            self._blank_design()
+        else:
+            self._load_design(copy.deepcopy(cur["state"]))
+        self.concepts.append({"name": name, "letter": letter, "slug": slug, "state": None, "versions": []})
+        self.active_concept = name
+        start = "an empty design" if blank else f"a copy of {cur['name']}"
+        first = f"The design so far is {cur['name']}. " if made_a else ""
+        return f"{first}Made {name} ({letter}), starting from {start}, and switched to it."
+
+    def _t_switch_concept(self, name):
+        c = self._concept(name)
+        self._switch_to(c)
+        what = self.method_summary or ("a model, no parts yet" if self._placed_meshes() else "nothing yet")
+        return f"Switched to {c['name']} ({c['letter']}): {what}."
+
+    def _concept_row(self, c: dict) -> dict:
+        def row():
+            boxes = [m.bbox() for _, m in self._placed_meshes()]
+            footprint = None
+            if boxes:
+                lo = [min(b[0][i] for b in boxes) for i in range(3)]
+                hi = [max(b[1][i] for b in boxes) for i in range(3)]
+                footprint = [round(hi[i] - lo[i], 2) for i in range(3)]
+            q = self.last_quote
+            hours = next((l["value"] for l in q["lines"] if l["key"] == "assembly_time"), None) if q else None
+            checks = self.brief_checks()
+            return {"name": c["name"], "letter": c["letter"], "active": c["name"] == self.active_concept,
+                    "method": self.method_summary, "footprint_mm": footprint,
+                    "parts": len(self._sheet_doc().parts) if self._sheet_doc() is not None else 0,
+                    "sheets": self.nested["sheet_count"] if self.nested else None,
+                    "build_hours": hours, "total": q["total"] if q else None,
+                    "currency": q["currency"] if q else None,
+                    "brief": {k: sum(1 for x in checks if x["status"] == k) for k in ("pass", "warn", "fail")},
+                    "versions": [v["version"] for v in c["versions"]]}
+        return self._in_concept(c, row)
+
+    def compare_concepts(self) -> List[dict]:
+        """Every concept's footprint, sheets, build hours, price and brief checks, from the engine."""
+        with self._lock:
+            return [self._concept_row(c) for c in self.concepts]
+
+    def _t_compare_concepts(self):
+        rows = self.compare_concepts()
+        if not rows:
+            return "There are no concepts yet: the project has one design. new_concept starts concept B."
+        lines = []
+        for r in rows:
+            fp = " x ".join(_mm(v) for v in r["footprint_mm"]) + " mm" if r["footprint_mm"] else "no model"
+            price = f"{r['total']} {r['currency']}" if r["total"] is not None else "no quote yet"
+            hours = f"{r['build_hours']} h" if r["build_hours"] is not None else "-"
+            b = r["brief"]
+            lines.append(f"- {r['name']} ({r['letter']}{', active' if r['active'] else ''}): {r['method'] or 'no parts'}; "
+                         f"footprint {fp}; sheets {r['sheets'] if r['sheets'] is not None else '-'}; build {hours}; "
+                         f"price {price}; brief {b['pass']} pass, {b['warn']} warn, {b['fail']} fail"
+                         + (f"; frozen v{', v'.join(map(str, r['versions']))}" if r["versions"] else ""))
+        return "Concepts (engine numbers):\n" + "\n".join(lines)
+
+    def _t_list_concepts(self):
+        if not self.concepts:
+            return "There are no concepts yet: the project has one design. new_concept starts concept B."
+        out = []
+        for c in self.concepts:
+            st = self._design_snapshot() if c["name"] == self.active_concept else c["state"]
+            q = st["last_quote"]
+            out.append(f"- {c['name']} ({c['letter']}){' [active]' if c['name'] == self.active_concept else ''}: "
+                       f"{st['method_summary'] or 'no parts'}; quote {q['total'] if q else 'none'}"
+                       f"{' ' + q['currency'] if q else ''}; frozen versions: "
+                       f"{', '.join('v' + str(v['version']) for v in c['versions']) or 'none'}")
+        return "Concepts:\n" + "\n".join(out)
+
+    def _concept_files(self, c: dict) -> Dict[str, Any]:
+        """The active concept as a saved-project folder: its files and manifest (no issued quotes)."""
+        files = self._project_files(c["name"])
+        files = {k: v for k, v in files.items()
+                 if not k.startswith((qv.QUOTES_DIR + "/", qv.INVOICES_DIR + "/"))}
+        listed = sorted(set(files) | {proj.MANIFEST})
+        m = self._manifest(c["name"], listed)
+        m["concept_settings"] = self.settings.concept_data
+        files[proj.MANIFEST] = json.dumps(m, indent=2) + "\n"
+        return files
+
+    def _t_freeze_concept(self, name=""):
+        self._ensure_concepts()
+        c = self._concept(name) if name else self._active_entry()
+
+        def freeze():
+            if not self._placed_meshes():
+                raise ToolInputError(f"{c['name']} has no model yet, so there is nothing to freeze")
+            q = self.last_quote
+            from .settings import now_iso
+
+            v = {"version": len(c["versions"]) + 1, "frozen_at": now_iso(), "files": self._concept_files(c),
+                 "total": q["total"] if q else None, "currency": q["currency"] if q else None}
+            c["versions"].append(v)
+            return v
+
+        v = self._in_concept(c, freeze)
+        folder = f"{CONCEPTS_DIR}/{c['slug']}/v{v['version']}"
+        if self.project is not None:
+            for rel, data in v["files"].items():
+                path = os.path.join(self.project["folder"], folder, rel)
+                if not os.path.exists(path):
+                    proj._write_atomic(path, data)
+        price = f" Its quote total is {v['total']} {v['currency']}." if v["total"] is not None else ""
+        return (f"Froze {c['name']} as v{v['version']} ({folder}/). This version never changes; later changes "
+                f"make v{v['version'] + 1} when frozen again.{price}")
+
+    def _concepts_files(self) -> Tuple[Dict[str, Any], Dict[str, Any], dict]:
+        """For save_project: the other concepts' current files, the frozen files, and the manifest entry."""
+        current: Dict[str, Any] = {}
+        frozen: Dict[str, Any] = {}
+        items = []
+        for c in self.concepts:
+            base = f"{CONCEPTS_DIR}/{c['slug']}"
+            cur_rel = None
+            if c["name"] != self.active_concept:
+                has_model = self._in_concept(c, lambda: bool(self._placed_meshes()))
+                if has_model:
+                    cur_rel = f"{base}/current"
+                    for rel, data in self._in_concept(c, lambda: self._concept_files(c)).items():
+                        current[f"{cur_rel}/{rel}"] = data
+            for v in c["versions"]:
+                for rel, data in v["files"].items():
+                    frozen[f"{base}/v{v['version']}/{rel}"] = data
+            items.append({"name": c["name"], "letter": c["letter"], "slug": c["slug"], "current": cur_rel,
+                          "versions": [{"version": v["version"], "frozen_at": v["frozen_at"], "total": v["total"],
+                                        "currency": v["currency"], "folder": f"{base}/v{v['version']}"}
+                                       for v in c["versions"]]})
+        return current, frozen, {"active": self.active_concept, "items": items}
+
+    def _concepts_info(self) -> dict:
+        items = []
+        for c in self.concepts:
+            st = self._design_snapshot() if c["name"] == self.active_concept else c["state"]
+            q = st["last_quote"]
+            items.append({"name": c["name"], "letter": c["letter"], "active": c["name"] == self.active_concept,
+                          "method": st["method_summary"], "total": q["total"] if q else None,
+                          "currency": q["currency"] if q else None, "versions": [v["version"] for v in c["versions"]]})
+        return {"active": self.active_concept, "items": items}
+
+    def _read_concepts(self, scratch: "DesignSession", directory: str, info) -> List[dict]:
+        """Rebuild the concepts that are not active (each into the scratch session in turn) and read the
+        frozen versions. Leaves the scratch session blank."""
+        if not isinstance(info, dict) or not isinstance(info.get("items"), list) or not all(
+                isinstance(i, dict) for i in info["items"]):
+            raise ProjectError(f"{proj.MANIFEST}: concepts must be {{active, items: [...]}}")
+        out = []
+        for item in info["items"][:MAX_CONCEPTS]:
+            name, letter, slug = item.get("name"), item.get("letter"), item.get("slug")
+            if not all(isinstance(x, str) and x for x in (name, letter, slug)) or proj._safe_rel(slug) is None:
+                raise ProjectError(f"{proj.MANIFEST}: every concept needs a name, letter and slug")
+            c = {"name": name, "letter": letter, "slug": slug, "state": None, "versions": []}
+            if name != info.get("active"):
+                from .settings import _clean_file
+
+                scratch._blank_design()
+                rel = item.get("current")
+                if rel is not None:
+                    sub = proj._safe_rel(rel)
+                    if sub is None:
+                        raise ProjectError(f"{proj.MANIFEST}: concept {name} names a folder outside the project")
+                    subdir = os.path.join(directory, sub)
+                    subm = proj.read_manifest(subdir)
+                    scratch.settings.concept_data = _clean_file(subm.get("concept_settings"))
+                    self._rebuild_design(scratch, subdir, subm)
+                c["state"] = scratch._design_snapshot()
+            for v in item.get("versions") or []:
+                folder = proj._safe_rel(v.get("folder", "")) if isinstance(v, dict) else None
+                if folder is None or not isinstance(v.get("version"), int):
+                    raise ProjectError(f"{proj.MANIFEST}: concept {name} has a broken frozen version")
+                vdir = os.path.join(directory, folder)
+                vm = proj.read_manifest(vdir)
+                files = {}
+                for rel in vm.get("files") or []:
+                    safe = proj._safe_rel(rel) if isinstance(rel, str) else None
+                    path = os.path.join(vdir, safe) if safe else None
+                    if path and os.path.isfile(path):
+                        with open(path, "rb") as fh:
+                            files[safe] = fh.read()
+                c["versions"].append({"version": v["version"], "frozen_at": str(v.get("frozen_at") or ""),
+                                      "total": v.get("total"), "currency": v.get("currency"), "files": files})
+            out.append(c)
+        scratch._blank_design()
+        if not any(c["name"] == info.get("active") for c in out):
+            raise ProjectError(f"{proj.MANIFEST}: the active concept {info.get('active')!r} is not listed")
+        return out
+
     # ---- part operations (operations.py) -------------------------------------------
     def _apply_operations(self, board: dict) -> str:
         """Apply this object's part operations to the parts its method just made. Returns a note for Claude."""
@@ -1972,12 +2271,25 @@ class DesignSession:
                     raise proj.ProjectChangedError(found["changed"] + found["missing"])
             previous = proj.check_writable(directory)
             files = self._project_files(clean)
+            frozen: Dict[str, Any] = {}
+            concepts = None
+            if self.concepts:
+                current, frozen, concepts = self._concepts_files()
+                files.update(current)
             if chat is not None:
                 files[proj.CHAT] = json.dumps(chat, ensure_ascii=False, indent=1) + "\n"
-            manifest_files = sorted(set(files) | {proj.MANIFEST} | (
+            manifest_files = sorted(set(files) | set(frozen) | {proj.MANIFEST} | (
                 {proj.CHAT} if os.path.isfile(os.path.join(directory, proj.CHAT)) else set()))
-            files[proj.MANIFEST] = json.dumps(self._manifest(clean, manifest_files), indent=2) + "\n"
-            proj.write_files(directory, files, previous)
+            manifest = self._manifest(clean, manifest_files)
+            if concepts is not None:
+                manifest["concepts"] = concepts
+                manifest["concept_settings"] = self.settings.concept_data
+            files[proj.MANIFEST] = json.dumps(manifest, indent=2) + "\n"
+            # Frozen versions are written once and never again.
+            for rel, data in frozen.items():
+                if not os.path.exists(os.path.join(directory, rel)):
+                    files[rel] = data
+            proj.write_files(directory, files, previous, keep=frozen)
             self.project = {"name": clean, "folder": directory, "saved_version": self.version,
                             "files": proj.fingerprint(directory, manifest_files)}
             return {"name": clean, "folder": directory, "files": manifest_files, "version": self.version}
@@ -2137,6 +2449,61 @@ class DesignSession:
             scratch.quote_versions, scratch.invoices = self._read_quotes(directory)
         except qv.QuoteError as exc:
             raise ProjectError(str(exc)) from None
+        concepts = []
+        if m.get("concepts") is not None:
+            concepts = self._read_concepts(scratch, directory, m["concepts"])
+            from .settings import _clean_file
+
+            scratch.settings.concept_data = _clean_file(m.get("concept_settings"))
+        rel = self._rebuild_design(scratch, directory, m)
+        scratch.concepts = concepts
+        scratch.active_concept = m["concepts"]["active"] if concepts else None
+        chat = proj.read_chat(directory)
+        with self._lock:
+            for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
+                         "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
+                         "generated", "scene_objects", "active", "scene_doc", "brief", "quote_versions", "invoices",
+                         "joint_counts", "cut_edges", "applied_ops", "concepts", "active_concept",
+                         "last_structure"):
+                setattr(self, attr, getattr(scratch, attr))
+            self.notes, self.notices = [], []
+            self.settings.project_data = scratch.settings.project_data
+            self.settings.concept_data = scratch.settings.concept_data
+            self.formulas.project_formulas = scratch.formulas.project_formulas
+            self.operations.project_operations = scratch.operations.project_operations
+            self.steps = []
+            self._log_step("open_project", True, f"Opened project {name} from {directory}")
+            self._bump()
+            listed = m.get("files") if isinstance(m.get("files"), list) else []
+            known = set(listed) | {proj.MANIFEST, proj.CHAT, rel}
+            self.project = {"name": name, "folder": directory, "saved_version": self.version,
+                            "files": proj.fingerprint(directory, known)}
+            return {"name": name, "folder": directory, "chat": chat, "version": self.version,
+                    "summary": m.get("summary")}
+
+    def locations(self) -> dict:
+        """Where projects and the library are saved on this Mac (see ``project.read_locations``)."""
+        return proj.read_locations(self.home, self.data_dir)
+
+    def set_locations(self, projects=None, library=None) -> dict:
+        """Change the projects and/or library location. An empty value goes back to the default."""
+        return proj.write_locations(self.home, self.data_dir, projects=projects, library=library)
+
+    def project_status(self) -> dict:
+        """Did the open project's files change on disk since this Mac saved or opened it?"""
+        with self._lock:
+            if self.project is None:
+                return {"project": None, "folder": None, "changed": [], "missing": [], "syncing": [],
+                        "conflicts": [], "outside_changes": False}
+            name, directory = self.project["name"], self.project["folder"]
+            known = dict(self.project.get("files") or {})
+        found = proj.outside_changes(directory, known)
+        found["outside_changes"] = bool(found["changed"] or found["missing"] or found["conflicts"])
+        return {"project": name, "folder": directory, **found}
+
+    def _rebuild_design(self, scratch: "DesignSession", directory: str, m: dict) -> str:
+        """Rebuild the design a manifest describes (model or scene, method, nesting, estimate) in the
+        scratch session, whose project settings are already loaded. Returns the model file's path."""
         recipe = m.get("recipe") or {}
         if not isinstance(recipe, dict):
             raise ProjectError(f"{proj.MANIFEST}: recipe must be an object")
@@ -2174,47 +2541,7 @@ class DesignSession:
                 # No prices yet: open the design without an estimate; Claude asks for them.
             except (ToolInputError, *INPUT_ERRORS) as exc:
                 raise ProjectError(f"{proj.MANIFEST}: the {tname} step could not run again: {exc}") from None
-        chat = proj.read_chat(directory)
-        with self._lock:
-            for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
-                         "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
-                         "generated", "scene_objects", "active", "scene_doc", "brief", "quote_versions", "invoices",
-                         "joint_counts", "cut_edges", "applied_ops"):
-                setattr(self, attr, getattr(scratch, attr))
-            self.notes, self.notices = [], []
-            self.settings.project_data = scratch.settings.project_data
-            self.settings.concept_data = scratch.settings.concept_data
-            self.formulas.project_formulas = scratch.formulas.project_formulas
-            self.operations.project_operations = scratch.operations.project_operations
-            self.steps = []
-            self._log_step("open_project", True, f"Opened project {name} from {directory}")
-            self._bump()
-            listed = m.get("files") if isinstance(m.get("files"), list) else []
-            known = set(listed) | {proj.MANIFEST, proj.CHAT, rel}
-            self.project = {"name": name, "folder": directory, "saved_version": self.version,
-                            "files": proj.fingerprint(directory, known)}
-            return {"name": name, "folder": directory, "chat": chat, "version": self.version,
-                    "summary": m.get("summary")}
-
-    def locations(self) -> dict:
-        """Where projects and the library are saved on this Mac (see ``project.read_locations``)."""
-        return proj.read_locations(self.home, self.data_dir)
-
-    def set_locations(self, projects=None, library=None) -> dict:
-        """Change the projects and/or library location. An empty value goes back to the default."""
-        return proj.write_locations(self.home, self.data_dir, projects=projects, library=library)
-
-    def project_status(self) -> dict:
-        """Did the open project's files change on disk since this Mac saved or opened it?"""
-        with self._lock:
-            if self.project is None:
-                return {"project": None, "folder": None, "changed": [], "missing": [], "syncing": [],
-                        "conflicts": [], "outside_changes": False}
-            name, directory = self.project["name"], self.project["folder"]
-            known = dict(self.project.get("files") or {})
-        found = proj.outside_changes(directory, known)
-        found["outside_changes"] = bool(found["changed"] or found["missing"] or found["conflicts"])
-        return {"project": name, "folder": directory, **found}
+        return rel
 
     @staticmethod
     def _read_applied(method: dict) -> List[dict]:
@@ -2583,6 +2910,7 @@ class DesignSession:
             "objects": self._objects_info(),
             "active_object": self.active,
             "brief": {"values": dict(self.brief), "checks": self.brief_checks()},
+            "concepts": self._concepts_info(),
             **self._quotes_info(),
         }
 
