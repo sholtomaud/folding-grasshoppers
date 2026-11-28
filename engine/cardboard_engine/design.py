@@ -197,14 +197,17 @@ TOOLS: List[dict] = [
         "Unfold the model's flat faces into nets with fold (score) lines, joints on the cut edges and matching "
         "edge numbers. Best for faceted models such as boxes, pyramids, low-segment shapes. Replaces previous "
         "parts. Joints: glue_tab (default), tuck_flap (no glue: a flap that tucks behind the next panel), "
-        "lock_tab (no glue: a barbed tab that locks into a slit cut in the next panel). Tuck flaps and lock tabs "
-        "are sized from the board thickness, clearance and kerf.",
+        "lock_tab (no glue: a barbed tab that locks into a slit cut in the next panel), jigsaw_edge (no glue: "
+        "dovetail teeth and matching sockets for a flat seam). They are sized from the board thickness, clearance "
+        "and kerf. edge_joints picks a joint (or none) for single edges by the number printed on both sides.",
         {
             "tab_width_mm": _num("Flap width (depth) in mm; 0 for no joints", 8.0),
             "tab_angle_deg": _num("Slope of the flap sides in degrees (0-90)", 45.0),
             "flat_angle_deg": _num("Folds flatter than this many degrees are not scored", 1.0),
-            "joint": {"type": "string", "enum": ["glue_tab", "tuck_flap", "lock_tab"], "default": "glue_tab",
-                      "description": "How cut edges are joined"},
+            "joint": {"type": "string", "enum": ["glue_tab", "tuck_flap", "lock_tab", "jigsaw_edge"],
+                      "default": "glue_tab", "description": "How cut edges are joined"},
+            "edge_joints": {"type": "object", "description": "Joints for single edges, by edge number, e.g. "
+                                                            "{\"3\": \"jigsaw_edge\", \"5\": \"none\"}"},
             "thickness_mm": _num("Board thickness in mm", 3.0),
             "clearance_mm": _num("Extra slit size in mm", 0.2),
             "kerf_mm": _num("Cutter width in mm", 0.0),
@@ -1551,13 +1554,18 @@ class DesignSession:
         return f"Contour stack: {self._parts_text(r.parts)}" + self._after_method()
 
     def _t_unfold(self, tab_width_mm=8.0, tab_angle_deg=45.0, flat_angle_deg=1.0, joint="glue_tab",
-                  thickness_mm=3.0, clearance_mm=0.2, kerf_mm=0.0):
+                  thickness_mm=3.0, clearance_mm=0.2, kerf_mm=0.0, edge_joints=None):
+        per_edge = {}
+        for k, v in (edge_joints or {}).items():
+            if not (isinstance(k, str) and k.isdigit()) and not (isinstance(k, int) and not isinstance(k, bool)):
+                raise ToolInputError(f"edge_joints keys must be an edge number, like \"3\" (got {k!r})")
+            per_edge[int(k)] = v
         r = unfold(self._need_model(), UnfoldInput(tab_width=tab_width_mm, tab_angle=tab_angle_deg,
                                                   flat_angle=flat_angle_deg, joint=joint, thickness=thickness_mm,
-                                                  clearance=clearance_mm, kerf=kerf_mm))
+                                                  clearance=clearance_mm, kerf=kerf_mm, edge_joints=per_edge))
         self._clear_parts()
         self.method, self.parts = "unfold", PartsDoc(parts=r.parts)
-        if joint != "glue_tab":
+        if joint != "glue_tab" or per_edge:
             self.board_thickness = thickness_mm
         joints = self._joints_text(r)
         self.method_summary = f"unfold, {len(r.parts)} net(s) from {r.face_count} faces, {joints}"
@@ -1568,6 +1576,10 @@ class DesignSession:
                      f"{_mm(z['slot_width_drawn_mm'])} mm as drawn, {_mm(z['slot_inset_mm'])} mm inside the next "
                      f"panel's edge, barbs {_mm(z['barb_mm'])} mm each side, on {_mm(thickness_mm)} mm board. "
                      "Cut a test pair before a full run. ")
+        if r.joint_counts.get("jigsaw_edge"):
+            z = r.joint_sizes
+            text += (f"Jigsaw teeth: neck {_mm(z['tooth_neck_mm'])} mm, head {_mm(z['tooth_head_mm'])} mm, depth "
+                     f"{_mm(z['tooth_depth_mm'])} mm, sockets {_mm(clearance_mm)} mm wider once cut. ")
         return text + self._parts_text(r.parts) + self._after_method()
 
     @staticmethod

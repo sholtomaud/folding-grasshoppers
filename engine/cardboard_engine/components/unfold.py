@@ -20,6 +20,13 @@
      kerf narrower, so the cut parts have the nominal sizes; the head stands
      proud of the slit by half a board thickness each side, which the board
      compresses to pass. A lock tab that does not fit falls back to a glue tab.
+   - ``jigsaw_edge``: dovetail teeth on one side and matching sockets cut
+     into the other, for a flat seam with no glue. Teeth are drawn kerf / 2
+     bigger all round and sockets kerf / 2 smaller, so once cut each socket
+     is the clearance wider (and half the clearance deeper) than its tooth.
+
+   ``edge_joints`` picks a different joint (or ``none``) for single edges, by
+   the number printed on both sides of the edge.
 
 Net ids are N1, N2... largest first.
 """
@@ -41,8 +48,8 @@ Vec = Tuple[float, float, float]
 P2 = Tuple[float, float]
 
 MAX_FACES = 20_000
-JOINTS = ("glue_tab", "tuck_flap", "lock_tab")
-JOINT_NAMES = {"glue_tab": "glue tab", "tuck_flap": "tuck flap", "lock_tab": "lock tab"}
+JOINTS = ("glue_tab", "tuck_flap", "lock_tab", "jigsaw_edge")
+JOINT_NAMES = {"glue_tab": "glue tab", "tuck_flap": "tuck flap", "lock_tab": "lock tab", "jigsaw_edge": "jigsaw edge"}
 
 
 class UnfoldError(ValueError):
@@ -55,6 +62,7 @@ class UnfoldInput:
     tab_angle: float = 45.0  # degrees, slope of the tab's sides
     flat_angle: float = 1.0  # degrees; folds flatter than this are not scored
     joint: str = "glue_tab"  # one of JOINTS
+    edge_joints: Dict[int, str] = field(default_factory=dict)  # edge number -> joint, or "none"
     thickness: float = 3.0  # mm, board (sizes tuck flaps and lock tabs)
     clearance: float = 0.2  # mm, extra slit size
     kerf: float = 0.0  # mm, cutter width
@@ -68,6 +76,7 @@ class UnfoldResult:
     joint_counts: Dict[str, int] = field(default_factory=dict)
     joints: List[dict] = field(default_factory=list)  # one per joint: kind, edge, flap, slot...
     joint_sizes: Dict[str, float] = field(default_factory=dict)
+    edge_numbers: List[int] = field(default_factory=list)  # the cut edges, as numbered on the parts
 
 
 def validate(inp: UnfoldInput) -> None:
@@ -78,6 +87,11 @@ def validate(inp: UnfoldInput) -> None:
             errors.append(f"{label} must be a finite number")
     if inp.joint not in JOINTS:
         errors.append(f"joint must be one of {', '.join(JOINTS)} (got {inp.joint!r})")
+    for k, v in (inp.edge_joints or {}).items():
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            errors.append(f"edge_joints keys are edge numbers (got {k!r})")
+        if v not in JOINTS + ("none",):
+            errors.append(f"The joint for edge {k} must be one of {', '.join(JOINTS)} or none (got {v!r})")
     for name, label in (("thickness", "Board thickness"), ("clearance", "Clearance"), ("kerf", "Kerf")):
         v = getattr(inp, name)
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
@@ -295,7 +309,11 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
     counts: Dict[str, int] = {}
     joints: List[dict] = []
     slots: Dict[int, List[List[P2]]] = {n: [] for n in range(len(nets))}
-    sizes = _lock_sizes(inp) if inp.joint == "lock_tab" else {}
+    cutaways: Dict[int, List[List[P2]]] = {n: [] for n in range(len(nets))}
+    edge_numbers: List[int] = []
+    used = {inp.joint, *inp.edge_joints.values()}
+    sizes = {**(_lock_sizes(inp) if "lock_tab" in used else {}),
+             **(_jigsaw_sizes(inp) if "jigsaw_edge" in used else {})}
     edge_number = 0
     cut_marks: Dict[int, List[Text]] = {n: [] for n in range(len(nets))}
     tab_polys: Dict[int, List[List[P2]]] = {n: [] for n in range(len(nets))}
@@ -325,41 +343,65 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
         if len(sides) < 2:
             continue  # open mesh boundary: just cut, nothing to glue
         edge_number += 1
+        edge_numbers.append(edge_number)
+        kind = inp.edge_joints.get(edge_number, inp.joint)
+        # Clear of jigsaw sockets, which are cut into the panel.
+        inset = text_size * 0.9 + (sizes["tooth_depth_mm"] + inp.clearance if kind == "jigsaw_edge" else 0)
         for fi, n, pa, pb in sides:
-            cut_marks[n].append(Text(str(edge_number), _inset(pa, pb, text_size * 0.9), text_size))
-        if inp.tab_width > 0:
-            placed = None
-            if inp.joint == "lock_tab":
-                for (fi, n, pa, pb), (fo, no, oa, ob) in (tuple(sides), tuple(reversed(sides))):
-                    lock = _lock_tab(pa, pb, inp, sizes)
-                    if lock is None or _overlaps(lock[0], net_polys[n] + tab_polys[n]):
-                        continue
-                    slot = _slit(oa, ob, sizes)  # inside the other side's face
-                    region = _flat_region(no, fo, nets, faces, pos, normals, verts)
-                    if not _within(slot, region) or any(_overlaps(slot, [q]) for q in slots[no]):
-                        continue
-                    tab_polys[n].append(lock[0])
+            cut_marks[n].append(Text(str(edge_number), _inset(pa, pb, inset), text_size))
+        placed = None
+        if kind == "jigsaw_edge":
+            for (fi, n, pa, pb), (fo, no, oa, ob) in (tuple(sides), tuple(reversed(sides))):
+                teeth, sockets = _jigsaw(pa, pb, oa, ob, inp, sizes)
+                if not teeth or any(_overlaps(q, net_polys[n] + tab_polys[n]) for q in teeth):
+                    continue
+                region = _flat_region(no, fo, nets, faces, pos, normals, verts)
+                if not all(_within(_clip_to_inside(q, oa, ob), region) for q in sockets):
+                    continue
+                tab_polys[n].extend(teeth)
+                cutaways[no].extend(sockets)
+                placed = kind
+                joints.append({"kind": kind, "number": edge_number, "edge": [pa, pb], "teeth": teeth,
+                               "sockets": sockets, "socket_edge": [oa, ob], "tab_net": n, "slot_net": no})
+                break
+        elif kind == "lock_tab" and inp.tab_width > 0:
+            for (fi, n, pa, pb), (fo, no, oa, ob) in (tuple(sides), tuple(reversed(sides))):
+                lock = _lock_tab(pa, pb, inp, sizes)
+                if lock is None or _overlaps(lock[0], net_polys[n] + tab_polys[n]):
+                    continue
+                slot = _slit(oa, ob, sizes)  # inside the other side's face
+                region = _flat_region(no, fo, nets, faces, pos, normals, verts)
+                if not _within(slot, region) or any(_overlaps(slot, [q]) for q in slots[no]):
+                    continue
+                tab_polys[n].append(lock[0])
+                scores[n].append([pa, pb])
+                slots[no].append(slot)
+                placed = kind
+                joints.append({"kind": kind, "number": edge_number, "edge": [pa, pb], "flap": lock[0],
+                               "slot": slot, "slot_face": max(region, key=lambda q: abs(_area2(q))),
+                               "slot_edge": [oa, ob], "tab_net": n, "slot_net": no})
+                break
+        if placed is None and kind != "none" and inp.tab_width > 0:
+            flap_kind = "tuck_flap" if kind == "tuck_flap" else "glue_tab"
+            for fi, n, pa, pb in sides:
+                tab = (_tuck(pa, pb, inp.tab_width, inp.tab_angle, inp.thickness) if flap_kind == "tuck_flap"
+                       else _tab(pa, pb, inp.tab_width, inp.tab_angle))
+                if tab is not None and not _overlaps(tab, net_polys[n] + tab_polys[n]):
+                    tab_polys[n].append(tab)
                     scores[n].append([pa, pb])
-                    slots[no].append(slot)
-                    placed = "lock_tab"
-                    joints.append({"kind": "lock_tab", "edge": [pa, pb], "flap": lock[0], "slot": slot,
-                                   "slot_face": max(region, key=lambda q: abs(_area2(q))),
-                                   "slot_edge": [oa, ob], "tab_net": n, "slot_net": no})
+                    placed = flap_kind
+                    joints.append({"kind": flap_kind, "number": edge_number, "edge": [pa, pb], "flap": tab,
+                                   "tab_net": n})
                     break
-            if placed is None:
-                kind = "tuck_flap" if inp.joint == "tuck_flap" else "glue_tab"
-                for fi, n, pa, pb in sides:
-                    tab = (_tuck(pa, pb, inp.tab_width, inp.tab_angle, inp.thickness) if kind == "tuck_flap"
-                           else _tab(pa, pb, inp.tab_width, inp.tab_angle))
-                    if tab is not None and not _overlaps(tab, net_polys[n] + tab_polys[n]):
-                        tab_polys[n].append(tab)
-                        scores[n].append([pa, pb])
-                        placed = kind
-                        joints.append({"kind": kind, "edge": [pa, pb], "flap": tab, "tab_net": n})
-                        break
-            if placed is not None:
+        if placed is not None:
+            if placed != "jigsaw_edge":
                 tab_count += 1
-                counts[placed] = counts.get(placed, 0) + 1
+            counts[placed] = counts.get(placed, 0) + 1
+
+    unknown = sorted(k for k in inp.edge_joints if k not in edge_numbers)
+    if unknown:
+        raise UnfoldError(f"There is no cut edge {', '.join(map(str, unknown))}; the cut edges are numbered "
+                          f"1 to {len(edge_numbers)} on the parts")
 
     order = sorted(range(len(nets)), key=lambda n: -sum(face_area[f] for f in nets[n]))
     ids = {n: f"N{rank}" for rank, n in enumerate(order, start=1)}
@@ -370,6 +412,8 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
     for rank, n in enumerate(order, start=1):
         shapes = regions_from_loops(net_polys[n])  # faces are disjoint; even-odd is fine
         loops = _union(net_polys[n] + tab_polys[n])
+        if cutaways[n]:
+            loops = _difference(loops, cutaways[n])
         pid = f"N{rank}"
         parts.append(
             Part(
@@ -382,7 +426,7 @@ def unfold(mesh: Mesh, inp: UnfoldInput) -> UnfoldResult:
             )
         )
     return UnfoldResult(parts=parts, face_count=len(faces), tab_count=tab_count, joint_counts=counts,
-                        joints=joints, joint_sizes=sizes)
+                        joints=joints, joint_sizes=sizes, edge_numbers=edge_numbers)
 
 
 def _union(polys) -> List[List[P2]]:
@@ -507,3 +551,65 @@ def _within(poly: List[P2], region: List[List[P2]]) -> bool:
         pc.AddPath([(int(round(x * SCALE)), int(round(y * SCALE))) for x, y in r], pyclipper.PT_CLIP, True)
     left = pc.Execute(pyclipper.CT_DIFFERENCE, pyclipper.PFT_NONZERO, pyclipper.PFT_NONZERO)
     return not left
+
+
+def _jigsaw_sizes(inp: UnfoldInput) -> Dict[str, float]:
+    t = inp.thickness
+    return {"tooth_neck_mm": 2 * t, "tooth_head_mm": 3 * t, "tooth_depth_mm": 2 * t, "tooth_pitch_mm": 9 * t,
+            "jigsaw_clearance_mm": inp.clearance, "kerf_mm": inp.kerf, "thickness_mm": t}
+
+
+def _jigsaw(pa: P2, pb: P2, oa: P2, ob: P2, inp: UnfoldInput, sizes: Dict[str, float]):
+    """(teeth on pa -> pb, sockets inside the other side's edge oa -> ob), tooth by tooth; ([], []) if too short."""
+    l, at = _frame(pa, pb)
+    lo, at_o = _frame(oa, ob)
+    t, c, k = inp.thickness, inp.clearance, inp.kerf
+    neck, head, depth = sizes["tooth_neck_mm"], sizes["tooth_head_mm"], sizes["tooth_depth_mm"]
+    count = int((l - 2 * t) // sizes["tooth_pitch_mm"])
+    if count < 1:
+        return [], []
+    slope = (head - neck) / depth  # width gained per mm of depth, the same for teeth and sockets
+    eps = 0.001  # sockets start just outside the edge, so no sliver is left
+    teeth, sockets = [], []
+    for i in range(count):
+        u = (i + 0.5) * l / count
+        td = depth + k / 2
+        tw0, tw1 = neck + k, neck + k + slope * td
+        teeth.append([at(u - tw0 / 2, 0), at(u - tw1 / 2, td), at(u + tw1 / 2, td), at(u + tw0 / 2, 0)])
+        sd = depth + c / 2 - k / 2
+        sw0, sw1 = neck + c - k - slope * eps, neck + c - k + slope * sd
+        uo = lo - u  # the other side runs the edge the other way
+        sockets.append([at_o(uo + sw0 / 2, eps), at_o(uo + sw1 / 2, -sd), at_o(uo - sw1 / 2, -sd),
+                        at_o(uo - sw0 / 2, eps)])
+    return teeth, sockets
+
+
+def _clip_to_inside(poly: List[P2], pa: P2, pb: P2) -> List[P2]:
+    """A socket without the hair that reaches past its edge (for the inside-the-panel check)."""
+    l, at = _frame(pa, pb)
+    out = []
+    for p in poly:
+        u, v = _uv(pa, pb, p)
+        out.append(at(u, min(v, 0.0)))
+    return out
+
+
+def _uv(pa: P2, pb: P2, p: P2) -> P2:
+    l = math.dist(pa, pb)
+    ux, uy = (pb[0] - pa[0]) / l, (pb[1] - pa[1]) / l
+    nx, ny = _outward(pa, pb)
+    dx, dy = p[0] - pa[0], p[1] - pa[1]
+    return dx * ux + dy * uy, dx * nx + dy * ny
+
+
+def _difference(loops: List[List[P2]], cut: List[List[P2]]) -> List[List[P2]]:
+    pc = pyclipper.Pyclipper()
+    for p in loops:
+        pc.AddPath([(int(round(x * SCALE)), int(round(y * SCALE))) for x, y in p], pyclipper.PT_SUBJECT, True)
+    for p in cut:
+        q = [(int(round(x * SCALE)), int(round(y * SCALE))) for x, y in p]
+        if not pyclipper.Orientation(q):
+            q.reverse()
+        pc.AddPath(q, pyclipper.PT_CLIP, True)
+    out = pc.Execute(pyclipper.CT_DIFFERENCE, pyclipper.PFT_NONZERO, pyclipper.PFT_NONZERO)
+    return [[(x / SCALE, y / SCALE) for x, y in path] for path in out]
