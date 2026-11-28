@@ -188,6 +188,7 @@ What the assistant can do:
 | waffle / ribs | interlocking slotted ribs |
 | contour stack / layers | stacked, glued layers with alignment etching |
 | unfold / net / papercraft | folding nets with glue tabs (needs a faceted model, for example a cone with 8 sides) |
+| glue-free joints ("lock tabs on 3 mm board") | unfold with **tuck flaps** (they stop one board thickness short of each corner and tuck behind the next panel) or **lock tabs**: a barbed tab and a slit cut in the next panel, sized from the board thickness, clearance and kerf. Cut a test pair first |
 | nest on sheets of W × H mm | lays the parts on as few sheets as possible |
 | cost / time | measures cut length, score length and pierces, and works out machine time and cost |
 | export DXF or SVG | writes one file per sheet into `~/Documents/Fold Theory/` (or a folder you name inside your home folder) |

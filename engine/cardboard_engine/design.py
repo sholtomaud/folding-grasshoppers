@@ -194,12 +194,20 @@ TOOLS: List[dict] = [
     ),
     _tool(
         "unfold",
-        "Unfold the model's flat faces into nets with fold (score) lines, glue tabs and matching edge numbers. "
-        "Best for faceted models such as boxes, pyramids, low-segment shapes. Replaces previous parts.",
+        "Unfold the model's flat faces into nets with fold (score) lines, joints on the cut edges and matching "
+        "edge numbers. Best for faceted models such as boxes, pyramids, low-segment shapes. Replaces previous "
+        "parts. Joints: glue_tab (default), tuck_flap (no glue: a flap that tucks behind the next panel), "
+        "lock_tab (no glue: a barbed tab that locks into a slit cut in the next panel). Tuck flaps and lock tabs "
+        "are sized from the board thickness, clearance and kerf.",
         {
-            "tab_width_mm": _num("Glue tab width in mm; 0 for no tabs", 8.0),
-            "tab_angle_deg": _num("Slope of the tab sides in degrees (0-90)", 45.0),
+            "tab_width_mm": _num("Flap width (depth) in mm; 0 for no joints", 8.0),
+            "tab_angle_deg": _num("Slope of the flap sides in degrees (0-90)", 45.0),
             "flat_angle_deg": _num("Folds flatter than this many degrees are not scored", 1.0),
+            "joint": {"type": "string", "enum": ["glue_tab", "tuck_flap", "lock_tab"], "default": "glue_tab",
+                      "description": "How cut edges are joined"},
+            "thickness_mm": _num("Board thickness in mm", 3.0),
+            "clearance_mm": _num("Extra slit size in mm", 0.2),
+            "kerf_mm": _num("Cutter width in mm", 0.0),
         },
     ),
     _tool(
@@ -1542,14 +1550,38 @@ class DesignSession:
         self.method_summary = f"contour stack, {len(r.parts)} layers of {_mm(thickness_mm)} mm board along {axis}"
         return f"Contour stack: {self._parts_text(r.parts)}" + self._after_method()
 
-    def _t_unfold(self, tab_width_mm=8.0, tab_angle_deg=45.0, flat_angle_deg=1.0):
+    def _t_unfold(self, tab_width_mm=8.0, tab_angle_deg=45.0, flat_angle_deg=1.0, joint="glue_tab",
+                  thickness_mm=3.0, clearance_mm=0.2, kerf_mm=0.0):
         r = unfold(self._need_model(), UnfoldInput(tab_width=tab_width_mm, tab_angle=tab_angle_deg,
-                                                  flat_angle=flat_angle_deg))
+                                                  flat_angle=flat_angle_deg, joint=joint, thickness=thickness_mm,
+                                                  clearance=clearance_mm, kerf=kerf_mm))
         self._clear_parts()
         self.method, self.parts = "unfold", PartsDoc(parts=r.parts)
-        self.method_summary = f"unfold, {len(r.parts)} net(s) from {r.face_count} faces, {r.tab_count} glue tabs"
-        return f"Unfold: {len(r.parts)} net(s), {r.tab_count} glue tabs. " + self._parts_text(r.parts) + \
-            self._after_method()
+        if joint != "glue_tab":
+            self.board_thickness = thickness_mm
+        joints = self._joints_text(r)
+        self.method_summary = f"unfold, {len(r.parts)} net(s) from {r.face_count} faces, {joints}"
+        text = f"Unfold: {len(r.parts)} net(s), {joints}. "
+        if r.joint_counts.get("lock_tab"):
+            z = r.joint_sizes
+            text += (f"Lock tabs: neck {_mm(z['neck_mm'])} mm, slot {_mm(z['slot_length_drawn_mm'])} x "
+                     f"{_mm(z['slot_width_drawn_mm'])} mm as drawn, {_mm(z['slot_inset_mm'])} mm inside the next "
+                     f"panel's edge, barbs {_mm(z['barb_mm'])} mm each side, on {_mm(thickness_mm)} mm board. "
+                     "Cut a test pair before a full run. ")
+        return text + self._parts_text(r.parts) + self._after_method()
+
+    @staticmethod
+    def _joints_text(r) -> str:
+        from .components.unfold import JOINT_NAMES
+
+        if not r.joint_counts:
+            return "no joints"
+        out = []
+        for kind, n in r.joint_counts.items():
+            name = JOINT_NAMES[kind]
+            out.append(f"{n} {name}{'s' if n != 1 else ''}" + (f" with {n} slot{'s' if n != 1 else ''}"
+                                                                 if kind == "lock_tab" else ""))
+        return ", ".join(out)
 
     def _after_method(self) -> str:
         """Apply the Rhino hand edits that still fit to the parts a method just made."""
