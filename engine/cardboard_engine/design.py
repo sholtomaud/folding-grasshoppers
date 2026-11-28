@@ -40,13 +40,14 @@ from . import scene as sc
 from . import brief as bf
 from . import structure as st
 from . import quotes as qv
+from . import operations as ops
 from .rhino_sync import Override
 from .project import ProjectError
 from .settings import BUILTIN_DEFINITIONS, SettingsError, SettingsStore, definition_from, field_for_form
 from .views import ACTIONS, BLOCK_TYPES, ViewError, ViewStore, static_catalog
 from .workflow import WorkflowError, WorkflowStore
 
-VALIDATION_ERRORS = (SettingsError, FormulaError, ViewError, WorkflowError)
+VALIDATION_ERRORS = (SettingsError, FormulaError, ViewError, WorkflowError, ops.OperationError)
 INPUT_ERRORS = (
     GeometryError, MeshFileError, ShapeError, PartsError, WaffleError, ContourError,
     NestError, UnfoldError, ExportError, CutEstimateError, ProjectError, sc.SceneError, bf.BriefError, st.StructureError, qv.QuoteError,
@@ -63,7 +64,7 @@ MAX_FORM_FIELDS = 12
 WORKFLOW_TOOLS = {"list_workflows", "save_workflow", "use_workflow", "set_workflow_defaults"}
 # Tools for settings, formulas, views and diagnostics: they do not change the design.
 SETUP_TOOLS = {"request_inputs", "get_settings", "add_formula", "list_formulas", "list_views", "save_view",
-               "read_diagnostics"}
+               "read_diagnostics", "add_operation", "list_operations"}
 # Tools that do not change the design: a saved project stays saved.
 READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_objects", "select_object",
                     "check_brief", "check_structure", "list_quotes"} | WORKFLOW_TOOLS | SETUP_TOOLS)
@@ -72,7 +73,7 @@ READ_ONLY_TOOLS = ({"model_info", "export_cut_files", "save_project", "list_obje
 BRIEF_TOOLS = {"set_brief", "check_brief", "check_structure", "issue_quote", "make_invoice", "list_quotes"}
 # Scene (#43): tools that take an optional object name, and the scene tools themselves.
 OBJECT_TOOLS = ("create_shape", "load_model_file", "scale_model", "model_info", "waffle_slice", "contour_stack",
-                "unfold", "clear_rhino_override", "check_structure")
+                "unfold", "clear_rhino_override", "check_structure", "apply_operation", "undo_operation")
 MODEL_TOOLS = {"create_shape", "load_model_file", "scale_model"}
 METHOD_TOOLS = {"waffle_slice", "contour_stack", "unfold"}
 SHEET_GAP_MM = 100.0  # between sheets laid side by side for Rhino
@@ -105,6 +106,7 @@ Keep replies short and plain. If a request is ambiguous in a way that changes th
 Numbers: you never calculate. Never do arithmetic yourself: no totals, sums, conversions, rough estimates or "about" figures. Every number that matters (sheets, machine time, costs, margin, GST, the quote total) is worked out by the engine from the settings and its formulas, and the app shows the quote in the Project tab. Repeat a number only exactly as a tool gave it, or point the designer to the Project tab; the app marks any amount or quantity in your reply that no tool gave as unverified.
 Prices, rates, margin and GST are settings, never tool inputs. When a tool says a setting is missing, call request_inputs with those keys, then stop and wait: the designer fills in a form in the chat and their answer arrives as their next message. You are told which values were set, not the numbers. Never guess a price. get_settings shows what is set and where each value comes from (Fold Theory defaults, the workflow, this project).
 When a quote needs a new kind of line (glue per joint, install crew hours, freight), add it with add_formula: an expression over settings and measurements, with a worked example the engine checks. Ask for any new value with request_inputs first (it can define a new field). Formulas use + - * / ^, min, max, round, ceil, floor, abs, if, sum and count, and units are checked.
+When a design needs a kind of cut the methods do not make (a lock tab for a skin, a hand hole, a cable notch, a slot), you can make the geometry tool yourself: add_operation saves a part operation, a JSON document built from the engine's profiles (rectangle, slot, circle, polyline, arc, barb, tooth), placed on an edge, at a point of a part or on the matching edge of the neighbouring part, and added, cut, scored or etched. Its sizes are expressions over the board (thickness, clearance, kerf) and the edge, with min and max, and it carries a worked example the engine checks. Then apply_operation applies it to unfold edges by number, or to a part; list_operations shows the built-in and saved ones (lock_tab and hand_hole are built in) and undo_operation takes the last one off. Applied operations are kept through re-runs (a new board thickness resizes them) and saved with the project. Ask the designer before adding one for all projects.
 The app's tabs are JSON views (list_views shows the block types and bindings). When the designer wants a new tab, table or form, build it with save_view; the engine rejects a view that uses an unknown block, binding or action and says why.
 To find out why something went wrong (Grasshopper, Rhino, a form, a view, a tool), call read_diagnostics and answer from what it shows.
 
@@ -508,6 +510,48 @@ TOOLS += [
     ),
     _tool("list_quotes", "List the issued quote versions and invoices of this project.", {}),
 ]
+TOOLS += [
+    _tool(
+        "add_operation",
+        "Save a part operation: a new geometry tool for this project (or all projects), as a JSON document "
+        "(foldtheory.operation/1) built only from the engine's primitives. {key, label, description, target: edge "
+        "or part, params: {name: {unit: mm or count, default, min, max}}, steps: [{profile, place, combine, on}], "
+        "example}. Expressions (plain numbers, lengths in mm) use thickness, clearance, kerf, edge_length, "
+        "part_width, part_height and earlier params, with + - * / min max round ceil floor abs if. Profiles: "
+        "rectangle {width, height}, slot {length, width}, circle {diameter, segments}, polyline {points: [[u, v]], "
+        "closed}, arc {radius, sweep, segments}, barb {neck, neck_length, head, head_length}, tooth {neck, head, "
+        "depth}; anchor base (edges) or center (parts). On an edge u runs along it from its start and v points "
+        "out of the part; place: at (mm from start, default the middle), every (pitch) or count, margin, offset "
+        "(mm inward, negative outward), side out or in. On a part place: x, y (mm from the lower left; default "
+        "the centre). combine: add, cut, score or etch. on: part, or mate (the matching edge of the neighbouring "
+        "part, mirrored onto it). example: {part: {width, height}, board: {thickness, clearance, kerf}, inputs, "
+        "expect: {area_mm2, cut_loops, cut_length_mm, score_count, mate_area_mm2, mate_cut_loops...}}: the test "
+        "part, and for edges a mate part across its bottom edge. The engine checks the example and the results "
+        "(closed outlines, cuts that do not split a part, slots no narrower than the board) and says why it "
+        "refuses one. Only after the designer agrees.",
+        {"operation": {"type": "object", "description": "The operation document"},
+         "scope": {"type": "string", "enum": ["project", "all"], "default": "project"}},
+        required=["operation"],
+    ),
+    _tool("list_operations", "List the part operations (built in and saved) with their parameters, and the ones "
+                             "applied to this design.", {}),
+    _tool(
+        "apply_operation",
+        "Apply a part operation to the parts: to unfold edges by the number printed on both sides of the cut "
+        "(edges, or all_edges for every edge without a joint), to an outline segment of a part (part and "
+        "segment), or to a part (part). inputs override its parameter defaults. It stays in the recipe, so it is "
+        "applied again when the method runs (a new board thickness resizes it) and when the project opens. "
+        "Rhino hand edits still win. Nothing changes if it does not fit.",
+        {"operation": {"type": "string", "description": "Operation key, e.g. lock_tab"},
+         "edges": {"type": "array", "items": {"type": "integer"}, "description": "Unfold edge numbers"},
+         "all_edges": {"type": "boolean", "default": False, "description": "Every cut edge without a joint"},
+         "part": {"type": "string", "description": "Part id, e.g. N1 or X3"},
+         "segment": {"type": "integer", "minimum": 0, "description": "With part: outline segment number"},
+         "inputs": {"type": "object", "description": "{parameter: number} in the parameter's unit"}},
+        required=["operation"],
+    ),
+    _tool("undo_operation", "Take the last applied part operation off the parts.", {}),
+]
 for _t in TOOLS:
     if _t["name"] in OBJECT_TOOLS:
         _t["input_schema"]["properties"]["object"] = dict(_OBJ)
@@ -614,6 +658,7 @@ class DesignSession:
         self.settings.on_change = self._settings_changed
         self.formulas = FormulaStore(home, lambda: self.project["folder"] if self.project else None,
                                      self.field_units)
+        self.operations = ops.OperationStore(home, lambda: self.project["folder"] if self.project else None)
         self.views = ViewStore(home, lambda: self.project["folder"] if self.project else None,
                                self.view_catalog, self.binding_data, self._view_rejected)
         self.forms: Dict[str, dict] = {}
@@ -644,6 +689,8 @@ class DesignSession:
         self.model: Optional[Mesh] = None
         self.model_name: Optional[str] = None
         self.recipe: Dict[str, Any] = {}
+        # Part operations applied to this object's parts (#71): re-applied every time the method runs.
+        self.applied_ops: List[dict] = []
         self._clear_parts()
 
     def _clear_parts(self) -> None:
@@ -654,6 +701,7 @@ class DesignSession:
         self.generated: Dict[str, Any] = {}  # the parts as the method made them, before hand edits
         self.board_thickness: float = 0.0
         self.joint_counts: Dict[str, int] = {}  # unfold: joints made, by type
+        self.cut_edges: List[dict] = []  # unfold: every cut edge and its two sides
         self.nested: Optional[dict] = None
         self.last_estimate: Optional[dict] = None
         self.last_quote = None
@@ -676,6 +724,7 @@ class DesignSession:
             self.project = None
             self.settings.clear_project()
             self.formulas.clear_project()
+            self.operations.clear_project()
             self.forms = {}
             self._bump()
 
@@ -1125,6 +1174,10 @@ class DesignSession:
             self.recipe = {}
         elif name in METHOD_TOOLS:
             self.recipe = {"method": {"tool": name, "input": dict(checked)}}
+            if self.applied_ops:
+                self.recipe["method"]["operations"] = [
+                    {k: e[k] for k in ("operation", "version", "definition", "target", "inputs", "method")}
+                    for e in self.applied_ops]
         elif name == "nest_sheets":
             self.recipe = {"method": self.recipe.get("method"), "nest": dict(checked)}
         elif name == "estimate_cost":
@@ -1475,9 +1528,12 @@ class DesignSession:
                 f"{len(m.faces)} faces")
 
     def _set_model(self, mesh: Mesh, name: str, keep_overrides: bool = False) -> None:
+        kept = self.applied_ops
         self._clear_all()
         if not keep_overrides:
             self.overrides = {}
+        else:
+            self.applied_ops = kept
         self.model, self.model_name = mesh, name
 
     def _t_create_shape(self, shape, width_mm=300, depth_mm=300, height_mm=300, segments=32):
@@ -1556,7 +1612,8 @@ class DesignSession:
         self.method, self.parts, self.parts3d = "waffle", PartsDoc(parts=r.parts), r.ribs3d
         self.board_thickness = thickness_mm
         self.method_summary = f"waffle, {x_ribs} X ribs and {y_ribs} Y ribs, {_mm(thickness_mm)} mm board"
-        return f"Waffle: {self._parts_text(r.parts)}" + self._after_method()
+        board = {"thickness": thickness_mm, "clearance": clearance_mm, "kerf": kerf_mm}
+        return f"Waffle: {self._parts_text(r.parts)}" + self._after_method(board)
 
     def _t_contour_stack(self, thickness_mm=3.0, axis="z", etch=True, kerf_mm=0.0):
         r = contour_stack(self._need_model(), ContourInput(thickness=thickness_mm, kerf=kerf_mm, etch=etch, axis=axis))
@@ -1564,7 +1621,8 @@ class DesignSession:
         self.method, self.parts, self.parts3d = "contour", PartsDoc(parts=r.parts), r.layers3d
         self.board_thickness = thickness_mm
         self.method_summary = f"contour stack, {len(r.parts)} layers of {_mm(thickness_mm)} mm board along {axis}"
-        return f"Contour stack: {self._parts_text(r.parts)}" + self._after_method()
+        board = {"thickness": thickness_mm, "clearance": 0.2, "kerf": kerf_mm}
+        return f"Contour stack: {self._parts_text(r.parts)}" + self._after_method(board)
 
     def _t_unfold(self, tab_width_mm=8.0, tab_angle_deg=45.0, flat_angle_deg=1.0, joint="glue_tab",
                   thickness_mm=3.0, clearance_mm=0.2, kerf_mm=0.0, edge_joints=None):
@@ -1579,6 +1637,7 @@ class DesignSession:
         self._clear_parts()
         self.method, self.parts = "unfold", PartsDoc(parts=r.parts)
         self.joint_counts = dict(r.joint_counts)
+        self.cut_edges = r.cut_edges
         if joint != "glue_tab" or per_edge:
             self.board_thickness = thickness_mm
         joints = self._joints_text(r)
@@ -1594,7 +1653,8 @@ class DesignSession:
             z = r.joint_sizes
             text += (f"Jigsaw teeth: neck {_mm(z['tooth_neck_mm'])} mm, head {_mm(z['tooth_head_mm'])} mm, depth "
                      f"{_mm(z['tooth_depth_mm'])} mm, sockets {_mm(clearance_mm)} mm wider once cut. ")
-        return text + self._parts_text(r.parts) + self._after_method()
+        board = {"thickness": thickness_mm, "clearance": clearance_mm, "kerf": kerf_mm}
+        return text + self._parts_text(r.parts) + self._after_method(board)
 
     @staticmethod
     def _joints_text(r) -> str:
@@ -1609,15 +1669,185 @@ class DesignSession:
                                                                  if kind == "lock_tab" else ""))
         return ", ".join(out)
 
-    def _after_method(self) -> str:
-        """Apply the Rhino hand edits that still fit to the parts a method just made."""
+    def _after_method(self, board: Optional[dict] = None) -> str:
+        """Apply the part operations, then the Rhino hand edits that still fit, to the parts a method just made."""
+        op_note = self._apply_operations(board or dict(ops.DEFAULT_BOARD))
         before = {k: o.status for k, o in self.overrides.items()}
         parts, self.generated, note = rhino_sync.apply_overrides(self.parts.parts, self.overrides)
         self.parts = PartsDoc(parts=parts)
         for k, o in self.overrides.items():
             if o.status != "applied" and before.get(k) != o.status:
                 self._notice(f"The Rhino hand edit of {k} no longer fits ({o.status}); the generated {k} is used.")
+        note = " ".join(x for x in (op_note, note) if x)
         return (" " + note) if note else ""
+
+    # ---- part operations (operations.py) -------------------------------------------
+    def _apply_operations(self, board: dict) -> str:
+        """Apply this object's part operations to the parts its method just made. Returns a note for Claude."""
+        if not self.applied_ops:
+            return ""
+        if any(e["method"] != self.method for e in self.applied_ops):
+            names = ", ".join(dict.fromkeys(e["operation"] for e in self.applied_ops))
+            self.applied_ops = []
+            return (f"The part operations ({names}) were made for another method, so they were taken off; "
+                    "apply them again if they still fit.")
+        parts, notes = list(self.parts.parts), []
+        for e in self.applied_ops:
+            try:
+                parts = ops.apply(e["definition"], parts, self._op_targets(e, parts), board, e["inputs"])
+                e["status"] = "applied"
+            except ops.OperationError as exc:
+                e["status"] = str(exc)
+                notes.append(f"Part operation {e['operation']} no longer fits and is not used: {exc}.")
+        self.parts = PartsDoc(parts=parts)
+        done = [e["operation"] for e in self.applied_ops if e["status"] == "applied"]
+        if done:
+            notes.insert(0, "Part operations applied: " + ", ".join(done) + ".")
+        return " ".join(notes)
+
+    def _op_targets(self, e: dict, parts) -> List[dict]:
+        op, target = e["definition"], e["target"]
+        by_id = {p.id: p for p in parts}
+        if op["target"] == "part":
+            pid = target.get("part")
+            if pid not in by_id:
+                raise ops.OperationError(f"There is no part {pid!r}. Parts: {', '.join(by_id)}")
+            return [{"name": pid, "part": pid}]
+        if target.get("part") is not None:
+            pid, seg = target["part"], target.get("segment")
+            if pid not in by_id:
+                raise ops.OperationError(f"There is no part {pid!r}. Parts: {', '.join(by_id)}")
+            loop = max(by_id[pid].cut, key=lambda q: abs(ops._area2(q)))
+            if ops._area2(loop) < 0:
+                loop = loop[::-1]
+            if not isinstance(seg, int) or not 0 <= seg < len(loop):
+                raise ops.OperationError(f"{pid}'s outline has segments 0 to {len(loop) - 1}; give segment")
+            return [{"name": f"{pid} segment {seg}", "main": (pid, loop[seg], loop[(seg + 1) % len(loop)]),
+                     "mate": None}]
+        if self.method != "unfold":
+            raise ops.OperationError("Edges by number come from unfold; on other parts give part and segment")
+        edges = {c["number"]: c for c in self.cut_edges}
+        if target.get("all_edges"):
+            numbers = [n for n, c in edges.items() if c["joint"] is None]
+            if not numbers:
+                raise ops.OperationError("Every cut edge already has a joint. Unfold with tab_width_mm 0, or "
+                                         "edge_joints {\"3\": \"none\"} for the edges to use")
+        else:
+            numbers = target.get("edges") or []
+        out = []
+        for n in numbers:
+            c = edges.get(n)
+            if c is None:
+                raise ops.OperationError(f"There is no cut edge {n}; the cut edges are numbered 1 to {len(edges)} "
+                                         "on the parts")
+            if c["joint"] is not None:
+                from .components.unfold import JOINT_NAMES
+
+                raise ops.OperationError(f"Edge {n} already has a {JOINT_NAMES[c['joint']]}. Unfold with "
+                                         f"edge_joints {{\"{n}\": \"none\"}} (or tab_width_mm 0) to leave it "
+                                         "plain for the operation")
+            (main, *rest) = c["sides"]
+            out.append({"name": f"edge {n}", "main": (main["part"], *map(tuple, main["edge"])),
+                        "mate": (rest[0]["part"], *map(tuple, rest[0]["edge"])) if rest else None})
+        return out
+
+    def _t_add_operation(self, operation, scope="project"):
+        op = self.operations.save_operation(operation, scope=scope, set_by="Claude")
+        where = "for all projects" if scope == "all" else "for this project"
+        params = ", ".join(f"{k} = {p['default']}" for k, p in op["params"].items()) or "no parameters"
+        return (f"Saved operation {op['key']} ({op['label']}, on {'edges' if op['target'] == 'edge' else 'parts'}), "
+                f"version {op['version']}, {where}. Its worked example checks out. Parameters: {params}. "
+                "Apply it with apply_operation.")
+
+    def _t_list_operations(self):
+        lines = []
+        for o in self.operations.all():
+            params = ", ".join(f"{k} ({p['unit'] or 'count'}, default {p['default']}"
+                               + (f", min {p['min']}" if "min" in p else "") + (f", max {p['max']}" if "max" in p else "")
+                               + ")" for k, p in o["params"].items())
+            lines.append(f"- {o['key']} ({o['label']}), on {o['target']}s, v{o['version']}, {o['source']}: "
+                         f"{o['description'] or ''} Parameters: {params or 'none'}")
+        applied = [f"{e['operation']} on {self._target_text(e['target'])}" for e in self.applied_ops]
+        return ("Part operations:\n" + "\n".join(lines)
+                + ("\nApplied to this design: " + "; ".join(applied) if applied else ""))
+
+    @staticmethod
+    def _target_text(target: dict) -> str:
+        if target.get("all_edges"):
+            return "every plain cut edge"
+        if target.get("edges"):
+            return "edge" + ("s " if len(target["edges"]) > 1 else " ") + ", ".join(map(str, target["edges"]))
+        if target.get("segment") is not None:
+            return f"{target['part']} segment {target['segment']}"
+        return str(target.get("part"))
+
+    def _snapshot(self) -> dict:
+        keep = sc.OBJECT_ATTRS + ("recipe", "nested", "last_estimate", "last_quote", "scene_doc", "cut_edges")
+        snap = {a: getattr(self, a) for a in keep}
+        snap["applied_ops"] = [dict(e) for e in self.applied_ops]
+        snap["overrides_status"] = {k: o.status for k, o in self.overrides.items()}
+        return snap
+
+    def _restore(self, snap: dict) -> None:
+        for k, v in snap.items():
+            if k == "overrides_status":
+                for pid, status in v.items():
+                    if pid in self.overrides:
+                        self.overrides[pid].status = status
+            else:
+                setattr(self, k, v)
+
+    def _t_apply_operation(self, operation, edges=None, all_edges=False, part=None, segment=None, inputs=None):
+        method = self.recipe.get("method")
+        if self.parts is None or not method:
+            raise ToolInputError("There are no parts yet: run waffle_slice, contour_stack or unfold first")
+        op = self.operations.get(operation)
+        if edges is not None and any(int(n) != n for n in edges):
+            raise ToolInputError("edges must be edge numbers, like [1, 3]")
+        if op["target"] == "edge":
+            if part is not None:
+                if segment is None:
+                    raise ToolInputError(f"{op['key']} goes on an edge: give edges (unfold edge numbers), "
+                                         "all_edges, or part and segment")
+                target = {"part": part, "segment": int(segment)}
+            elif all_edges:
+                target = {"all_edges": True}
+            elif edges:
+                target = {"edges": [int(n) for n in edges]}
+            else:
+                raise ToolInputError(f"{op['key']} goes on an edge: give edges (the numbers printed on both sides "
+                                     "of the cut), or all_edges")
+        else:
+            if not part or edges or all_edges or segment is not None:
+                raise ToolInputError(f"{op['key']} goes on a part: give part (e.g. N1 or X3)")
+            target = {"part": part}
+        entry = {"operation": op["key"], "version": op["version"], "definition": ops.definition(op),
+                 "target": target, "inputs": dict(inputs or {}), "method": self.method}
+        snap = self._snapshot()
+        self.applied_ops = [dict(e) for e in self.applied_ops] + [entry]
+        ok, err = self._run_recipe(dict(self.recipe))
+        if not ok or entry.get("status") != "applied":
+            reason = entry.get("status") or err
+            self._restore(snap)
+            raise ToolInputError(f"{op['key']} was not applied, and nothing changed: {reason}")
+        where = self._target_text(target)
+        if target.get("all_edges"):
+            where = f"{sum(1 for c in self.cut_edges if c['joint'] is None)} edges"
+        return (f"Applied {op['key']} (v{op['version']}) to {where}. It is part of the recipe: it is applied again "
+                f"whenever {method['tool']} runs (a new board thickness resizes it) and saved with the project. "
+                + self._parts_text(self.parts.parts))
+
+    def _t_undo_operation(self):
+        if not self.applied_ops:
+            raise ToolInputError("No part operations are applied to this design")
+        snap = self._snapshot()
+        last = self.applied_ops[-1]
+        self.applied_ops = [dict(e) for e in self.applied_ops[:-1]]
+        ok, err = self._run_recipe(dict(self.recipe))
+        if not ok:
+            self._restore(snap)
+            raise ToolInputError(f"The operation could not be taken off: {err}")
+        return f"Took {last['operation']} off {self._target_text(last['target'])}; the parts are as before it."
 
     def _t_clear_rhino_override(self, part):
         if part not in self.overrides:
@@ -1768,6 +1998,8 @@ class DesignSession:
             files["settings.json"] = self.settings.project_file_text()
         if self.formulas.project_formulas:
             files["formulas.json"] = self.formulas.project_file_text()
+        if self.operations.project_operations:
+            files[ops.OPERATIONS_FILE] = self.operations.project_file_text()
         for v in self.quote_versions:
             files[qv.quote_path(v["record"])] = v["text"]
             files[qv.quote_pdf_path(v["record"])] = qv.quote_pdf(v["record"])
@@ -1882,6 +2114,7 @@ class DesignSession:
         scratch = DesignSession(home=self.home)
         scratch.settings.load_project(directory)
         scratch.formulas.load_project(directory)
+        scratch.operations.load_project(directory)
         brief_path = os.path.join(directory, bf.BRIEF_FILE)
         if os.path.isfile(brief_path):
             try:
@@ -1906,6 +2139,7 @@ class DesignSession:
             method = recipe.get("method")
             if method is not None:
                 self._check_method(method)
+                scratch.applied_ops = self._read_applied(method)
                 steps.append((method["tool"], method.get("input", {})))
         if method is not None:
             for key, tname in (("nest", "nest_sheets"), ("estimate", "estimate_cost")):
@@ -1933,12 +2167,13 @@ class DesignSession:
             for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
                          "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
                          "generated", "scene_objects", "active", "scene_doc", "brief", "quote_versions", "invoices",
-                         "joint_counts"):
+                         "joint_counts", "cut_edges", "applied_ops"):
                 setattr(self, attr, getattr(scratch, attr))
             self.notes, self.notices = [], []
             self.settings.project_data = scratch.settings.project_data
             self.settings.concept_data = scratch.settings.concept_data
             self.formulas.project_formulas = scratch.formulas.project_formulas
+            self.operations.project_operations = scratch.operations.project_operations
             self.steps = []
             self._log_step("open_project", True, f"Opened project {name} from {directory}")
             self._bump()
@@ -1968,6 +2203,25 @@ class DesignSession:
         found = proj.outside_changes(directory, known)
         found["outside_changes"] = bool(found["changed"] or found["missing"] or found["conflicts"])
         return {"project": name, "folder": directory, **found}
+
+    @staticmethod
+    def _read_applied(method: dict) -> List[dict]:
+        """The part operations a saved method applies, each with its definition checked again."""
+        raw = method.get("operations") or []
+        if not isinstance(raw, list) or not all(isinstance(e, dict) for e in raw):
+            raise ProjectError(f"{proj.MANIFEST}: the method's operations must be a list of objects")
+        out = []
+        for e in raw:
+            try:
+                op = ops.validate_operation(e.get("definition"))
+            except ops.OperationError as exc:
+                raise ProjectError(f"{proj.MANIFEST}: part operation {e.get('operation')!r}: {exc}") from None
+            if not isinstance(e.get("target"), dict) or not isinstance(e.get("inputs", {}), dict):
+                raise ProjectError(f"{proj.MANIFEST}: part operation {op['key']} needs a target and inputs")
+            out.append({"operation": op["key"], "version": op["version"], "definition": ops.definition(op),
+                        "target": e["target"], "inputs": e.get("inputs") or {},
+                        "method": str(e.get("method") or method["tool"])})
+        return out
 
     @staticmethod
     def _check_method(method) -> None:
@@ -2020,6 +2274,7 @@ class DesignSession:
             method = o.get("method")
             if method is not None:
                 self._check_method(method)
+                scratch.applied_ops = self._read_applied(method)
                 try:
                     checked = _check_args(_TOOLS_BY_NAME[method["tool"]], method.get("input", {}))
                     getattr(scratch, "_t_" + method["tool"])(**checked)
