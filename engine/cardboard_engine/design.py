@@ -106,7 +106,7 @@ Keep replies short and plain. If a request is ambiguous in a way that changes th
 Numbers: you never calculate. Never do arithmetic yourself: no totals, sums, conversions, rough estimates or "about" figures. Every number that matters (sheets, machine time, costs, margin, GST, the quote total) is worked out by the engine from the settings and its formulas, and the app shows the quote in the Project tab. Repeat a number only exactly as a tool gave it, or point the designer to the Project tab; the app marks any amount or quantity in your reply that no tool gave as unverified.
 Prices, rates, margin and GST are settings, never tool inputs. When a tool says a setting is missing, call request_inputs with those keys, then stop and wait: the designer fills in a form in the chat and their answer arrives as their next message. You are told which values were set, not the numbers. Never guess a price. get_settings shows what is set and where each value comes from (Fold Theory defaults, the workflow, this project).
 When a quote needs a new kind of line (glue per joint, install crew hours, freight), add it with add_formula: an expression over settings and measurements, with a worked example the engine checks. Ask for any new value with request_inputs first (it can define a new field). Formulas use + - * / ^, min, max, round, ceil, floor, abs, if, sum and count, and units are checked.
-When a design needs a kind of cut the methods do not make (a lock tab for a skin, a hand hole, a cable notch, a slot), you can make the geometry tool yourself: add_operation saves a part operation, a JSON document built from the engine's profiles (rectangle, slot, circle, polyline, arc, barb, tooth), placed on an edge, at a point of a part or on the matching edge of the neighbouring part, and added, cut, scored or etched. Its sizes are expressions over the board (thickness, clearance, kerf) and the edge, with min and max, and it carries a worked example the engine checks. Then apply_operation applies it to unfold edges by number, or to a part; list_operations shows the built-in and saved ones (lock_tab and hand_hole are built in) and undo_operation takes the last one off. Applied operations are kept through re-runs (a new board thickness resizes them) and saved with the project. Ask the designer before adding one for all projects.
+When a design needs a kind of cut the methods do not make (a lock tab for a skin, a hand hole, a cable notch, a slot), you can make the geometry tool yourself: add_operation saves a part operation, a JSON document built from the engine's profiles (rectangle, slot, circle, polyline, arc, barb, tooth), placed on an edge, at a point of a part or on the matching edge of the neighbouring part, and added, cut, scored or etched. Its sizes are expressions over the board (thickness, clearance, kerf) and the edge, with min and max, and it carries a worked example the engine checks. Then apply_operation applies it to unfold edges by number, or to a part; list_operations shows the built-in and saved ones (lock_tab, rib_notch for a skin flap that drops over a rib end, slot_joint for crossing panels, and hand_hole are built in) and undo_operation takes the last one off. Applied operations are kept through re-runs (a new board thickness resizes them) and saved with the project. Ask the designer before adding one for all projects.
 The app's tabs are JSON views (list_views shows the block types and bindings). When the designer wants a new tab, table or form, build it with save_view; the engine rejects a view that uses an unknown block, binding or action and says why.
 To find out why something went wrong (Grasshopper, Rhino, a form, a view, a tool), call read_diagnostics and answer from what it shows.
 
@@ -306,7 +306,8 @@ TOOLS += [
         "Add or change a formula (a quote line or other worked-out number) over settings, measurements and "
         "other formulas, e.g. install_hours = ceil(parts / 40). Give a worked example: input values and the "
         "expected result, which the engine checks before saving. Measurements: sheets, parts, cut_length, "
-        "score_length, pierces, joints.count and joints.<type>.count (glue_tab, tuck_flap, lock_tab, jigsaw_edge). "
+        "score_length, pierces, joints.count and joints.<type>.count (glue_tab, tuck_flap, lock_tab, jigsaw_edge, "
+        "and each edge operation such as rib_notch or slot_joint). "
         "Only after the designer agrees.",
         {
             "key": {"type": "string", "description": "Lower-case key, e.g. install_hours"},
@@ -803,12 +804,18 @@ class DesignSession:
                  "print_area": "m2", "joints.count": "joint"}
         from .components.unfold import JOINTS
 
-        for kind in JOINTS:
+        for kind in self._joint_kinds():
             units[f"joints.{kind}.count"] = "joint"
         for key, d in self.settings.definitions().items():
             if d.type in ("number", "integer", "currency", "percent"):
                 units[key] = "%" if d.type == "percent" else d.unit
         return units
+
+    def _joint_kinds(self) -> List[str]:
+        """The unfold joints, then every edge operation (an applied edge operation is a joint)."""
+        from .components.unfold import JOINTS
+
+        return list(dict.fromkeys([*JOINTS, *(o["key"] for o in self.operations.all() if o["target"] == "edge")]))
 
     def _measure(self, doc: PartsDoc) -> Dict[str, Any]:
         per_part = [sum(_length(loop, True) for loop in p.cut) for p in doc.parts]
@@ -821,9 +828,10 @@ class DesignSession:
 
         states = [self._object_state(e) for e in self.scene_objects] if self.scene_objects else [
             {"joint_counts": self.joint_counts}]
-        for kind in JOINTS:
+        kinds = self._joint_kinds()
+        for kind in kinds:
             out[f"joints.{kind}.count"] = sum((st.get("joint_counts") or {}).get(kind, 0) for st in states)
-        out["joints.count"] = sum(out[f"joints.{kind}.count"] for kind in JOINTS)
+        out["joints.count"] = sum(out[f"joints.{kind}.count"] for kind in kinds)
         if self.nested:
             out["sheet_width"] = self.nested["sheet_width"]
             out["sheet_height"] = self.nested["sheet_height"]
@@ -1694,8 +1702,12 @@ class DesignSession:
         parts, notes = list(self.parts.parts), []
         for e in self.applied_ops:
             try:
-                parts = ops.apply(e["definition"], parts, self._op_targets(e, parts), board, e["inputs"])
+                targets = self._op_targets(e, parts)
+                parts = ops.apply(e["definition"], parts, targets, board, e["inputs"])
                 e["status"] = "applied"
+                if e["definition"]["target"] == "edge":
+                    self.joint_counts = {**self.joint_counts,
+                                         e["operation"]: self.joint_counts.get(e["operation"], 0) + len(targets)}
             except ops.OperationError as exc:
                 e["status"] = str(exc)
                 notes.append(f"Part operation {e['operation']} no longer fits and is not used: {exc}.")
