@@ -219,8 +219,13 @@ minimum and maximum. No code is ever run.
   reason, if the outline area or cut count doesn't come out as expected, if a
   slot is narrower than the board, if a cut splits a part, or if an outline
   crosses itself. Refusals go to Diagnostics.
-- `lock_tab` (a barbed flap with the slit that takes it in the next panel)
-  and `hand_hole` are built in. Operations Claude makes are kept for the
+- Built in: `lock_tab` (a barbed flap with the slit that takes it in the
+  next panel), `rib_notch` (a skin flap with a notch the width of a rib that
+  drops over the rib end, so the waffle holds the skin), `slot_joint` (a slot
+  of board thickness plus clearance cut in from an edge, for two panels that
+  cross) and `hand_hole`. An operation applied to an edge counts as a joint
+  in the quote: `joints.rib_notch.count`, `joints.slot_joint.count` and so
+  on, and in `joints.count`. Operations Claude makes are kept for the
   project (in `operations.json` in the project folder) or, if you agree, for
   all projects.
 - To use one on an unfolded model, unfold with no joints on those edges

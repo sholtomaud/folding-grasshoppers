@@ -704,6 +704,53 @@ BUILTIN_OPERATIONS: List[dict] = [_builtin(o) for o in (
                                "mate_area_mm2": 19903.36, "mate_cut_loops": 2}},
     },
     {
+        "key": "rib_notch",
+        "label": "Rib notch flap",
+        "description": "A flap on a skin edge with a notch the width of a rib that drops over the rib end, so the "
+                       "waffle holds the skin. Scored to fold.",
+        "target": "edge",
+        "params": {
+            "flap": {"unit": "mm", "default": "4 * thickness", "min": "2 * thickness",
+                     "description": "How far the flap reaches"},
+            "width": {"unit": "mm", "default": "10 * thickness", "min": "3 * thickness", "max": "edge_length",
+                      "description": "Flap width along the edge"},
+            "notch_depth": {"unit": "mm", "default": "2 * thickness", "min": "thickness", "max": "flap - thickness"},
+            "at": {"unit": "mm", "default": "edge_length / 2", "min": "width / 2", "max": "edge_length - width / 2",
+                   "description": "Where the rib meets the edge, from its start"},
+        },
+        "steps": [
+            {"combine": "add", "profile": {"shape": "rectangle", "width": "width", "height": "flap"},
+             "place": {"at": "at"}},
+            {"combine": "cut", "profile": {"shape": "slot", "length": "thickness + clearance - kerf",
+                                           "width": "notch_depth + 1"},
+             "place": {"at": "at", "offset": "notch_depth - flap"}},
+            {"combine": "score", "profile": {"shape": "polyline", "points": [["-width / 2", 0], ["width / 2", 0]]},
+             "place": {"at": "at"}},
+        ],
+        # 3 mm board: flap 12 x 30 (360) less a 3.2 x 6 notch (19.2).
+        "example": {"part": {"width": 200, "height": 100}, "board": {"thickness": 3, "clearance": 0.2, "kerf": 0},
+                    "expect": {"area_mm2": 20340.8, "cut_loops": 1, "score_count": 1}},
+    },
+    {
+        "key": "slot_joint",
+        "label": "Slot joint",
+        "description": "A slot of board thickness plus clearance cut in from an edge, so two panels can cross "
+                       "(each gets a slot half its depth).",
+        "target": "edge",
+        "params": {
+            "depth": {"unit": "mm", "default": "edge_length / 2", "min": "thickness", "max": "edge_length"},
+            "at": {"unit": "mm", "default": "edge_length / 2", "min": "thickness", "max": "edge_length - thickness",
+                   "description": "Where the other panel crosses, from the edge's start"},
+        },
+        "steps": [
+            {"combine": "cut", "profile": {"shape": "slot", "length": "thickness + clearance - kerf",
+                                           "width": "depth + 1"},
+             "place": {"at": "at", "side": "in", "offset": "-1"}},
+        ],
+        "example": {"part": {"width": 200, "height": 100}, "inputs": {"depth": 50},
+                    "expect": {"area_mm2": 19840, "cut_loops": 1}},
+    },
+    {
         "key": "hand_hole",
         "label": "Hand hole",
         "description": "A round hole through a part, for a hand or a cable.",
