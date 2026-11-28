@@ -303,6 +303,12 @@ install, packing and freight, design time, margin, GST and the total:
 A rate is only asked for when a line uses it: with no design hours set, the
 design rate is not needed and the line is 0.
 
+Formulas can also use the joints the design has: `joints.count` and
+`joints.lock_tab.count`, `joints.glue_tab.count`, `joints.tuck_flap.count`,
+`joints.jigsaw_edge.count` (scene objects add up). For example "lock tabs take
+half a minute each" becomes
+`round(joints.lock_tab.count * assembly_minutes_per_part * labour_rate, 2)`.
+
 **Issuing a quote and invoicing.** Say "issue the quote" and the engine
 freezes the current quote as the next version of the project's quote number,
 for example *Q-0007 v2*, with its validity date (quote valid for, 30 days by

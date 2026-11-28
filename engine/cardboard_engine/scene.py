@@ -21,7 +21,7 @@ from .components.parts import PartsDoc
 
 # The per-object attributes of DesignSession (everything else is scene-wide).
 OBJECT_ATTRS = ("model", "model_name", "method", "method_summary", "parts", "parts3d", "generated",
-                "board_thickness", "overrides")
+                "board_thickness", "overrides", "joint_counts")
 MAX_OBJECTS = 50
 MAX_NAME = 60
 _PREFIX = re.compile(r"^[A-Z][A-Z0-9]{0,5}$")
@@ -33,13 +33,14 @@ class SceneError(ValueError):
 
 def blank_state() -> Dict[str, Any]:
     return {"model": None, "model_name": None, "method": None, "method_summary": None, "parts": None,
-            "parts3d": {}, "generated": {}, "board_thickness": 0.0, "overrides": {}}
+            "parts3d": {}, "generated": {}, "board_thickness": 0.0, "overrides": {},
+            "joint_counts": {}}
 
 
 def copy_state(state: Dict[str, Any]) -> Dict[str, Any]:
     """A copy another object can own. Meshes and parts are never changed in place, so sharing them is safe."""
     out = dict(state)
-    for key in ("parts3d", "generated", "overrides"):
+    for key in ("parts3d", "generated", "overrides", "joint_counts"):
         out[key] = dict(state.get(key) or {})
     return out
 

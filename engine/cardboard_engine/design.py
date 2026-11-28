@@ -304,7 +304,8 @@ TOOLS += [
         "Add or change a formula (a quote line or other worked-out number) over settings, measurements and "
         "other formulas, e.g. install_hours = ceil(parts / 40). Give a worked example: input values and the "
         "expected result, which the engine checks before saving. Measurements: sheets, parts, cut_length, "
-        "score_length, pierces. Only after the designer agrees.",
+        "score_length, pierces, joints.count and joints.<type>.count (glue_tab, tuck_flap, lock_tab, jigsaw_edge). "
+        "Only after the designer agrees.",
         {
             "key": {"type": "string", "description": "Lower-case key, e.g. install_hours"},
             "label": {"type": "string", "description": "What the quote line says, e.g. \"Install crew hours\""},
@@ -652,6 +653,7 @@ class DesignSession:
         self.parts3d: Dict[str, list] = {}
         self.generated: Dict[str, Any] = {}  # the parts as the method made them, before hand edits
         self.board_thickness: float = 0.0
+        self.joint_counts: Dict[str, int] = {}  # unfold: joints made, by type
         self.nested: Optional[dict] = None
         self.last_estimate: Optional[dict] = None
         self.last_quote = None
@@ -749,7 +751,11 @@ class DesignSession:
         """Every name a formula can use (settings and measurements) and its unit."""
         units = {"sheets": "sheet", "parts": "count", "cut_length": "mm", "score_length": "mm",
                  "pierces": "count", "sheet_width": "mm", "sheet_height": "mm", "parts.cut_length": "mm",
-                 "print_area": "m2"}
+                 "print_area": "m2", "joints.count": "joint"}
+        from .components.unfold import JOINTS
+
+        for kind in JOINTS:
+            units[f"joints.{kind}.count"] = "joint"
         for key, d in self.settings.definitions().items():
             if d.type in ("number", "integer", "currency", "percent"):
                 units[key] = "%" if d.type == "percent" else d.unit
@@ -762,6 +768,13 @@ class DesignSession:
         sheets = self.nested["sheet_count"] if self.nested else 1
         out = {"sheets": sheets, "parts": len(doc.parts), "cut_length": sum(per_part), "score_length": score,
                "pierces": pierces, "parts.cut_length": per_part, "print_area": 0.0}  # print areas: Phase 3
+        from .components.unfold import JOINTS
+
+        states = [self._object_state(e) for e in self.scene_objects] if self.scene_objects else [
+            {"joint_counts": self.joint_counts}]
+        for kind in JOINTS:
+            out[f"joints.{kind}.count"] = sum((st.get("joint_counts") or {}).get(kind, 0) for st in states)
+        out["joints.count"] = sum(out[f"joints.{kind}.count"] for kind in JOINTS)
         if self.nested:
             out["sheet_width"] = self.nested["sheet_width"]
             out["sheet_height"] = self.nested["sheet_height"]
@@ -1565,6 +1578,7 @@ class DesignSession:
                                                   clearance=clearance_mm, kerf=kerf_mm, edge_joints=per_edge))
         self._clear_parts()
         self.method, self.parts = "unfold", PartsDoc(parts=r.parts)
+        self.joint_counts = dict(r.joint_counts)
         if joint != "glue_tab" or per_edge:
             self.board_thickness = thickness_mm
         joints = self._joints_text(r)
@@ -1918,7 +1932,8 @@ class DesignSession:
         with self._lock:
             for attr in ("model", "model_name", "method", "method_summary", "parts", "parts3d",
                          "board_thickness", "nested", "last_estimate", "last_quote", "recipe", "overrides",
-                         "generated", "scene_objects", "active", "scene_doc", "brief", "quote_versions", "invoices"):
+                         "generated", "scene_objects", "active", "scene_doc", "brief", "quote_versions", "invoices",
+                         "joint_counts"):
                 setattr(self, attr, getattr(scratch, attr))
             self.notes, self.notices = [], []
             self.settings.project_data = scratch.settings.project_data
