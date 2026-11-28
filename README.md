@@ -300,7 +300,7 @@ wins:
 | Fold Theory defaults (the rate card) | `~/Documents/Fold Theory/Settings/settings.json` | every project |
 | Workflow | the `"settings"` in `~/Documents/Fold Theory/Workflows/<name>.json` | jobs that use that workflow |
 | Project | `settings.json` in the project folder, e.g. `~/Documents/Fold Theory/Projects/Stool/settings.json` | this project only |
-| Concept | (comes with concepts, issue #46) | one concept |
+| Concept | in the project folder, with the concept (see Concepts below) | one concept |
 
 **Forms in the chat.** When a price is missing, the assistant asks with a
 form instead of guessing: "What does a sheet of 10 mm honeycomb cost?", with
@@ -455,22 +455,37 @@ multi-object Rhino layers.
 
 ### Save and open projects
 
-A **project** is a folder that holds everything about one design. Save one
-for each job, and one per concept when you want to show a client several
-options (for example `Acme Expo - Concept A`, `Acme Expo - Concept B`).
+A **project** is a folder that holds everything about one job. To show a
+client several options, keep them as **concepts** in the same project (see
+below).
 
 - **File > Save Project** (⌘S) the first time asks for a name, then saves
   into `~/Documents/Fold Theory/Projects/<name>/`. You can pick another
   folder in the dialog, as long as it is inside your home folder and empty.
   After that, ⌘S saves into the same folder again.
-- **File > Save Project As…** (⇧⌘S) saves a copy under a new name: the
-  quickest way to start Concept B from Concept A.
+- **File > Save Project As…** (⇧⌘S) saves a copy under a new name.
 - **File > Open Project…** (⌘O): choose the project folder (or the
   `project.json` inside it). The design, its parts, the sheets and the chat
   come back exactly as saved, and you can carry on talking to the assistant.
 - **File > Show Project in Finder** opens the folder.
-- You can also ask the assistant: "save this as Acme Expo - Concept A".
+- You can also ask the assistant: "save this as Acme Expo".
 - The window title shows the project's name.
+
+**Concepts.** Ask "make 3 concepts" (the assistant builds each one in a
+different construction style) or "start concept B as a copy of this". Each
+concept (A, B, C, D...) has its own design, parts, sheets and quote. The
+brief, settings and formulas belong to the project and are shared by all of
+them.
+
+- "Switch to concept B" makes it the one you are working on.
+- "Compare the concepts" lists each one side by side from the engine's
+  numbers: footprint, sheets, build hours, price and brief checks.
+- "Freeze concept A" keeps a copy of it, in the saved-project layout, in
+  `concepts/Concept-A/v1/`. A frozen version is never changed. Change the
+  concept and freeze again, and you get `v2`.
+- The project folder holds the active concept as usual. The others are in
+  `concepts/<name>/current/`, and opening the project brings back every
+  concept and version.
 
 What is in a project folder (example for a project called `Stool`):
 
